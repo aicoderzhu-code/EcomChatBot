@@ -1,0 +1,246 @@
+"""
+知识库管理服务
+"""
+from datetime import datetime
+
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.exceptions import ResourceNotFoundException
+from core.security import generate_tenant_id
+from models import KnowledgeBase
+
+
+class KnowledgeService:
+    """知识库管理服务"""
+
+    def __init__(self, db: AsyncSession, tenant_id: str):
+        self.db = db
+        self.tenant_id = tenant_id
+
+    async def create_knowledge(
+        self,
+        knowledge_type: str,
+        title: str,
+        content: str,
+        category: str | None = None,
+        tags: list[str] | None = None,
+        source: str | None = None,
+        priority: int = 0,
+    ) -> KnowledgeBase:
+        """创建知识条目"""
+        knowledge_id = f"kb_{self.tenant_id}_{int(datetime.utcnow().timestamp())}"
+
+        knowledge = KnowledgeBase(
+            tenant_id=self.tenant_id,
+            knowledge_id=knowledge_id,
+            knowledge_type=knowledge_type,
+            title=title,
+            content=content,
+            category=category,
+            tags=tags,
+            source=source,
+            priority=priority,
+            status="active",
+        )
+
+        self.db.add(knowledge)
+        await self.db.commit()
+        await self.db.refresh(knowledge)
+
+        # TODO: 生成向量并存储到 Milvus
+        # await self.generate_and_store_embedding(knowledge)
+
+        return knowledge
+
+    async def get_knowledge_by_ids(
+        self,
+        knowledge_ids: list[str],
+    ) -> list[KnowledgeBase]:
+        """
+        批量获取知识库项
+        
+        Args:
+            knowledge_ids: 知识库 ID 列表
+            
+        Returns:
+            知识库项列表
+        """
+        stmt = select(KnowledgeBase).where(
+            KnowledgeBase.tenant_id == self.tenant_id,
+            KnowledgeBase.knowledge_id.in_(knowledge_ids),
+        )
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_knowledge(self, knowledge_id: str) -> KnowledgeBase:
+        """获取知识条目"""
+        stmt = select(KnowledgeBase).where(
+            and_(
+                KnowledgeBase.tenant_id == self.tenant_id,
+                KnowledgeBase.knowledge_id == knowledge_id,
+            )
+        )
+        result = await self.db.execute(stmt)
+        knowledge = result.scalar_one_or_none()
+
+        if not knowledge:
+            raise ResourceNotFoundException("知识", knowledge_id)
+
+        return knowledge
+
+    async def list_knowledge(
+        self,
+        knowledge_type: str | None = None,
+        category: str | None = None,
+        keyword: str | None = None,
+        page: int = 1,
+        size: int = 20,
+    ) -> tuple[list[KnowledgeBase], int]:
+        """查询知识列表"""
+        conditions = [
+            KnowledgeBase.tenant_id == self.tenant_id,
+            KnowledgeBase.status == "active",
+        ]
+
+        if knowledge_type:
+            conditions.append(KnowledgeBase.knowledge_type == knowledge_type)
+        if category:
+            conditions.append(KnowledgeBase.category == category)
+        if keyword:
+            conditions.append(
+                or_(
+                    KnowledgeBase.title.ilike(f"%{keyword}%"),
+                    KnowledgeBase.content.ilike(f"%{keyword}%"),
+                )
+            )
+
+        # 查询总数
+        count_stmt = select(func.count(KnowledgeBase.id)).where(and_(*conditions))
+        total = await self.db.scalar(count_stmt)
+
+        # 分页查询
+        stmt = (
+            select(KnowledgeBase)
+            .where(and_(*conditions))
+            .order_by(KnowledgeBase.priority.desc(), KnowledgeBase.created_at.desc())
+            .offset((page - 1) * size)
+            .limit(size)
+        )
+
+        result = await self.db.execute(stmt)
+        knowledge_list = result.scalars().all()
+
+        return list(knowledge_list), total or 0
+
+    async def update_knowledge(
+        self,
+        knowledge_id: str,
+        title: str | None = None,
+        content: str | None = None,
+        category: str | None = None,
+        tags: list[str] | None = None,
+        priority: int | None = None,
+    ) -> KnowledgeBase:
+        """更新知识条目"""
+        knowledge = await self.get_knowledge(knowledge_id)
+
+        if title is not None:
+            knowledge.title = title
+        if content is not None:
+            knowledge.content = content
+        if category is not None:
+            knowledge.category = category
+        if tags is not None:
+            knowledge.tags = tags
+        if priority is not None:
+            knowledge.priority = priority
+
+        knowledge.version += 1
+
+        await self.db.commit()
+        await self.db.refresh(knowledge)
+
+        # TODO: 更新向量
+        # if title or content:
+        #     await self.update_embedding(knowledge)
+
+        return knowledge
+
+    async def delete_knowledge(self, knowledge_id: str) -> None:
+        """删除知识条目（软删除）"""
+        knowledge = await self.get_knowledge(knowledge_id)
+        knowledge.status = "inactive"
+        await self.db.commit()
+
+        # TODO: 从 Milvus 删除向量
+        # await self.delete_embedding(knowledge)
+
+    async def search_knowledge(
+        self,
+        query: str,
+        knowledge_type: str | None = None,
+        top_k: int = 5,
+    ) -> list[KnowledgeBase]:
+        """
+        搜索知识（简单关键词搜索）
+        
+        TODO: 使用 RAG 向量搜索替代
+        """
+        conditions = [
+            KnowledgeBase.tenant_id == self.tenant_id,
+            KnowledgeBase.status == "active",
+        ]
+
+        if knowledge_type:
+            conditions.append(KnowledgeBase.knowledge_type == knowledge_type)
+
+        # 简单的文本搜索
+        conditions.append(
+            or_(
+                KnowledgeBase.title.ilike(f"%{query}%"),
+                KnowledgeBase.content.ilike(f"%{query}%"),
+            )
+        )
+
+        stmt = (
+            select(KnowledgeBase)
+            .where(and_(*conditions))
+            .order_by(KnowledgeBase.priority.desc())
+            .limit(top_k)
+        )
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def increment_use_count(self, knowledge_id: str) -> None:
+        """增加使用次数"""
+        knowledge = await self.get_knowledge(knowledge_id)
+        knowledge.use_count += 1
+        knowledge.last_used_at = datetime.utcnow()
+        await self.db.commit()
+
+    async def batch_import(
+        self,
+        knowledge_items: list[dict],
+    ) -> dict:
+        """批量导入知识"""
+        results = {"success": [], "failed": []}
+
+        for item in knowledge_items:
+            try:
+                knowledge = await self.create_knowledge(
+                    knowledge_type=item["knowledge_type"],
+                    title=item["title"],
+                    content=item["content"],
+                    category=item.get("category"),
+                    tags=item.get("tags"),
+                    source=item.get("source"),
+                    priority=item.get("priority", 0),
+                )
+                results["success"].append(knowledge.knowledge_id)
+            except Exception as e:
+                results["failed"].append({"item": item, "error": str(e)})
+
+        return results

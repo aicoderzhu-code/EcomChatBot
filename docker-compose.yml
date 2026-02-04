@@ -1,0 +1,226 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:14-alpine
+    container_name: ecom-chatbot-postgres
+    environment:
+      POSTGRES_USER: ecom_user
+      POSTGRES_PASSWORD: ecom_password
+      POSTGRES_DB: ecom_chatbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecom_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecom-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: ecom-chatbot-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ecom-network
+
+  # Milvus Standalone
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: ecom-chatbot-milvus-etcd
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ecom-network
+
+  milvus-minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: ecom-chatbot-milvus-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ecom-network
+
+  milvus:
+    image: milvusdb/milvus:v2.3.3
+    container_name: ecom-chatbot-milvus
+    depends_on:
+      - milvus-etcd
+      - milvus-minio
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+    volumes:
+      - milvus_data:/var/lib/milvus
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ecom-network
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ecom-chatbot-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    networks:
+      - ecom-network
+
+  # 数据库初始化服务（只运行一次）
+  db-init:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecom-chatbot-db-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ecom_user:ecom_password@postgres:5432/ecom_chatbot
+      REDIS_URL: redis://redis:6379/0
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ecom_user
+      POSTGRES_PASSWORD: ecom_password
+      POSTGRES_DB: ecom_chatbot
+      RUN_INIT_DB: "true"
+      RUN_MIGRATIONS: "false"
+    command: python init_db.py
+    networks:
+      - ecom-network
+    restart: "no"
+
+  # FastAPI 应用
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecom-chatbot-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ecom_user:ecom_password@postgres:5432/ecom_chatbot
+      REDIS_URL: redis://redis:6379/0
+      MILVUS_HOST: milvus
+      MILVUS_PORT: 19530
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ecom_user
+      POSTGRES_PASSWORD: ecom_password
+      POSTGRES_DB: ecom_chatbot
+      RUN_INIT_DB: "false"
+      RUN_MIGRATIONS: "false"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    networks:
+      - ecom-network
+    restart: unless-stopped
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecom-chatbot-celery-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ecom_user:ecom_password@postgres:5432/ecom_chatbot
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ecom_user
+      POSTGRES_PASSWORD: ecom_password
+      POSTGRES_DB: ecom_chatbot
+      RUN_INIT_DB: "false"
+      RUN_MIGRATIONS: "false"
+    command: celery -A tasks.celery_app worker --loglevel=info
+    networks:
+      - ecom-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  etcd_data:
+  minio_data:
+  milvus_data:
+  rabbitmq_data:
+
+networks:
+  ecom-network:
+    driver: bridge

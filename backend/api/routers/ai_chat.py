@@ -1,0 +1,228 @@
+"""
+AI 智能对话 API 路由 - 集成 LangChain
+"""
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from api.dependencies import DBDep, TenantDep
+from schemas import ApiResponse
+from services import ConversationChainService, simple_chat
+from services.knowledge_service import KnowledgeService
+
+router = APIRouter(prefix="/ai-chat", tags=["AI 智能对话"])
+
+
+class ChatRequest(BaseModel):
+    """对话请求"""
+
+    conversation_id: str
+    message: str
+    use_rag: bool = False  # 是否使用 RAG
+    rag_top_k: int = 3  # RAG 检索数量
+
+
+class ChatResponse(BaseModel):
+    """对话响应"""
+
+    response: str
+    conversation_id: str
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    model: str
+    used_rag: bool = False
+    sources: list[dict] | None = None
+
+
+@router.post("/chat", response_model=ApiResponse[ChatResponse])
+async def ai_chat(
+    request: ChatRequest,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    AI 智能对话接口
+    
+    支持：
+    - 基于 LangChain 的对话
+    - 自动记忆管理
+    - RAG 知识库检索
+    """
+    try:
+        knowledge_items = None
+
+        # 如果使用 RAG，先检索知识库
+        if request.use_rag:
+            knowledge_service = KnowledgeService(db, tenant_id)
+            knowledge_list = await knowledge_service.search_knowledge(
+                query=request.message,
+                top_k=request.rag_top_k,
+            )
+
+            # 转换为字典格式
+            knowledge_items = [
+                {
+                    "knowledge_id": k.knowledge_id,
+                    "title": k.title,
+                    "content": k.content,
+                    "category": k.category,
+                    "source": k.source,
+                }
+                for k in knowledge_list
+            ]
+
+        # 调用对话服务
+        result = await simple_chat(
+            db=db,
+            tenant_id=tenant_id,
+            conversation_id=request.conversation_id,
+            user_input=request.message,
+            use_rag=request.use_rag,
+            knowledge_items=knowledge_items,
+        )
+
+        # 构建响应
+        response_data = ChatResponse(
+            response=result["response"],
+            conversation_id=request.conversation_id,
+            input_tokens=result["input_tokens"],
+            output_tokens=result["output_tokens"],
+            total_tokens=result["total_tokens"],
+            model=result["model"],
+            used_rag=request.use_rag,
+            sources=result.get("sources"),
+        )
+
+        return ApiResponse(data=response_data)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"对话失败: {str(e)}")
+
+
+@router.post("/classify-intent", response_model=ApiResponse[dict])
+async def classify_intent(
+    conversation_id: str,
+    message: str,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    意图分类接口
+    
+    识别用户消息的意图类别
+    """
+    try:
+        chain = ConversationChainService(
+            db=db,
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+        )
+
+        intent = await chain.classify_intent(message)
+
+        return ApiResponse(
+            data={
+                "intent": intent,
+                "message": message,
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"意图识别失败: {str(e)}")
+
+
+@router.post("/extract-entities", response_model=ApiResponse[dict])
+async def extract_entities(
+    conversation_id: str,
+    message: str,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    实体提取接口
+    
+    从用户消息中提取关键实体（订单号、商品名等）
+    """
+    try:
+        chain = ConversationChainService(
+            db=db,
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+        )
+
+        entities = await chain.extract_entities(message)
+
+        return ApiResponse(
+            data={
+                "entities": entities,
+                "message": message,
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"实体提取失败: {str(e)}")
+
+
+@router.get("/conversation/{conversation_id}/summary", response_model=ApiResponse[dict])
+async def get_conversation_summary(
+    conversation_id: str,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    获取对话摘要
+    
+    返回当前对话的简要摘要
+    """
+    try:
+        chain = ConversationChainService(
+            db=db,
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+        )
+
+        await chain.initialize()
+
+        summary = chain.get_conversation_summary()
+        stats = chain.get_stats()
+
+        return ApiResponse(
+            data={
+                "summary": summary,
+                "stats": stats,
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取摘要失败: {str(e)}")
+
+
+@router.delete("/conversation/{conversation_id}/memory", response_model=ApiResponse[dict])
+async def clear_conversation_memory(
+    conversation_id: str,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    清空对话记忆
+    
+    清除指定对话的上下文记忆
+    """
+    try:
+        chain = ConversationChainService(
+            db=db,
+            tenant_id=tenant_id,
+            conversation_id=conversation_id,
+        )
+
+        chain.clear_context()
+
+        return ApiResponse(
+            data={
+                "message": "对话记忆已清空",
+                "conversation_id": conversation_id,
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清空记忆失败: {str(e)}")
