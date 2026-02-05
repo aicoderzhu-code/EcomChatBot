@@ -92,7 +92,7 @@ async def get_tenant_info(
     """获取租户信息（支持API Key认证）"""
     service = TenantService(db)
     tenant = await service.get_tenant(tenant_id)
-    return ApiResponse(data=tenant)
+    return ApiResponse(data=TenantResponse.model_validate(tenant))
 
 
 @router.get("/info-token", response_model=ApiResponse[TenantResponse])
@@ -103,7 +103,7 @@ async def get_tenant_info_token(
     """获取租户信息（支持JWT Token认证）"""
     service = TenantService(db)
     tenant = await service.get_tenant(tenant_id)
-    return ApiResponse(data=tenant)
+    return ApiResponse(data=TenantResponse.model_validate(tenant))
 
 
 @router.get("/subscription", response_model=ApiResponse[SubscriptionResponse])

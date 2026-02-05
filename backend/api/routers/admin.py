@@ -48,12 +48,13 @@ async def admin_login(
         role=admin.role,
     )
 
-    response = AdminLoginResponse(
-        access_token=token,
-        token_type="bearer",
-        expires_in=28800,  # 8小时
-        admin=admin,
-    )
+    # 使用 model_validate 序列化 ORM 对象
+    response = AdminLoginResponse.model_validate({
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": 28800,  # 8小时
+        "admin": AdminResponse.model_validate(admin)
+    })
 
     return ApiResponse(data=response)
 
