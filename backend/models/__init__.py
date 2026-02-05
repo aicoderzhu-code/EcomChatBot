@@ -5,6 +5,7 @@ from models.admin import Admin, AdminOperationLog, PermissionTemplate
 from models.base import BaseModel, TenantBaseModel
 from models.conversation import Conversation, Message, User
 from models.knowledge import KnowledgeBase, KnowledgeUsageLog
+from models.model_config import ModelConfig, LLMProvider
 from models.payment import (
     OrderStatus,
     PaymentChannel,
@@ -17,7 +18,7 @@ from models.payment import (
     TransactionType,
 )
 from models.tenant import Bill, Subscription, Tenant, UsageRecord
-from models.webhook import WebhookConfig, WebhookEventType, WebhookLog
+from models.webhook import WebhookConfig, WebhookLog, WebhookEventType
 
 __all__ = [
     # Base
@@ -39,6 +40,9 @@ __all__ = [
     # Knowledge
     "KnowledgeBase",
     "KnowledgeUsageLog",
+    # Model Config
+    "ModelConfig",
+    "LLMProvider",
     # Payment
     "PaymentOrder",
     "PaymentTransaction",

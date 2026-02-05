@@ -31,12 +31,11 @@ class LLMService:
     def _initialize_llm(self) -> ChatOpenAI:
         """
         初始化 LLM 实例
-        
+
         Returns:
-            ChatOpenAI 实例
+            ChatOpenAI 实例（兼容OpenAI API格式的提供商）
         """
-        # TODO: 根据租户配置选择不同的 LLM 提供商
-        # 目前默认使用 OpenAI
+        # 使用ChatOpenAI，兼容OpenAI API格式（包括智谱AI等）
         return ChatOpenAI(
             model=self.model_name,
             temperature=0.7,

@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routers import admin, ai_chat, auth, conversation, intent, knowledge, payment, rag, tenant, webhook, websocket
+from api.routers import admin, ai_chat, auth, conversation, intent, knowledge, payment, rag, tenant, websocket, monitor, quality, webhook, model_config
 from core import AppException, settings
 from db import close_db, close_redis, init_db
 
@@ -34,8 +34,9 @@ app = FastAPI(
     version=settings.app_version,
     description="电商智能客服 SaaS 平台 API",
     lifespan=lifespan,
-    docs_url="/docs" if settings.debug else None,
+    docs_url=None,  # 禁用默认的 docs，使用自定义的
     redoc_url="/redoc" if settings.debug else None,
+    swagger_ui_parameters={"defaultModelsExpandDepth": -1},
 )
 
 # CORS 中间件
@@ -121,6 +122,41 @@ async def root():
     }
 
 
+# 自定义 Swagger UI 使用国内 CDN
+if settings.debug:
+    from fastapi.responses import HTMLResponse
+
+    @app.get("/docs", include_in_schema=False)
+    async def custom_swagger_ui_html():
+        """自定义 Swagger UI 使用国内 CDN"""
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <link type="text/css" rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css">
+        <link rel="shortcut icon" href="https://fastapi.tiangolo.com/img/favicon.png">
+        <title>{settings.app_name} - Swagger UI</title>
+        </head>
+        <body>
+        <div id="swagger-ui">
+        </div>
+        <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
+        <script>
+        const ui = SwaggerUIBundle({{
+            url: '/openapi.json',
+            dom_id: "#swagger-ui",
+            layout: "BaseLayout",
+            deepLinking: true,
+            showExtensions: true,
+            persistAuthorization: true,
+        }});
+        </script>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
+
+
 # 注册路由
 app.include_router(admin.router, prefix=settings.api_v1_prefix)
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
@@ -132,7 +168,10 @@ app.include_router(ai_chat.router, prefix=settings.api_v1_prefix)
 app.include_router(websocket.router, prefix=settings.api_v1_prefix)
 app.include_router(intent.router, prefix=settings.api_v1_prefix)
 app.include_router(rag.router, prefix=settings.api_v1_prefix)
+app.include_router(monitor.router, prefix=settings.api_v1_prefix)
+app.include_router(quality.router, prefix=settings.api_v1_prefix)
 app.include_router(webhook.router, prefix=settings.api_v1_prefix)
+app.include_router(model_config.router, prefix=settings.api_v1_prefix)
 
 
 if __name__ == "__main__":

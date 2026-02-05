@@ -2,8 +2,9 @@
 租户相关 Schema
 """
 from datetime import datetime
+import json
 
-from pydantic import EmailStr, Field
+from pydantic import EmailStr, Field, field_validator
 
 from schemas.base import BaseSchema, TimestampSchema
 
@@ -98,6 +99,14 @@ class SubscriptionResponse(SubscriptionBase, TimestampSchema):
     start_date: datetime
     expire_at: datetime
     is_trial: bool
+
+    @field_validator('enabled_features', mode='before')
+    @classmethod
+    def parse_enabled_features(cls, v):
+        """将JSON字符串转换为list"""
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
 
 
 # ============ 用量记录 Schema ============

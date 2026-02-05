@@ -3,6 +3,7 @@ Celery 应用实例
 """
 import logging
 from celery import Celery
+from celery.schedules import crontab
 from core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,16 @@ celery_app.conf.beat_schedule = {
     "sync-order-status": {
         "task": "tasks.billing_tasks.sync_pending_orders",
         "schedule": 3600.0,  # 每小时执行一次
+    },
+    # 每天凌晨1点检查即将过期的订阅
+    "check-expiring-subscriptions": {
+        "task": "tasks.billing_tasks.check_expiring_subscriptions",
+        "schedule": 3600.0 * 24,  # 每天执行一次
+    },
+    # 每月1号凌晨3点生成月度账单
+    "generate-monthly-bills": {
+        "task": "tasks.billing_tasks.generate_monthly_bills",
+        "schedule": crontab(hour=3, day_of_month=1),  # 每月1号3点
     },
     # 每5分钟重试失败的 Webhook
     "retry-failed-webhooks": {

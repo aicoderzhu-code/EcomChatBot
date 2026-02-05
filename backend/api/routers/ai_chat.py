@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.dependencies import DBDep, TenantDep
+from api.middleware import ConversationQuotaDep
 from schemas import ApiResponse
 from services import ConversationChainService, simple_chat
 from services.knowledge_service import KnowledgeService
@@ -37,12 +38,14 @@ class ChatResponse(BaseModel):
 @router.post("/chat", response_model=ApiResponse[ChatResponse])
 async def ai_chat(
     request: ChatRequest,
-    tenant_id: TenantDep,
+    tenant_id: ConversationQuotaDep,  # 检查对话次数配额
     db: DBDep,
 ):
     """
     AI 智能对话接口
-    
+
+    ⚠️ 会检查对话次数配额
+
     支持：
     - 基于 LangChain 的对话
     - 自动记忆管理

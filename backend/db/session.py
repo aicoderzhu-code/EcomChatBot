@@ -70,6 +70,20 @@ async def close_db() -> None:
     await engine.dispose()
 
 
+def get_async_session():
+    """
+    获取异步会话（用于Celery等非Web场景）
+
+    Returns:
+        AsyncSessionLocal上下文管理器
+
+    用法:
+        async with get_async_session() as db:
+            result = await db.execute(stmt)
+    """
+    return AsyncSessionLocal()
+
+
 # ============ 同步会话（用于 Celery 任务） ============
 
 # 将异步数据库 URL 转换为同步 URL

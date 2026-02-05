@@ -6,6 +6,7 @@ from services.audit_service import AuditService
 from services.billing_service import BillingService
 from services.conversation_chain_service import ConversationChainService, simple_chat
 from services.conversation_service import ConversationService
+from services.dialog_graph_service import DialogGraphService
 from services.embedding_service import EmbeddingService
 from services.intent_service import IntentService, IntentType
 from services.knowledge_service import KnowledgeService
@@ -31,6 +32,9 @@ __all__ = [
     "UsageService",
     "BillingService",
     "ConversationService",
+    "ConversationChainService",
+    "DialogGraphService",
+    "simple_chat",
     "KnowledgeService",
     "RAGService",
     "IntentService",
@@ -43,8 +47,6 @@ __all__ = [
     "MemoryService",
     "MemoryManager",
     "memory_manager",
-    "ConversationChainService",
-    "simple_chat",
     # WebSocket
     "ConnectionManager",
     "connection_manager",

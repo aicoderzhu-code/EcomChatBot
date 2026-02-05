@@ -1,327 +1,327 @@
 """
-Webhook 管理服务
+Webhook管理服务
 """
 import hashlib
 import hmac
 import json
-import logging
-import secrets
-import time
+import uuid
 from datetime import datetime
-
+from typing import Any
 import httpx
-from sqlalchemy import and_, func, select
+
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core import ResourceNotFoundException
-from models.webhook import WebhookConfig, WebhookLog
-from schemas.webhook import WebhookConfigCreate, WebhookConfigUpdate
-
-logger = logging.getLogger(__name__)
+from models.webhook import WebhookConfig, WebhookLog, WebhookEventType
+from core.exceptions import AppException
 
 
 class WebhookService:
-    """Webhook 管理服务"""
+    """Webhook管理服务"""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, tenant_id: str | None = None):
         self.db = db
+        self.tenant_id = tenant_id
 
     async def create_webhook(
         self,
-        tenant_id: str,
-        webhook_data: WebhookConfigCreate,
+        name: str,
+        endpoint_url: str,
+        events: list[str],
+        secret: str | None = None
     ) -> WebhookConfig:
-        """创建 Webhook 配置"""
-        # 生成签名密钥（如果未提供）
-        secret = webhook_data.secret or secrets.token_urlsafe(32)
+        """
+        创建Webhook配置
 
-        # 处理自定义请求头
-        headers_json = None
-        if webhook_data.headers:
-            headers_json = json.dumps(webhook_data.headers)
+        Args:
+            name: 配置名称
+            endpoint_url: Webhook URL
+            events: 监听的事件列表
+            secret: 签名密钥（可选）
+
+        Returns:
+            WebhookConfig
+        """
+        # 验证事件类型
+        valid_events = [e.value for e in WebhookEventType]
+        for event in events:
+            if event not in valid_events:
+                raise AppException(f"无效的事件类型: {event}")
+
+        # 如果没有提供secret，自动生成
+        if not secret:
+            import secrets
+            secret = secrets.token_urlsafe(32)
 
         webhook = WebhookConfig(
-            tenant_id=tenant_id,
-            name=webhook_data.name,
-            description=webhook_data.description,
-            url=str(webhook_data.url),
-            event_type=webhook_data.event_type,
+            tenant_id=self.tenant_id,
+            name=name,
+            endpoint_url=endpoint_url,
+            events=events,
             secret=secret,
-            headers=headers_json,
-            timeout=webhook_data.timeout,
-            retry_count=webhook_data.retry_count,
-            retry_interval=webhook_data.retry_interval,
-            status="active",
-            failure_count=0,
+            is_active=True
         )
+
         self.db.add(webhook)
         await self.db.commit()
         await self.db.refresh(webhook)
 
         return webhook
 
-    async def get_webhook(
-        self,
-        webhook_id: int,
-        tenant_id: str,
-    ) -> WebhookConfig:
-        """获取 Webhook 配置"""
+    async def get_webhook(self, webhook_id: int) -> WebhookConfig:
+        """获取Webhook配置"""
         stmt = select(WebhookConfig).where(
-            WebhookConfig.id == webhook_id,
-            WebhookConfig.tenant_id == tenant_id,
+            and_(
+                WebhookConfig.id == webhook_id,
+                WebhookConfig.tenant_id == self.tenant_id
+            )
         )
         result = await self.db.execute(stmt)
         webhook = result.scalar_one_or_none()
 
         if not webhook:
-            raise ResourceNotFoundException("Webhook", str(webhook_id))
+            raise AppException("Webhook配置不存在")
 
         return webhook
 
-    async def list_webhooks(
-        self,
-        tenant_id: str,
-        page: int = 1,
-        size: int = 20,
-        event_type: str | None = None,
-        status: str | None = None,
-    ) -> tuple[list[WebhookConfig], int]:
-        """列表查询 Webhook 配置"""
-        # 构建查询条件
-        conditions = [WebhookConfig.tenant_id == tenant_id]
-        if event_type:
-            conditions.append(WebhookConfig.event_type == event_type)
-        if status:
-            conditions.append(WebhookConfig.status == status)
-
-        # 查询总数
-        count_stmt = select(func.count(WebhookConfig.id)).where(and_(*conditions))
-        total = await self.db.scalar(count_stmt)
-
-        # 分页查询
-        stmt = (
-            select(WebhookConfig)
-            .where(and_(*conditions))
-            .order_by(WebhookConfig.created_at.desc())
-            .offset((page - 1) * size)
-            .limit(size)
+    async def list_webhooks(self) -> list[WebhookConfig]:
+        """列出所有Webhook配置"""
+        stmt = select(WebhookConfig).where(
+            WebhookConfig.tenant_id == self.tenant_id
         )
         result = await self.db.execute(stmt)
-        webhooks = result.scalars().all()
-
-        return list(webhooks), total or 0
+        return result.scalars().all()
 
     async def update_webhook(
         self,
         webhook_id: int,
-        tenant_id: str,
-        webhook_data: WebhookConfigUpdate,
+        name: str | None = None,
+        endpoint_url: str | None = None,
+        events: list[str] | None = None,
+        is_active: bool | None = None
     ) -> WebhookConfig:
-        """更新 Webhook 配置"""
-        webhook = await self.get_webhook(webhook_id, tenant_id)
+        """更新Webhook配置"""
+        webhook = await self.get_webhook(webhook_id)
 
-        # 更新字段
-        update_data = webhook_data.model_dump(exclude_unset=True)
-
-        # 处理 URL
-        if "url" in update_data and update_data["url"]:
-            update_data["url"] = str(update_data["url"])
-
-        # 处理自定义请求头
-        if "headers" in update_data:
-            if update_data["headers"]:
-                update_data["headers"] = json.dumps(update_data["headers"])
-            else:
-                update_data["headers"] = None
-
-        for field, value in update_data.items():
-            setattr(webhook, field, value)
-
-        # 如果从 inactive 切换到 active，重置失败计数
-        if webhook_data.status == "active":
-            webhook.failure_count = 0
+        if name is not None:
+            webhook.name = name
+        if endpoint_url is not None:
+            webhook.endpoint_url = endpoint_url
+        if events is not None:
+            # 验证事件类型
+            valid_events = [e.value for e in WebhookEventType]
+            for event in events:
+                if event not in valid_events:
+                    raise AppException(f"无效的事件类型: {event}")
+            webhook.events = events
+        if is_active is not None:
+            webhook.is_active = is_active
 
         await self.db.commit()
         await self.db.refresh(webhook)
 
         return webhook
 
-    async def delete_webhook(
-        self,
-        webhook_id: int,
-        tenant_id: str,
-    ) -> None:
-        """删除 Webhook 配置"""
-        webhook = await self.get_webhook(webhook_id, tenant_id)
+    async def delete_webhook(self, webhook_id: int) -> bool:
+        """删除Webhook配置"""
+        webhook = await self.get_webhook(webhook_id)
         await self.db.delete(webhook)
         await self.db.commit()
-
-    async def test_webhook(
-        self,
-        webhook_id: int,
-        tenant_id: str,
-        test_payload: dict | None = None,
-    ) -> dict:
-        """测试 Webhook 推送"""
-        webhook = await self.get_webhook(webhook_id, tenant_id)
-
-        # 构造测试负载
-        payload = test_payload or {
-            "event_id": f"test_{secrets.token_hex(8)}",
-            "event_type": webhook.event_type,
-            "tenant_id": tenant_id,
-            "timestamp": datetime.utcnow().isoformat(),
-            "data": {
-                "test": True,
-                "message": "This is a test webhook",
-            },
-        }
-
-        # 构造请求头
-        headers = {
-            "Content-Type": "application/json",
-            "User-Agent": "EcomChatBot-Webhook/1.0",
-            "X-Webhook-Event": webhook.event_type,
-            "X-Webhook-Timestamp": str(int(time.time())),
-        }
-
-        # 添加签名
-        if webhook.secret:
-            payload_str = json.dumps(payload, sort_keys=True)
-            signature = hmac.new(
-                webhook.secret.encode(),
-                payload_str.encode(),
-                hashlib.sha256,
-            ).hexdigest()
-            headers["X-Webhook-Signature"] = f"sha256={signature}"
-
-        # 添加自定义请求头
-        if webhook.headers:
-            custom_headers = json.loads(webhook.headers)
-            headers.update(custom_headers)
-
-        # 发送请求
-        start_time = time.time()
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    webhook.url,
-                    json=payload,
-                    headers=headers,
-                    timeout=webhook.timeout,
-                )
-
-            duration_ms = int((time.time() - start_time) * 1000)
-
-            return {
-                "success": 200 <= response.status_code < 300,
-                "status_code": response.status_code,
-                "response_time_ms": duration_ms,
-                "response_body": response.text[:1000] if response.text else None,
-                "error_message": None,
-            }
-
-        except httpx.TimeoutException:
-            return {
-                "success": False,
-                "status_code": None,
-                "response_time_ms": int((time.time() - start_time) * 1000),
-                "response_body": None,
-                "error_message": "请求超时",
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "status_code": None,
-                "response_time_ms": int((time.time() - start_time) * 1000),
-                "response_body": None,
-                "error_message": str(e),
-            }
+        return True
 
     async def get_webhook_logs(
         self,
-        webhook_id: int,
-        tenant_id: str,
-        page: int = 1,
-        size: int = 20,
-        status: str | None = None,
-    ) -> tuple[list[WebhookLog], int]:
-        """获取 Webhook 日志"""
-        # 验证 Webhook 存在
-        await self.get_webhook(webhook_id, tenant_id)
+        webhook_id: int | None = None,
+        limit: int = 50
+    ) -> list[WebhookLog]:
+        """获取Webhook日志"""
+        conditions = [WebhookLog.tenant_id == self.tenant_id]
 
-        # 构建查询条件
-        conditions = [
-            WebhookLog.webhook_config_id == webhook_id,
-            WebhookLog.tenant_id == tenant_id,
-        ]
-        if status:
-            conditions.append(WebhookLog.status == status)
+        if webhook_id:
+            conditions.append(WebhookLog.webhook_config_id == webhook_id)
 
-        # 查询总数
-        count_stmt = select(func.count(WebhookLog.id)).where(and_(*conditions))
-        total = await self.db.scalar(count_stmt)
-
-        # 分页查询
-        stmt = (
-            select(WebhookLog)
-            .where(and_(*conditions))
-            .order_by(WebhookLog.created_at.desc())
-            .offset((page - 1) * size)
-            .limit(size)
-        )
-        result = await self.db.execute(stmt)
-        logs = result.scalars().all()
-
-        return list(logs), total or 0
-
-    async def get_webhook_log_detail(
-        self,
-        log_id: int,
-        tenant_id: str,
-    ) -> WebhookLog:
-        """获取 Webhook 日志详情"""
         stmt = select(WebhookLog).where(
-            WebhookLog.id == log_id,
-            WebhookLog.tenant_id == tenant_id,
-        )
-        result = await self.db.execute(stmt)
-        log = result.scalar_one_or_none()
+            *conditions
+        ).order_by(WebhookLog.created_at.desc()).limit(limit)
 
-        if not log:
-            raise ResourceNotFoundException("WebhookLog", str(log_id))
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
+
+    def generate_signature(self, payload: dict, secret: str) -> str:
+        """
+        生成Webhook签名
+
+        Args:
+            payload: 请求payload
+            secret: 密钥
+
+        Returns:
+            签名字符串
+        """
+        # 将payload转换为JSON字符串
+        payload_str = json.dumps(payload, sort_keys=True)
+
+        # 使用HMAC-SHA256生成签名
+        signature = hmac.new(
+            secret.encode(),
+            payload_str.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        return signature
+
+    async def send_webhook(
+        self,
+        webhook: WebhookConfig,
+        event_type: str,
+        event_data: dict
+    ) -> WebhookLog:
+        """
+        发送Webhook请求
+
+        Args:
+            webhook: Webhook配置
+            event_type: 事件类型
+            event_data: 事件数据
+
+        Returns:
+            WebhookLog
+        """
+        # 生成事件ID
+        event_id = str(uuid.uuid4())
+
+        # 构建payload
+        payload = {
+            "id": event_id,
+            "event": event_type,
+            "timestamp": datetime.utcnow().isoformat(),
+            "data": event_data
+        }
+
+        # 创建日志记录
+        log = WebhookLog(
+            tenant_id=self.tenant_id,
+            webhook_config_id=webhook.id,
+            event_type=event_type,
+            event_id=event_id,
+            request_payload=payload,
+            status="pending",
+            retry_count=0
+        )
+
+        try:
+            # 生成签名
+            if webhook.secret:
+                signature = self.generate_signature(payload, webhook.secret)
+                headers = {
+                    "X-Webhook-Signature": signature,
+                    "X-Webhook-Timestamp": payload["timestamp"],
+                    "X-Webhook-Event": event_type,
+                    "Content-Type": "application/json"
+                }
+            else:
+                headers = {
+                    "Content-Type": "application/json"
+                }
+
+            # 发送HTTP请求
+            start_time = datetime.utcnow()
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    webhook.endpoint_url,
+                    json=payload,
+                    headers=headers
+                )
+
+            end_time = datetime.utcnow()
+            duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
+            # 更新日志
+            log.response_status = response.status_code
+            log.response_body = response.text[:1000]  # 限制长度
+            log.status = "success" if response.status_code < 400 else "failed"
+            log.processed_at = end_time
+            log.duration_ms = duration_ms
+
+            # 更新webhook统计
+            webhook.total_calls += 1
+            webhook.last_called_at = end_time
+            webhook.last_status = log.status
+
+            if log.status == "success":
+                webhook.success_calls += 1
+            else:
+                webhook.failed_calls += 1
+
+        except Exception as e:
+            log.status = "failed"
+            log.error_message = str(e)
+            log.processed_at = datetime.utcnow()
+
+            webhook.total_calls += 1
+            webhook.failed_calls += 1
+            webhook.last_called_at = log.processed_at
+            webhook.last_status = "failed"
+
+        self.db.add(log)
+        await self.db.commit()
 
         return log
 
-    async def update_webhook_status(
+    async def trigger_event(
         self,
-        webhook_id: int,
-        success: bool,
-    ) -> None:
+        event_type: str,
+        event_data: dict
+    ) -> list[WebhookLog]:
         """
-        更新 Webhook 状态（内部使用）
+        触发事件，发送到所有匹配的Webhook
 
-        根据发送结果更新失败计数和最后触发时间
+        Args:
+            event_type: 事件类型
+            event_data: 事件数据
+
+        Returns:
+            发送结果列表
         """
-        stmt = select(WebhookConfig).where(WebhookConfig.id == webhook_id)
+        # 查询所有激活的webhook配置
+        stmt = select(WebhookConfig).where(
+            and_(
+                WebhookConfig.tenant_id == self.tenant_id,
+                WebhookConfig.is_active == True,
+                WebhookConfig.events.contains([event_type])  # JSON包含查询
+            )
+        )
         result = await self.db.execute(stmt)
-        webhook = result.scalar_one_or_none()
+        webhooks = result.scalars().all()
 
-        if not webhook:
-            return
+        logs = []
+        for webhook in webhooks:
+            try:
+                log = await self.send_webhook(webhook, event_type, event_data)
+                logs.append(log)
+            except Exception as e:
+                # 记录失败但继续处理其他webhook
+                continue
 
-        webhook.last_triggered_at = datetime.utcnow()
+        return logs
 
-        if success:
-            webhook.failure_count = 0
-            webhook.last_success_at = datetime.utcnow()
-        else:
-            webhook.failure_count += 1
-            # 连续失败 10 次后自动禁用
-            if webhook.failure_count >= 10:
-                webhook.status = "failed"
-                logger.warning(
-                    f"Webhook {webhook_id} disabled due to consecutive failures"
-                )
+    async def verify_webhook_signature(
+        self,
+        payload: dict,
+        signature: str,
+        secret: str
+    ) -> bool:
+        """
+        验证Webhook签名
 
-        await self.db.commit()
+        Args:
+            payload: 请求payload
+            signature: 请求头中的签名
+            secret: webhook密钥
+
+        Returns:
+            是否验证通过
+        """
+        expected_signature = self.generate_signature(payload, secret)
+        return hmac.compare_digest(expected_signature, signature)

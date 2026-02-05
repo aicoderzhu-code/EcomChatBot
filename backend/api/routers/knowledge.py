@@ -4,6 +4,7 @@
 from fastapi import APIRouter, Query
 
 from api.dependencies import DBDep, TenantDep
+from api.middleware import StorageQuotaDep
 from schemas import (
     ApiResponse,
     KnowledgeBaseCreate,
@@ -24,10 +25,14 @@ router = APIRouter(prefix="/knowledge", tags=["知识库管理"])
 @router.post("/create", response_model=ApiResponse[KnowledgeBaseResponse])
 async def create_knowledge(
     knowledge_data: KnowledgeBaseCreate,
-    tenant_id: TenantDep,
+    tenant_id: StorageQuotaDep,  # 检查存储配额
     db: DBDep,
 ):
-    """创建知识条目"""
+    """
+    创建知识条目
+
+    ⚠️ 会检查存储空间配额
+    """
     service = KnowledgeService(db, tenant_id)
     knowledge = await service.create_knowledge(
         knowledge_type=knowledge_data.knowledge_type,

@@ -2,6 +2,7 @@
 租户管理服务
 """
 from datetime import datetime, timedelta
+import json
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +37,96 @@ class TenantService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def register_tenant(
+        self,
+        register_data: TenantRegisterRequest,
+    ) -> tuple[str, str]:
+        """
+        租户自助注册
+
+        Returns:
+            (tenant_id, api_key): 租户ID和API密钥（明文，仅此一次）
+        """
+        # 检查邮箱是否已存在
+        existing = await self.get_tenant_by_email(register_data.contact_email)
+        if existing:
+            raise DuplicateResourceException("租户", "邮箱", register_data.contact_email)
+
+        # 生成租户ID和API Key
+        tenant_id = generate_tenant_id()
+        api_key = generate_api_key()
+        api_key_hash = hash_api_key(api_key)
+        password_hash = hash_password(register_data.password)
+
+        # 计算套餐过期时间
+        plan_expire_at = datetime.utcnow() + timedelta(days=365)  # 免费套餐1年有效期
+
+        # 创建租户（默认免费套餐）
+        tenant = Tenant(
+            tenant_id=tenant_id,
+            company_name=register_data.company_name,
+            contact_name=register_data.contact_name,
+            contact_email=register_data.contact_email,
+            contact_phone=register_data.contact_phone,
+            password_hash=password_hash,
+            api_key_hash=api_key_hash,
+            status="active",
+            current_plan="free",
+            plan_expire_at=plan_expire_at,  # 设置套餐过期时间
+        )
+        self.db.add(tenant)
+
+        # 创建免费订阅
+        plan_config = PLAN_CONFIGS["free"]
+        subscription = Subscription(
+            tenant_id=tenant_id,
+            plan_type="free",
+            status="active",
+            enabled_features=json.dumps([f.value for f in plan_config["features"]]),  # 转换为JSON字符串
+            conversation_quota=plan_config["conversation_quota"],
+            concurrent_quota=plan_config["concurrent_quota"],
+            storage_quota=plan_config["storage_quota"],
+            api_quota=plan_config["api_quota"],
+            start_date=datetime.utcnow(),
+            expire_at=datetime.utcnow() + timedelta(days=365),  # 免费套餐1年有效期
+            auto_renew=False,
+            is_trial=True,
+        )
+        self.db.add(subscription)
+
+        await self.db.commit()
+        await self.db.refresh(tenant)
+
+        return tenant_id, api_key
+
+    async def authenticate_tenant(
+        self,
+        email: str,
+        password: str,
+    ) -> str:
+        """
+        租户登录认证
+
+        Returns:
+            tenant_id: 租户ID
+
+        Raises:
+            AuthenticationException: 认证失败
+        """
+        # 根据邮箱获取租户
+        tenant = await self.get_tenant_by_email(email)
+        if not tenant:
+            raise AuthenticationException("邮箱或密码错误")
+
+        # 验证密码
+        if not verify_password(password, tenant.password_hash):
+            raise AuthenticationException("邮箱或密码错误")
+
+        # 检查租户状态
+        await self.check_tenant_access(tenant.tenant_id)
+
+        return tenant.tenant_id
+
     async def create_tenant(
         self,
         tenant_data: TenantCreate,
@@ -56,6 +147,9 @@ class TenantService:
         tenant_id = generate_tenant_id()
         api_key = generate_api_key()
         api_key_hash = hash_api_key(api_key)
+        # 为管理员创建的租户生成默认密码
+        default_password = generate_api_key()  # 使用API Key格式作为临时密码
+        password_hash = hash_password(default_password)
 
         # 创建租户
         tenant = Tenant(
@@ -64,6 +158,7 @@ class TenantService:
             contact_name=tenant_data.contact_name,
             contact_email=tenant_data.contact_email,
             contact_phone=tenant_data.contact_phone,
+            password_hash=password_hash,
             api_key_hash=api_key_hash,
             status="active",
             current_plan=tenant_data.initial_plan,
@@ -76,7 +171,7 @@ class TenantService:
             tenant_id=tenant_id,
             plan_type=tenant_data.initial_plan,
             status="active",
-            enabled_features=plan_config["features"],
+            enabled_features=json.dumps([f.value for f in plan_config["features"]]),  # 转换为JSON字符串
             conversation_quota=plan_config["conversation_quota"],
             concurrent_quota=plan_config["concurrent_quota"],
             storage_quota=plan_config["storage_quota"],

@@ -4,6 +4,7 @@
 from fastapi import APIRouter, Query
 
 from api.dependencies import DBDep, TenantDep
+from api.middleware import ConcurrentQuotaDep, ConversationQuotaDep
 from schemas import (
     ApiResponse,
     ConversationCreate,
@@ -22,10 +23,18 @@ router = APIRouter(prefix="/conversation", tags=["对话管理"])
 @router.post("/create", response_model=ApiResponse[ConversationResponse])
 async def create_conversation(
     conversation_data: ConversationCreate,
-    tenant_id: TenantDep,
+    tenant_id: ConcurrentQuotaDep,  # 检查并发会话配额
     db: DBDep,
 ):
-    """创建会话"""
+    """
+    创建会话
+
+    - **user_id**: 用户ID
+    - **channel**: 渠道(web/app等)
+    - **metadata**: 元数据(可选)
+
+    ⚠️ 会检查并发会话数配额
+    """
     service = ConversationService(db, tenant_id)
     conversation = await service.create_conversation(
         user_external_id=conversation_data.user_id,

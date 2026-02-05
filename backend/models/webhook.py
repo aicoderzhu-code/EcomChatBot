@@ -1,117 +1,118 @@
 """
-Webhook 模型
+Webhook相关数据模型
 """
 from datetime import datetime
 from enum import Enum
-
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Boolean, Integer, Text, ForeignKey, Index, JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.base import TenantBaseModel
 
 
 class WebhookEventType(str, Enum):
-    """Webhook 事件类型"""
-
-    # 会话事件
-    CONVERSATION_CREATED = "conversation.created"
-    CONVERSATION_CLOSED = "conversation.closed"
+    """Webhook事件类型"""
+    # 对话事件
+    CONVERSATION_STARTED = "conversation.started"
+    CONVERSATION_ENDED = "conversation.ended"
+    CONVERSATION_TRANSFERRED = "conversation.transferred"
 
     # 消息事件
     MESSAGE_RECEIVED = "message.received"
     MESSAGE_SENT = "message.sent"
 
-    # 用户事件
-    USER_CREATED = "user.created"
-
-    # 订阅事件
-    SUBSCRIPTION_CREATED = "subscription.created"
-    SUBSCRIPTION_UPDATED = "subscription.updated"
-    SUBSCRIPTION_EXPIRED = "subscription.expired"
+    # 满意度事件
+    SATISFACTION_RATED = "satisfaction.rated"
 
     # 配额事件
     QUOTA_WARNING = "quota.warning"
     QUOTA_EXCEEDED = "quota.exceeded"
 
+    # 订阅事件
+    SUBSCRIPTION_CREATED = "subscription.created"
+    SUBSCRIPTION_RENEWED = "subscription.renewed"
+    SUBSCRIPTION_EXPIRED = "subscription.expired"
+    SUBSCRIPTION_CANCELLED = "subscription.cancelled"
+
+    # 支付事件
+    PAYMENT_SUCCESS = "payment.success"
+    PAYMENT_FAILED = "payment.failed"
+    PAYMENT_REFUNDED = "payment.refunded"
+
 
 class WebhookConfig(TenantBaseModel):
-    """Webhook 配置表"""
-
+    """Webhook配置表"""
     __tablename__ = "webhook_configs"
     __table_args__ = (
         Index("idx_webhook_tenant", "tenant_id"),
-        Index("idx_webhook_event_type", "event_type"),
-        Index("idx_webhook_status", "status"),
+        Index("idx_webhook_status", "is_active"),
         {"comment": "Webhook配置表"},
     )
 
-    # 基本信息
-    name: Mapped[str] = mapped_column(String(128), nullable=False, comment="名称")
-    description: Mapped[str | None] = mapped_column(Text, comment="描述")
-    url: Mapped[str] = mapped_column(String(512), nullable=False, comment="Webhook URL")
+    # 配置信息
+    name: Mapped[str] = mapped_column(
+        String(128), nullable=False, comment="配置名称"
+    )
+    endpoint_url: Mapped[str] = mapped_column(
+        String(512), nullable=False, comment="Webhook URL"
+    )
 
-    # 事件类型
-    event_type: Mapped[str] = mapped_column(
-        String(64), nullable=False, comment="事件类型"
+    # 事件过滤
+    events: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, comment="监听的事件列表"
     )
 
     # 安全配置
     secret: Mapped[str | None] = mapped_column(
-        String(255), comment="签名密钥（用于验证请求）"
-    )
-
-    # 请求配置
-    headers: Mapped[str | None] = mapped_column(
-        Text, comment="自定义请求头（JSON格式）"
-    )
-    timeout: Mapped[int] = mapped_column(
-        Integer, default=30, comment="请求超时时间（秒）"
-    )
-    retry_count: Mapped[int] = mapped_column(
-        Integer, default=3, comment="重试次数"
-    )
-    retry_interval: Mapped[int] = mapped_column(
-        Integer, default=60, comment="重试间隔（秒）"
+        String(128), comment="Webhook密钥（用于签名验证）"
     )
 
     # 状态
-    status: Mapped[str] = mapped_column(
-        String(16),
-        default="active",
-        comment="状态(active/inactive/failed)",
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, comment="是否激活"
     )
-    failure_count: Mapped[int] = mapped_column(
-        Integer, default=0, comment="连续失败次数"
+
+    # 统计信息
+    total_calls: Mapped[int] = mapped_column(
+        Integer, default=0, comment="总调用次数"
     )
-    last_triggered_at: Mapped[datetime | None] = mapped_column(
-        DateTime, comment="最后触发时间"
+    success_calls: Mapped[int] = mapped_column(
+        Integer, default=0, comment="成功次数"
     )
-    last_success_at: Mapped[datetime | None] = mapped_column(
-        DateTime, comment="最后成功时间"
+    failed_calls: Mapped[int] = mapped_column(
+        Integer, default=0, comment="失败次数"
+    )
+
+    # 最后调用信息
+    last_called_at: Mapped[datetime | None] = mapped_column(
+        comment="最后调用时间"
+    )
+    last_status: Mapped[str | None] = mapped_column(
+        String(32), comment="最后调用状态(success/failed)"
+    )
+
+    # 关联关系
+    logs: Mapped[list["WebhookLog"]] = relationship(
+        "WebhookLog", back_populates="config", lazy="selectin"
     )
 
     def __repr__(self) -> str:
-        return f"<WebhookConfig {self.name} ({self.event_type})>"
+        return f"<WebhookConfig {self.name}>"
 
 
 class WebhookLog(TenantBaseModel):
-    """Webhook 发送日志表"""
-
+    """Webhook调用日志表"""
     __tablename__ = "webhook_logs"
     __table_args__ = (
         Index("idx_webhook_log_config", "webhook_config_id"),
         Index("idx_webhook_log_tenant", "tenant_id"),
-        Index("idx_webhook_log_status", "status"),
+        Index("idx_webhook_log_event", "event_type"),
         Index("idx_webhook_log_created", "created_at"),
-        {"comment": "Webhook发送日志表"},
+        {"comment": "Webhook调用日志表"},
     )
 
     # 关联配置
     webhook_config_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("webhook_configs.id", ondelete="CASCADE"),
-        nullable=False,
-        comment="Webhook配置ID",
+        Integer, ForeignKey("webhook_configs.id"), nullable=False, comment="Webhook配置ID"
     )
 
     # 事件信息
@@ -119,45 +120,45 @@ class WebhookLog(TenantBaseModel):
         String(64), nullable=False, comment="事件类型"
     )
     event_id: Mapped[str] = mapped_column(
-        String(64), nullable=False, comment="事件唯一ID"
+        String(64), nullable=False, comment="事件ID"
     )
 
     # 请求信息
-    request_url: Mapped[str] = mapped_column(
-        String(512), nullable=False, comment="请求URL"
+    request_payload: Mapped[dict] = mapped_column(
+        JSON, nullable=False, comment="请求Payload"
     )
-    request_headers: Mapped[str | None] = mapped_column(
-        Text, comment="请求头（JSON格式）"
-    )
-    request_body: Mapped[str | None] = mapped_column(Text, comment="请求体")
-
-    # 响应信息
     response_status: Mapped[int | None] = mapped_column(
-        Integer, comment="响应状态码"
+        Integer, comment="HTTP状态码"
     )
-    response_headers: Mapped[str | None] = mapped_column(
-        Text, comment="响应头（JSON格式）"
+    response_body: Mapped[str | None] = mapped_column(
+        Text, comment="响应内容"
     )
-    response_body: Mapped[str | None] = mapped_column(Text, comment="响应体")
 
-    # 执行信息
+    # 状态
     status: Mapped[str] = mapped_column(
-        String(16),
-        default="pending",
-        comment="状态(pending/success/failed/retrying)",
+        String(32), nullable=False, comment="状态(success/failed/pending)"
     )
-    attempt_count: Mapped[int] = mapped_column(
-        Integer, default=1, comment="尝试次数"
+    retry_count: Mapped[int] = mapped_column(
+        Integer, default=0, comment="重试次数"
     )
-    error_message: Mapped[str | None] = mapped_column(Text, comment="错误信息")
 
-    # 耗时
-    duration_ms: Mapped[int | None] = mapped_column(Integer, comment="请求耗时（毫秒）")
+    # 错误信息
+    error_message: Mapped[str | None] = mapped_column(
+        Text, comment="错误信息"
+    )
 
-    # 下次重试时间
-    next_retry_at: Mapped[datetime | None] = mapped_column(
-        DateTime, comment="下次重试时间"
+    # 时间信息
+    processed_at: Mapped[datetime | None] = mapped_column(
+        comment="处理完成时间"
+    )
+    duration_ms: Mapped[int | None] = mapped_column(
+        Integer, comment="处理耗时（毫秒）"
+    )
+
+    # 关联关系
+    config: Mapped["WebhookConfig"] = relationship(
+        "WebhookConfig", back_populates="logs"
     )
 
     def __repr__(self) -> str:
-        return f"<WebhookLog {self.event_id} ({self.status})>"
+        return f"<WebhookLog {self.event_type}>"

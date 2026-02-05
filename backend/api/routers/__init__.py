@@ -1,7 +1,7 @@
 """
 API 路由模块
 """
-from api.routers import admin, ai_chat, auth, conversation, intent, knowledge, payment, rag, tenant, webhook, websocket
+from api.routers import admin, ai_chat, auth, conversation, intent, knowledge, payment, rag, tenant, websocket, monitor, quality, webhook, model_config
 
 __all__ = [
     "admin",
@@ -14,5 +14,8 @@ __all__ = [
     "websocket",
     "intent",
     "rag",
+    "monitor",
+    "quality",
     "webhook",
+    "model_config",
 ]

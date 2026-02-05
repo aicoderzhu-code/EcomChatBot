@@ -33,6 +33,9 @@ class Tenant(BaseModel):
     contact_phone: Mapped[str | None] = mapped_column(String(20), comment="联系电话")
 
     # 认证信息
+    password_hash: Mapped[str] = mapped_column(
+        String(255), nullable=False, comment="密码哈希(用于登录)"
+    )
     api_key_hash: Mapped[str] = mapped_column(
         String(255), nullable=False, comment="API密钥(加密存储)"
     )

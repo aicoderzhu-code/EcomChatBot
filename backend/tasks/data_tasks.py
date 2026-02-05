@@ -5,7 +5,12 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
+from sqlalchemy import select, and_, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from tasks.celery_app import celery_app
+from db import get_async_session
+from models.conversation import Conversation, Message
 
 logger = logging.getLogger(__name__)
 
@@ -18,25 +23,63 @@ def cleanup_expired_data() -> Dict[str, Any]:
     Returns:
         清理结果
     """
-    try:
-        logger.info("开始清理过期数据")
+    async def _cleanup():
+        try:
+            logger.info("开始清理过期数据")
 
-        # TODO: 实现清理逻辑
-        # 1. 清理过期的会话记录
-        # 2. 清理过期的临时文件
-        # 3. 清理过期的缓存数据
+            # 清理90天前的已关闭对话
+            cutoff_date = datetime.utcnow() - timedelta(days=90)
 
-        return {
-            "success": True,
-            "cleaned_items": 0,
-            "message": "过期数据清理完成",
-        }
-    except Exception as e:
-        logger.error(f"清理过期数据失败: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-        }
+            cleaned_items = 0
+
+            async with get_async_session() as db:
+                # 1. 查询过期的已关闭对话
+                stmt = select(Conversation.id).where(
+                    and_(
+                        Conversation.status == "closed",
+                        Conversation.end_time < cutoff_date
+                    )
+                )
+                result = await db.execute(stmt)
+                expired_conv_ids = result.scalars().all()
+
+                if expired_conv_ids:
+                    # 2. 删除相关消息
+                    msg_delete_stmt = delete(Message).where(
+                        Message.conversation_id.in_(expired_conv_ids)
+                    )
+                    msg_result = await db.execute(msg_delete_stmt)
+                    deleted_messages = msg_result.rowcount
+
+                    # 3. 删除对话
+                    conv_delete_stmt = delete(Conversation).where(
+                        Conversation.id.in_(expired_conv_ids)
+                    )
+                    conv_result = await db.execute(conv_delete_stmt)
+                    deleted_conversations = conv_result.rowcount
+
+                    await db.commit()
+
+                    cleaned_items = deleted_conversations + deleted_messages
+                    logger.info(f"清理过期数据: 删除{deleted_conversations}个对话, {deleted_messages}条消息")
+
+                return {
+                    "success": True,
+                    "cleaned_items": cleaned_items,
+                    "deleted_conversations": len(expired_conv_ids) if expired_conv_ids else 0,
+                    "cutoff_date": cutoff_date.isoformat(),
+                    "message": f"过期数据清理完成，共清理{cleaned_items}条记录",
+                }
+
+        except Exception as e:
+            logger.error(f"清理过期数据失败: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    import asyncio
+    return asyncio.run(_cleanup())
 
 
 @celery_app.task
