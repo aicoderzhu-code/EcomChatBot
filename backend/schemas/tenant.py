@@ -182,6 +182,35 @@ class TenantLoginResponse(BaseSchema):
     """租户登录响应"""
 
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     expires_in: int
     tenant_id: str
+
+
+# ============ Token 刷新 ============
+class TokenRefreshRequest(BaseSchema):
+    """刷新 Token 请求"""
+
+    refresh_token: str = Field(..., description="刷新 Token")
+
+
+class TokenRefreshResponse(BaseSchema):
+    """刷新 Token 响应"""
+
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+# ============ 登出 ============
+class TenantLogoutRequest(BaseSchema):
+    """登出请求"""
+
+    refresh_token: str | None = Field(None, description="刷新 Token（可选）")
+
+
+class TenantLogoutResponse(BaseSchema):
+    """登出响应"""
+
+    message: str = "登出成功"

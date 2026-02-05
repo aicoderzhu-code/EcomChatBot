@@ -20,6 +20,8 @@ from services.rag_service import RAGService
 from services.subscription_service import SubscriptionService
 from services.tenant_service import TenantService
 from services.usage_service import UsageService
+from services.webhook_service import WebhookService
+from services.webhook import WebhookPublisher
 
 __all__ = [
     "AdminService",
@@ -48,4 +50,7 @@ __all__ = [
     # WebSocket
     "ConnectionManager",
     "connection_manager",
+    # Webhook
+    "WebhookService",
+    "WebhookPublisher",
 ]

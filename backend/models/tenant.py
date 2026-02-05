@@ -41,6 +41,14 @@ class Tenant(BaseModel):
     )
     api_key_salt: Mapped[str | None] = mapped_column(String(64), comment="API密钥盐值")
 
+    # 密码认证信息
+    password_hash: Mapped[str | None] = mapped_column(String(255), comment="密码哈希")
+    refresh_token_hash: Mapped[str | None] = mapped_column(String(255), comment="刷新Token哈希")
+    login_attempts: Mapped[int] = mapped_column(Integer, default=0, comment="登录失败次数")
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, comment="锁定截止时间")
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, comment="最后登录时间")
+    last_login_ip: Mapped[str | None] = mapped_column(String(64), comment="最后登录IP")
+
     # 状态信息
     status: Mapped[str] = mapped_column(
         String(16),

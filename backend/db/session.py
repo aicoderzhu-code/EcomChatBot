@@ -2,14 +2,16 @@
 数据库会话管理
 """
 from collections.abc import AsyncGenerator
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Generator
 
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import NullPool
 
 from core.config import settings
@@ -80,3 +82,51 @@ def get_async_session():
             result = await db.execute(stmt)
     """
     return AsyncSessionLocal()
+
+
+# ============ 同步会话（用于 Celery 任务） ============
+
+# 将异步数据库 URL 转换为同步 URL
+_sync_database_url = settings.database_url_str.replace(
+    "postgresql+asyncpg://", "postgresql://"
+).replace(
+    "mysql+aiomysql://", "mysql+pymysql://"
+)
+
+# 创建同步引擎
+sync_engine = create_engine(
+    _sync_database_url,
+    echo=settings.database_echo,
+    pool_size=settings.database_pool_size,
+    max_overflow=settings.database_max_overflow,
+    pool_pre_ping=True,
+)
+
+# 创建同步会话工厂
+SyncSessionLocal = sessionmaker(
+    bind=sync_engine,
+    class_=Session,
+    expire_on_commit=False,
+    autocommit=False,
+    autoflush=False,
+)
+
+
+@contextmanager
+def get_sync_session() -> Generator[Session, None, None]:
+    """
+    获取同步数据库会话（用于 Celery 任务）
+
+    用法:
+        with get_sync_session() as db:
+            db.query(...)
+    """
+    session = SyncSessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

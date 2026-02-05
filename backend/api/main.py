@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routers import admin, ai_chat, conversation, intent, knowledge, payment, rag, tenant, websocket, monitor, quality, webhook, model_config
+from api.routers import admin, ai_chat, auth, conversation, intent, knowledge, payment, rag, tenant, websocket, monitor, quality, webhook, model_config
 from core import AppException, settings
 from db import close_db, close_redis, init_db
 
@@ -159,6 +159,7 @@ if settings.debug:
 
 # 注册路由
 app.include_router(admin.router, prefix=settings.api_v1_prefix)
+app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(tenant.router, prefix=settings.api_v1_prefix)
 app.include_router(conversation.router, prefix=settings.api_v1_prefix)
 app.include_router(knowledge.router, prefix=settings.api_v1_prefix)
