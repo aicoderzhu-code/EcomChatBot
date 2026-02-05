@@ -73,15 +73,10 @@ from schemas.tenant import (
     UsageRecordResponse,
 )
 from schemas.webhook import (
-    EventTypeInfo,
-    WebhookConfigCreate,
-    WebhookConfigResponse,
-    WebhookConfigUpdate,
-    WebhookEventTypesResponse,
-    WebhookLogDetailResponse,
+    WebhookCreateRequest,
+    WebhookUpdateRequest,
+    WebhookResponse,
     WebhookLogResponse,
-    WebhookTestRequest,
-    WebhookTestResponse,
 )
 
 __all__ = [
@@ -156,13 +151,8 @@ __all__ = [
     "RefundResponse",
     "PaymentChannelConfigResponse",
     # Webhook
-    "WebhookConfigCreate",
-    "WebhookConfigUpdate",
-    "WebhookConfigResponse",
+    "WebhookCreateRequest",
+    "WebhookUpdateRequest",
+    "WebhookResponse",
     "WebhookLogResponse",
-    "WebhookLogDetailResponse",
-    "WebhookTestRequest",
-    "WebhookTestResponse",
-    "EventTypeInfo",
-    "WebhookEventTypesResponse",
 ]
