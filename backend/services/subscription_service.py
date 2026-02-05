@@ -1,6 +1,7 @@
 """
 订阅管理服务
 """
+import json
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
@@ -60,7 +61,7 @@ class SubscriptionService:
         subscription.is_trial = False
 
         # 根据套餐设置配额
-        subscription.enabled_features = plan_config["features"]
+        subscription.enabled_features = json.dumps([f.value for f in plan_config["features"]])  # 转换为JSON字符串
         subscription.conversation_quota = plan_config["conversation_quota"]
         subscription.concurrent_quota = plan_config["concurrent_quota"]
         subscription.storage_quota = plan_config["storage_quota"]
@@ -87,7 +88,7 @@ class SubscriptionService:
             plan_config = PLAN_CONFIGS.get(new_plan, PLAN_CONFIGS["free"])
 
             subscription.plan_type = new_plan
-            subscription.enabled_features = plan_config["features"]
+            subscription.enabled_features = json.dumps([f.value for f in plan_config["features"]])  # 转换为JSON字符串
             subscription.conversation_quota = plan_config["conversation_quota"]
             subscription.concurrent_quota = plan_config["concurrent_quota"]
             subscription.storage_quota = plan_config["storage_quota"]
@@ -138,7 +139,8 @@ class SubscriptionService:
     async def check_feature_enabled(self, tenant_id: str, feature: str) -> bool:
         """检查功能模块是否已开通"""
         subscription = await self.get_subscription(tenant_id)
-        return feature in subscription.enabled_features
+        features = json.loads(subscription.enabled_features) if isinstance(subscription.enabled_features, str) else subscription.enabled_features
+        return feature in features
 
     async def grant_feature(
         self,
@@ -149,8 +151,13 @@ class SubscriptionService:
         """授予功能模块"""
         subscription = await self.get_subscription(tenant_id)
 
-        if feature not in subscription.enabled_features:
-            subscription.enabled_features.append(feature)
+        # 解析JSON字符串为列表
+        features = json.loads(subscription.enabled_features) if isinstance(subscription.enabled_features, str) else subscription.enabled_features
+
+        if feature not in features:
+            features.append(feature)
+            # 保存为JSON字符串
+            subscription.enabled_features = json.dumps(features)
 
         # 更新功能配置
         if config:
@@ -167,8 +174,13 @@ class SubscriptionService:
         """撤销功能模块"""
         subscription = await self.get_subscription(tenant_id)
 
-        if feature in subscription.enabled_features:
-            subscription.enabled_features.remove(feature)
+        # 解析JSON字符串为列表
+        features = json.loads(subscription.enabled_features) if isinstance(subscription.enabled_features, str) else subscription.enabled_features
+
+        if feature in features:
+            features.remove(feature)
+            # 保存为JSON字符串
+            subscription.enabled_features = json.dumps(features)
 
         await self.db.commit()
         await self.db.refresh(subscription)

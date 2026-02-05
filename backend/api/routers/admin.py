@@ -42,18 +42,37 @@ async def admin_login(
 
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
+    # 刷新对象以加载所有属性
+    await db.refresh(admin)
+
     # 生成Token
     token = create_access_token(
         subject=admin.admin_id,
         role=admin.role,
     )
 
-    response = AdminLoginResponse(
-        access_token=token,
-        token_type="bearer",
-        expires_in=28800,  # 8小时
-        admin=admin,
-    )
+    # 手动序列化 ORM 对象以避免 lazy loading 问题
+    admin_dict = {
+        "id": admin.id,
+        "admin_id": admin.admin_id,
+        "username": admin.username,
+        "email": admin.email,
+        "phone": admin.phone,
+        "role": admin.role,
+        "permissions": admin.permissions,
+        "status": admin.status,
+        "created_at": admin.created_at,
+        "updated_at": admin.updated_at,
+        "last_login_at": admin.last_login_at,
+        "last_login_ip": admin.last_login_ip,
+    }
+
+    response = AdminLoginResponse.model_validate({
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_in": 28800,  # 8小时
+        "admin": AdminResponse.model_validate(admin_dict)
+    })
 
     return ApiResponse(data=response)
 

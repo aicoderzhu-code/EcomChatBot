@@ -367,12 +367,12 @@ class TenantService:
     async def register_tenant(
         self,
         register_data: TenantRegisterRequest,
-    ) -> tuple[Tenant, str]:
+    ) -> tuple[str, str]:
         """
         租户自助注册
 
         Returns:
-            (Tenant, api_key): 租户对象和API密钥（明文，仅此一次）
+            (tenant_id, api_key): 租户ID和API密钥（明文，仅此一次）
         """
         # 检查邮箱是否已存在
         existing = await self.get_tenant_by_email(register_data.contact_email)
@@ -406,7 +406,7 @@ class TenantService:
             tenant_id=tenant_id,
             plan_type="free",
             status="active",
-            enabled_features=plan_config["features"],
+            enabled_features=json.dumps([f.value for f in plan_config["features"]]),  # 转换为JSON字符串
             conversation_quota=plan_config["conversation_quota"],
             concurrent_quota=plan_config["concurrent_quota"],
             storage_quota=plan_config["storage_quota"],
@@ -421,7 +421,7 @@ class TenantService:
         await self.db.commit()
         await self.db.refresh(tenant)
 
-        return tenant, api_key
+        return tenant.tenant_id, api_key
 
     async def authenticate_tenant(
         self,
