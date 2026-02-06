@@ -150,3 +150,40 @@ async def get_quota_usage(
     service = QuotaService(db)
     quota = await service.get_quota_usage(tenant_id)
     return ApiResponse(data=quota)
+
+
+@router.post("/subscription/upgrade", response_model=ApiResponse[SubscriptionResponse])
+async def upgrade_subscription(
+    tenant_id: TenantTokenDep,
+    new_plan: str = Query(..., description="目标套餐类型 (free/basic/professional/enterprise)"),
+    db: DBDep = None,
+):
+    """
+    升级/变更订阅套餐
+
+    - **new_plan**: 目标套餐类型
+      - free: 免费版 (100次对话/月)
+      - basic: 基础版 (1000次对话/月)
+      - professional: 专业版 (10000次对话/月)
+      - enterprise: 企业版 (无限制)
+
+    变更立即生效，配额将按新套餐标准调整。
+    """
+    # 验证套餐类型
+    valid_plans = ["free", "basic", "professional", "enterprise"]
+    if new_plan not in valid_plans:
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"无效的套餐类型，可选值: {', '.join(valid_plans)}",
+        )
+
+    service = SubscriptionService(db)
+    subscription = await service.change_plan(
+        tenant_id=tenant_id,
+        new_plan=new_plan,
+        effective_date=None,  # 立即生效
+    )
+
+    return ApiResponse(data=subscription)

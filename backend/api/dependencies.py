@@ -29,6 +29,8 @@ async def get_current_tenant_from_api_key(
 ) -> str:
     """
     从 API Key 获取租户 ID（用于租户API认证）
+
+    使用 Redis 缓存以提高性能，缓存时间 5 分钟
     """
     if not x_api_key:
         raise HTTPException(
@@ -37,6 +39,20 @@ async def get_current_tenant_from_api_key(
             headers={"WWW-Authenticate": "ApiKey"},
         )
 
+    # 尝试从 Redis 缓存获取
+    from db import get_cache
+
+    cache = await get_cache()
+    cache_key = f"api_key:{x_api_key}"
+    cached_tenant_id = await cache.get(cache_key)
+
+    if cached_tenant_id:
+        # 验证租户访问权限
+        tenant_service = TenantService(db)
+        await tenant_service.check_tenant_access(cached_tenant_id)
+        return cached_tenant_id
+
+    # 缓存未命中，从数据库查询
     tenant_service = TenantService(db)
     tenant = await tenant_service.get_tenant_by_api_key(x_api_key)
 
@@ -45,6 +61,9 @@ async def get_current_tenant_from_api_key(
 
     # 检查租户访问权限
     await tenant_service.check_tenant_access(tenant.tenant_id)
+
+    # 缓存结果，5分钟过期
+    await cache.set(cache_key, tenant.tenant_id, expire=300)
 
     return tenant.tenant_id
 
