@@ -518,3 +518,32 @@ class TenantService:
         tenant.login_attempts = 0
         tenant.locked_until = None
         await self.db.commit()
+
+    async def update_tenant_config(
+        self, tenant_id: str, config_updates: dict
+    ) -> Tenant:
+        """
+        更新租户自定义配置
+        
+        Args:
+            tenant_id: 租户ID
+            config_updates: 配置更新字典
+            
+        Returns:
+            更新后的租户对象
+        """
+        tenant = await self.get_tenant(tenant_id)
+        
+        # 获取现有配置
+        existing_config = tenant.config or {}
+        
+        # 合并配置（支持部分更新）
+        existing_config.update(config_updates)
+        
+        # 更新租户配置
+        tenant.config = existing_config
+        
+        await self.db.commit()
+        await self.db.refresh(tenant)
+        
+        return tenant

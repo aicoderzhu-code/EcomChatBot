@@ -187,3 +187,69 @@ async def upgrade_subscription(
     )
 
     return ApiResponse(data=subscription)
+
+
+@router.put("/config", response_model=ApiResponse[TenantResponse])
+async def update_tenant_config(
+    update_data: dict,
+    tenant_id: TenantTokenDep,
+    db: DBDep = None,
+):
+    """
+    更新租户配置（Logo、主题色、品牌名称等）
+
+    支持的自定义配置：
+    - **logo_url**: Logo图片URL
+    - **primary_color**: 主题色（十六进制，如 #1890ff）
+    - **brand_name**: 品牌名称（用于前端显示）
+    - **welcome_message**: 欢迎语
+    - **auto_reply_template**: 自动回复模板
+    - **working_hours**: 工作时间设置
+    - **chat_strategy**: 对话策略配置
+
+    示例：
+    ```json
+    {
+      "logo_url": "https://example.com/logo.png",
+      "primary_color": "#1890ff",
+      "brand_name": "我的客服",
+      "welcome_message": "您好，有什么可以帮您？"
+    }
+    ```
+    """
+    service = TenantService(db)
+    tenant = await service.update_tenant_config(tenant_id, update_data)
+
+    return ApiResponse(data=TenantResponse.model_validate(tenant))
+
+
+@router.get("/usage/detail", response_model=ApiResponse[dict])
+async def get_usage_detail(
+    tenant_id: TenantDep,
+    db: DBDep,
+    year: int | None = Query(None, description="年份，默认当前年"),
+    month: int | None = Query(None, ge=1, le=12, description="月份，默认当前月"),
+):
+    """
+    获取详细用量统计（按日统计）
+
+    返回指定月份每天的详细用量数据，包括：
+    - 对话次数
+    - Token消耗（输入/输出）
+    - 存储使用量
+    - API调用次数
+    - 超额费用
+
+    如果不指定年月，默认返回当前月的数据。
+    """
+    from datetime import datetime
+
+    if year is None or month is None:
+        now = datetime.utcnow()
+        year = now.year
+        month = now.month
+
+    service = UsageService(db)
+    usage_detail = await service.get_usage_detail(tenant_id, year, month)
+
+    return ApiResponse(data=usage_detail)

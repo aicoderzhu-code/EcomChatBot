@@ -142,3 +142,42 @@ class UsageService:
             "total_api_calls": sum(r.api_calls for r in records),
             "total_overage_fee": sum(r.overage_fee for r in records),
         }
+
+    async def get_usage_detail(
+        self, tenant_id: str, year: int, month: int
+    ) -> dict:
+        """
+        获取详细用量统计（按日统计）
+        
+        Args:
+            tenant_id: 租户ID
+            year: 年份
+            month: 月份
+            
+        Returns:
+            详细用量统计，包含每日数据
+        """
+        records = await self.get_monthly_usage(tenant_id, year, month)
+        
+        # 按日统计
+        daily_stats = []
+        for record in records:
+            daily_stats.append({
+                "date": record.record_date.isoformat(),
+                "conversations": record.conversation_count,
+                "input_tokens": record.input_tokens,
+                "output_tokens": record.output_tokens,
+                "total_tokens": record.input_tokens + record.output_tokens,
+                "storage_used_gb": round(record.storage_used, 2),
+                "api_calls": record.api_calls,
+                "overage_fee": round(record.overage_fee, 2)
+            })
+        
+        # 计算汇总
+        summary = await self.get_usage_summary(tenant_id, year, month)
+        
+        return {
+            "period": f"{year}-{month:02d}",
+            "summary": summary,
+            "daily_data": daily_stats
+        }
