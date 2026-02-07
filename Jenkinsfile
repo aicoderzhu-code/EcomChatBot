@@ -30,23 +30,25 @@ pipeline {
             }
         }
         
-        stage('拉取最新代码') {
+        stage('同步代码') {
             steps {
                 script {
-                    echo '>>> 在部署目录拉取最新代码...'
+                    echo '>>> 同步代码到部署目录...'
                     sh '''
-                        cd ${DEPLOY_PATH}
+                        # Jenkins已经把代码拉取到 ${WORKSPACE}
+                        # 我们只需要复制到部署目录
                         
-                        # 拉取最新代码
-                        git fetch origin develop
-                        git checkout develop
-                        git pull origin develop
+                        echo "源目录: ${WORKSPACE}"
+                        echo "目标目录: ${DEPLOY_PATH}"
                         
-                        # 显示最新提交
-                        echo "最新提交:"
-                        git log -1 --oneline
+                        # 复制所有文件（排除.git目录）
+                        cp -rf ${WORKSPACE}/. ${DEPLOY_PATH}/
                         
-                        echo "✓ 代码更新完成"
+                        # 显示同步后的文件
+                        echo ""
+                        echo "✓ 代码同步完成"
+                        echo "部署目录内容:"
+                        ls -la ${DEPLOY_PATH}/ | head -15
                     '''
                 }
             }
