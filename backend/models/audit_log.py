@@ -113,7 +113,7 @@ class AuditLog(Base):
     error_message = Column(Text)  # 失败原因
 
     # 额外数据（JSON格式）
-    metadata = Column(JSON)  # 额外的上下文信息
+    extra_data = Column(JSON)  # 额外的上下文信息
 
     # 时间戳
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -153,6 +153,6 @@ class AuditLog(Base):
             "action": self.action,
             "success": self.success,
             "error_message": self.error_message,
-            "metadata": self.metadata,
+            "extra_data": self.extra_data,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

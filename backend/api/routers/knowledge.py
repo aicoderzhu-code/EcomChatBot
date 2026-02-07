@@ -151,9 +151,9 @@ async def batch_import_knowledge(
 
 @router.post("/search", response_model=ApiResponse[list[KnowledgeBaseResponse]])
 async def search_knowledge(
-    query: str = Query(..., description="搜索关键词"),
     tenant_id: ApiQuotaDep,  # 检查API调用配额
     db: DBDep,
+    query: str = Query(..., description="搜索关键词"),
     knowledge_type: str | None = None,
     top_k: int = Query(5, ge=1, le=20),
 ):

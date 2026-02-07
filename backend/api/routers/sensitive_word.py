@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db
 from models.sensitive_word import SensitiveWord
-from api.deps import AdminDep
-from schemas.response import ApiResponse
+from api.dependencies import AdminDep
+from schemas.base import ApiResponse
 
 
 router = APIRouter(prefix="/sensitive-words", tags=["敏感词管理"])

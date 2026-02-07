@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 
 from api.dependencies import AdminDep, DBDep, require_admin_permission
@@ -586,7 +586,7 @@ async def get_overdue_tenants(
     
     权限：需要 BILLING_READ 权限
     """
-    from models.payment import Bill
+    from models.tenant import Bill
     from schemas.billing import OverdueTenantInfo, OverdueTenantListResponse
     
     now = datetime.utcnow()
@@ -679,7 +679,7 @@ async def send_payment_reminder(
     
     权限：需要 BILLING_UPDATE 权限
     """
-    from models.payment import Bill
+    from models.tenant import Bill
     
     service = TenantService(db)
     tenant = await service.get_tenant(tenant_id)
@@ -805,7 +805,7 @@ async def get_pending_bills(
     
     权限：需要 BILLING_READ 权限
     """
-    from models.payment import Bill
+    from models.tenant import Bill
     from schemas.billing import PendingBillInfo
     
     # 查询待审核账单
@@ -863,7 +863,7 @@ async def approve_bill(
     
     权限：需要 BILLING_UPDATE 权限
     """
-    from models.payment import Bill
+    from models.tenant import Bill
     
     # 查询账单
     stmt = select(Bill).where(Bill.bill_id == bill_id)
@@ -915,7 +915,7 @@ async def reject_bill(
     
     权限：需要 BILLING_UPDATE 权限
     """
-    from models.payment import Bill
+    from models.tenant import Bill
     
     # 查询账单
     stmt = select(Bill).where(Bill.bill_id == bill_id)

@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Conversation, Message, Subscription, Tenant
-from models.payment import Bill
+from models.tenant import Bill
 
 
 class AnalyticsService:

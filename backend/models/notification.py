@@ -49,7 +49,7 @@ class InAppNotification(BaseModel):
     )
 
     # 元数据
-    metadata: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+    extra_data: Mapped[Optional[Dict[str, Any]]] = mapped_column(
         JSON, default=dict, comment="元数据"
     )
 

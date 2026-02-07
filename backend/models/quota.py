@@ -32,7 +32,7 @@ class QuotaAdjustmentLog(BaseModel):
     # 元数据
     ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="操作IP地址")
     user_agent: Mapped[Optional[str]] = mapped_column(String(200), nullable=True, comment="用户代理")
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, comment="额外信息(JSON格式)")
+    extra_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, comment="额外信息(JSON格式)")
 
     # 时间戳
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, comment="创建时间")

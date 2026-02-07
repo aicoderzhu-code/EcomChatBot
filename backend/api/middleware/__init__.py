@@ -193,6 +193,28 @@ StorageQuotaDep = Annotated[str, Depends(check_storage_quota_dependency)]
 ApiQuotaDep = Annotated[str, Depends(check_api_quota_dependency)]
 
 
+# CSRF函数
+import secrets
+import hashlib
+import time
+from core import settings
+
+def generate_csrf_token(session_id: str = None) -> str:
+    """生成 CSRF Token"""
+    timestamp = str(int(time.time()))
+    random_str = secrets.token_urlsafe(16)
+    data = f"{timestamp}:{random_str}"
+    if session_id:
+        data = f"{session_id}:{data}"
+
+    CSRF_SECRET_KEY = settings.SECRET_KEY
+    signature = hashlib.sha256(
+        f"{data}:{CSRF_SECRET_KEY}".encode()
+    ).hexdigest()[:16]
+
+    return f"{data}.{signature}"
+
+
 __all__ = [
     "QuotaType",
     "OverLimitStrategy",
@@ -206,4 +228,5 @@ __all__ = [
     "ApiQuotaDep",
     "RateLimitMiddleware",
     "SlidingWindowRateLimiter",
+    "generate_csrf_token",
 ]
