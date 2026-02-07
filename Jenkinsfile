@@ -4,7 +4,7 @@ pipeline {
     environment {
         // 项目配置
         PROJECT_NAME = 'ecom-chatbot'
-        DEPLOY_PATH = '/root/ecom-chat-bot'
+        DEPLOY_PATH = '/opt/projects/ecom-chat-bot'
     }
     
     options {
