@@ -8,7 +8,26 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routers import admin, ai_chat, auth, conversation, intent, knowledge, payment, rag, tenant, websocket, monitor, quality, webhook, model_config
+from api.routers import (
+    admin,
+    ai_chat,
+    analytics,
+    auth,
+    conversation,
+    health,
+    intent,
+    knowledge,
+    model_config,
+    monitor,
+    payment,
+    quality,
+    rag,
+    sensitive_word,
+    statistics,
+    tenant,
+    webhook,
+    websocket,
+)
 from core import AppException, settings
 from db import close_db, close_redis, init_db
 
@@ -37,6 +56,11 @@ async def lifespan(app: FastAPI):
         app.state.concurrent_quota_manager = concurrent_manager
 
     print("✓ 配额服务已初始化")
+    
+    # 初始化限流中间件
+    from api.middleware.rate_limit import RateLimitMiddleware
+    app.state.redis_client = redis_client
+    print("✓ 限流中间件已初始化")
 
     yield
 
@@ -65,6 +89,36 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 限流中间件 - 需要在lifespan后通过state添加
+# 实际添加在 @app.on_event("startup") 中进行
+
+# Prometheus中间件
+from utils.prometheus import PrometheusMiddleware, init_app_info
+from api.middleware.logging import RequestLoggingMiddleware
+
+app.add_middleware(PrometheusMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+
+# 初始化应用信息
+init_app_info(version=settings.app_version, environment=settings.environment)
+
+# 初始化日志系统
+from utils.logger import setup_logging
+
+setup_logging(
+    level=settings.log_level, json_format=(settings.log_format == "json"), log_file=None
+)
+
+# 初始化Sentry
+from utils.sentry import init_sentry
+
+if settings.sentry_dsn:
+    init_sentry(
+        dsn=settings.sentry_dsn,
+        environment=settings.environment,
+        traces_sample_rate=0.1,  # 10%的性能追踪采样率
+    )
 
 
 # 全局异常处理
@@ -175,7 +229,22 @@ if settings.debug:
         return HTMLResponse(content=html_content)
 
 
+# 添加限流中间件（需要在路由注册前）
+@app.on_event("startup")
+async def add_rate_limit_middleware():
+    """添加限流中间件"""
+    from api.middleware.rate_limit import RateLimitMiddleware
+    
+    if hasattr(app.state, "redis_client"):
+        app.add_middleware(RateLimitMiddleware, redis_client=app.state.redis_client)
+        print("✓ 限流中间件已添加")
+
+
 # 注册路由
+from utils.prometheus import router as prometheus_router
+
+app.include_router(prometheus_router)  # Prometheus metrics
+app.include_router(health.router, prefix=settings.api_v1_prefix)
 app.include_router(admin.router, prefix=settings.api_v1_prefix)
 app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(tenant.router, prefix=settings.api_v1_prefix)
@@ -190,6 +259,9 @@ app.include_router(monitor.router, prefix=settings.api_v1_prefix)
 app.include_router(quality.router, prefix=settings.api_v1_prefix)
 app.include_router(webhook.router, prefix=settings.api_v1_prefix)
 app.include_router(model_config.router, prefix=settings.api_v1_prefix)
+app.include_router(statistics.router, prefix=settings.api_v1_prefix)
+app.include_router(analytics.router, prefix=settings.api_v1_prefix)
+app.include_router(sensitive_word.router, prefix=settings.api_v1_prefix)
 
 
 if __name__ == "__main__":

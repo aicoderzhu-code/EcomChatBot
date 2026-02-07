@@ -51,6 +51,35 @@ class AuditService:
         await self.db.refresh(log)
 
         return log
+    
+    async def log_batch_operation(
+        self,
+        admin_id: str,
+        operation: str,
+        tenant_ids: list[str],
+        params: dict | None = None,
+        success_count: int = 0,
+        failed_count: int = 0,
+        ip_address: str | None = None,
+    ) -> AdminOperationLog:
+        """
+        记录批量操作日志
+        """
+        return await self.log_operation(
+            admin_id=admin_id,
+            operation_type=f"batch_{operation}",
+            resource_type="tenant",
+            resource_id=",".join(tenant_ids),
+            operation_details={
+                "operation": operation,
+                "params": params,
+                "tenant_count": len(tenant_ids),
+                "success_count": success_count,
+                "failed_count": failed_count,
+            },
+            ip_address=ip_address,
+            status="success" if failed_count == 0 else "partial",
+        )
 
     async def get_operation_logs(
         self,
@@ -196,5 +225,60 @@ class AuditService:
             },
             before_value={"plan": old_plan},
             after_value={"plan": new_plan},
+            ip_address=ip_address,
+        )
+
+    async def log_admin_create(
+        self,
+        admin_id: str,
+        target_admin_id: str,
+        admin_data: dict,
+        ip_address: str | None = None,
+    ) -> AdminOperationLog:
+        """记录创建管理员"""
+        return await self.log_operation(
+            admin_id=admin_id,
+            operation_type="create",
+            resource_type="admin",
+            resource_id=target_admin_id,
+            operation_details=admin_data,
+            after_value=admin_data,
+            ip_address=ip_address,
+        )
+
+    async def log_admin_update(
+        self,
+        admin_id: str,
+        target_admin_id: str,
+        before: dict,
+        after: dict,
+        ip_address: str | None = None,
+    ) -> AdminOperationLog:
+        """记录更新管理员"""
+        return await self.log_operation(
+            admin_id=admin_id,
+            operation_type="update",
+            resource_type="admin",
+            resource_id=target_admin_id,
+            before_value=before,
+            after_value=after,
+            ip_address=ip_address,
+        )
+
+    async def log_admin_delete(
+        self,
+        admin_id: str,
+        target_admin_id: str,
+        admin_data: dict,
+        ip_address: str | None = None,
+    ) -> AdminOperationLog:
+        """记录删除管理员"""
+        return await self.log_operation(
+            admin_id=admin_id,
+            operation_type="delete",
+            resource_type="admin",
+            resource_id=target_admin_id,
+            operation_details=admin_data,
+            before_value=admin_data,
             ip_address=ip_address,
         )

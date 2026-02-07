@@ -79,6 +79,9 @@ alibabacloud-dysmsapi20170525==2.0.24
 # PDF Generation
 reportlab==4.1.0
 
+# Excel Export
+openpyxl==3.1.2
+
 # Utilities
 python-dotenv==1.0.0
 tenacity==8.2.3

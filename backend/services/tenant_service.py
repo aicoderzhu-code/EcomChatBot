@@ -323,6 +323,104 @@ class TenantService:
         tenant.status = "deleted"
         await self.db.commit()
 
+    # ============ 批量操作方法 ============
+    
+    async def batch_activate_tenants(self, tenant_ids: list[str]) -> dict:
+        """
+        批量激活租户
+        
+        Returns:
+            {"success": [...], "failed": [...]}
+        """
+        success = []
+        failed = []
+        
+        for tenant_id in tenant_ids:
+            try:
+                tenant = await self.get_tenant(tenant_id)
+                tenant.status = "active"
+                await self.db.commit()
+                success.append(tenant_id)
+            except Exception as e:
+                failed.append({"tenant_id": tenant_id, "error": str(e)})
+        
+        return {"success": success, "failed": failed}
+    
+    async def batch_suspend_tenants(self, tenant_ids: list[str]) -> dict:
+        """
+        批量暂停租户
+        
+        Returns:
+            {"success": [...], "failed": [...]}
+        """
+        success = []
+        failed = []
+        
+        for tenant_id in tenant_ids:
+            try:
+                tenant = await self.get_tenant(tenant_id)
+                tenant.status = "suspended"
+                await self.db.commit()
+                success.append(tenant_id)
+            except Exception as e:
+                failed.append({"tenant_id": tenant_id, "error": str(e)})
+        
+        return {"success": success, "failed": failed}
+    
+    async def batch_delete_tenants(self, tenant_ids: list[str]) -> dict:
+        """
+        批量删除租户（软删除）
+        
+        Returns:
+            {"success": [...], "failed": [...]}
+        """
+        success = []
+        failed = []
+        
+        for tenant_id in tenant_ids:
+            try:
+                tenant = await self.get_tenant(tenant_id)
+                tenant.status = "deleted"
+                await self.db.commit()
+                success.append(tenant_id)
+            except Exception as e:
+                failed.append({"tenant_id": tenant_id, "error": str(e)})
+        
+        return {"success": success, "failed": failed}
+    
+    async def batch_reset_quota(self, tenant_ids: list[str], redis=None) -> dict:
+        """
+        批量重置配额
+        
+        Args:
+            tenant_ids: 租户ID列表
+            redis: Redis客户端（可选）
+        
+        Returns:
+            {"success": [...], "failed": [...]}
+        """
+        success = []
+        failed = []
+        now = datetime.utcnow()
+        month = now.strftime("%Y%m")
+        
+        for tenant_id in tenant_ids:
+            try:
+                # 验证租户存在
+                await self.get_tenant(tenant_id)
+                
+                # 重置Redis中的配额计数
+                if redis:
+                    for quota_type in ["conversation", "api_call", "message"]:
+                        key = f"quota:{tenant_id}:{quota_type}:{month}"
+                        await redis.delete(key)
+                
+                success.append(tenant_id)
+            except Exception as e:
+                failed.append({"tenant_id": tenant_id, "error": str(e)})
+        
+        return {"success": success, "failed": failed}
+
     async def check_tenant_access(self, tenant_id: str) -> None:
         """
         检查租户访问权限

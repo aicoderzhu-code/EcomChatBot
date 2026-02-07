@@ -117,11 +117,22 @@ class PermissionTemplateResponse(PermissionTemplateBase, TimestampSchema):
 
 
 # ============ 批量操作 Schema ============
+class BatchOperationType(str):
+    """批量操作类型枚举"""
+    ACTIVATE = "activate"
+    SUSPEND = "suspend"
+    DELETE = "delete"
+    UPGRADE_PLAN = "upgrade_plan"
+    DOWNGRADE_PLAN = "downgrade_plan"
+    EXTEND_SERVICE = "extend_service"
+    RESET_QUOTA = "reset_quota"
+
+
 class BatchOperationRequest(BaseSchema):
     """批量操作请求"""
 
-    tenant_ids: list[str] = Field(..., min_length=1, description="租户ID列表")
-    operation: str = Field(..., description="操作类型")
+    tenant_ids: list[str] = Field(..., min_length=1, max_length=100, description="租户ID列表(最多100个)")
+    operation: str = Field(..., description="操作类型: activate/suspend/delete/upgrade_plan/downgrade_plan/extend_service/reset_quota")
     params: dict | None = Field(None, description="操作参数")
 
 

@@ -34,6 +34,11 @@ class MonitorService:
                 "total_conversations": int,  # 总对话数
                 "active_conversations": int,  # 活跃对话数
                 "closed_conversations": int,  # 已关闭对话数
+                "resolved_conversations": int,  # 已解决对话数
+                "transferred_to_human": int,  # 转人工对话数
+                "resolution_rate": float,  # 解决率(%)
+                "transfer_rate": float,  # 转人工率(%)
+                "avg_resolution_time": float,  # 平均解决时长(秒)
                 "avg_messages_per_conversation": float,  # 平均每对话消息数
                 "total_messages": int,  # 总消息数
                 "total_tokens": int,  # 总Token消耗
@@ -78,6 +83,33 @@ class MonitorService:
         )
         closed_conversations = closed_result.scalar() or 0
 
+        # 已解决对话数
+        resolved_result = await self.db.execute(
+            select(func.count(Conversation.id)).where(
+                *conditions,
+                Conversation.resolved == True
+            )
+        )
+        resolved_conversations = resolved_result.scalar() or 0
+
+        # 转人工对话数
+        transferred_result = await self.db.execute(
+            select(func.count(Conversation.id)).where(
+                *conditions,
+                Conversation.transferred_to_human == True
+            )
+        )
+        transferred_conversations = transferred_result.scalar() or 0
+
+        # 平均解决时长
+        avg_resolution_time_result = await self.db.execute(
+            select(func.avg(Conversation.resolution_time)).where(
+                *conditions,
+                Conversation.resolution_time.isnot(None)
+            )
+        )
+        avg_resolution_time = avg_resolution_time_result.scalar() or 0
+
         # 统计消息数和Token消耗
         message_conditions = [
             Message.created_at >= start_time,
@@ -108,10 +140,28 @@ class MonitorService:
             else 0
         )
 
+        # 计算解决率和转人工率
+        resolution_rate = (
+            (resolved_conversations / total_conversations * 100)
+            if total_conversations > 0
+            else 0
+        )
+
+        transfer_rate = (
+            (transferred_conversations / total_conversations * 100)
+            if total_conversations > 0
+            else 0
+        )
+
         return {
             "total_conversations": total_conversations,
             "active_conversations": active_conversations,
             "closed_conversations": closed_conversations,
+            "resolved_conversations": resolved_conversations,
+            "transferred_to_human": transferred_conversations,
+            "resolution_rate": round(resolution_rate, 2),
+            "transfer_rate": round(transfer_rate, 2),
+            "avg_resolution_time": round(avg_resolution_time, 2) if avg_resolution_time else 0,
             "avg_messages_per_conversation": round(avg_messages, 2),
             "total_messages": total_messages,
             "total_tokens": total_tokens,
@@ -366,3 +416,124 @@ class MonitorService:
         results.reverse()
 
         return results
+
+    async def mark_conversation_resolved(
+        self,
+        conversation_id: str,
+        resolved: bool = True,
+        resolution_type: str = "ai",
+        transferred_to_human: bool = False,
+        transfer_reason: str | None = None
+    ):
+        """
+        标记对话解决状态
+
+        Args:
+            conversation_id: 对话ID
+            resolved: 是否解决
+            resolution_type: 解决方式(ai/human/timeout/abandoned)
+            transferred_to_human: 是否转人工
+            transfer_reason: 转人工原因
+        """
+        from models.conversation import Conversation
+
+        # 查询对话
+        result = await self.db.execute(
+            select(Conversation).where(
+                Conversation.conversation_id == conversation_id
+            )
+        )
+        conversation = result.scalar_one_or_none()
+
+        if not conversation:
+            raise ValueError(f"对话不存在: {conversation_id}")
+
+        # 更新解决状态
+        conversation.resolved = resolved
+        conversation.resolution_type = resolution_type
+        conversation.transferred_to_human = transferred_to_human
+        conversation.transfer_reason = transfer_reason
+
+        # 计算解决时长（如果有开始时间）
+        if conversation.start_time and resolved:
+            conversation.resolution_time = int(
+                (datetime.now() - conversation.start_time).total_seconds()
+            )
+
+        await self.db.commit()
+
+    async def get_resolution_breakdown(
+        self,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None
+    ) -> dict[str, Any]:
+        """
+        获取解决方式分布
+
+        Returns:
+            {
+                "by_type": {
+                    "ai": int,  # AI解决数量
+                    "human": int,  # 人工解决数量
+                    "timeout": int,  # 超时未解决
+                    "abandoned": int,  # 用户放弃
+                },
+                "transfer_reasons": {
+                    "reason": count
+                },
+            }
+        """
+        if not start_time:
+            start_time = datetime.now() - timedelta(hours=24)
+        if not end_time:
+            end_time = datetime.now()
+
+        from models.conversation import Conversation
+
+        conditions = [
+            Conversation.created_at >= start_time,
+            Conversation.created_at <= end_time
+        ]
+
+        if self.tenant_id:
+            conditions.append(Conversation.tenant_id == self.tenant_id)
+
+        # 按解决方式统计
+        by_type_result = await self.db.execute(
+            select(
+                Conversation.resolution_type,
+                func.count(Conversation.id)
+            )
+            .where(
+                *conditions,
+                Conversation.resolution_type.isnot(None)
+            )
+            .group_by(Conversation.resolution_type)
+        )
+
+        by_type = {}
+        for row in by_type_result.fetchall():
+            by_type[row[0]] = row[1]
+
+        # 转人工原因统计
+        transfer_reasons_result = await self.db.execute(
+            select(
+                Conversation.transfer_reason,
+                func.count(Conversation.id)
+            )
+            .where(
+                *conditions,
+                Conversation.transferred_to_human == True,
+                Conversation.transfer_reason.isnot(None)
+            )
+            .group_by(Conversation.transfer_reason)
+        )
+
+        transfer_reasons = {}
+        for row in transfer_reasons_result.fetchall():
+            transfer_reasons[row[0]] = row[1]
+
+        return {
+            "by_type": by_type,
+            "transfer_reasons": transfer_reasons,
+        }

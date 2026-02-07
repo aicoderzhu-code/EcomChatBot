@@ -213,6 +213,64 @@ class SubscriptionService:
         await self.db.commit()
 
         return results
+    
+    async def batch_upgrade_plan(
+        self,
+        tenant_ids: list[str],
+        new_plan: str,
+    ) -> dict:
+        """
+        批量升级套餐
+        
+        Args:
+            tenant_ids: 租户ID列表
+            new_plan: 新套餐类型
+            
+        Returns:
+            {"success": [...], "failed": [...]}
+        """
+        results = {"success": [], "failed": []}
+        
+        for tenant_id in tenant_ids:
+            try:
+                subscription = await self.get_subscription(tenant_id)
+                subscription.plan_type = new_plan
+                subscription.updated_at = datetime.utcnow()
+                await self.db.commit()
+                results["success"].append(tenant_id)
+            except Exception as e:
+                results["failed"].append({"tenant_id": tenant_id, "error": str(e)})
+        
+        return results
+    
+    async def batch_downgrade_plan(
+        self,
+        tenant_ids: list[str],
+        new_plan: str,
+    ) -> dict:
+        """
+        批量降级套餐
+        
+        Args:
+            tenant_ids: 租户ID列表
+            new_plan: 新套餐类型
+            
+        Returns:
+            {"success": [...], "failed": [...]}
+        """
+        results = {"success": [], "failed": []}
+        
+        for tenant_id in tenant_ids:
+            try:
+                subscription = await self.get_subscription(tenant_id)
+                subscription.plan_type = new_plan
+                subscription.updated_at = datetime.utcnow()
+                await self.db.commit()
+                results["success"].append(tenant_id)
+            except Exception as e:
+                results["failed"].append({"tenant_id": tenant_id, "error": str(e)})
+        
+        return results
 
     async def calculate_prorated_price(
         self,

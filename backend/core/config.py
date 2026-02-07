@@ -101,6 +101,13 @@ class Settings(BaseSettings):
     prometheus_port: int = 9090
     sentry_dsn: str | None = None
 
+    # Alert
+    dingtalk_webhook_url: str | None = None
+    slack_webhook_url: str | None = None
+    alert_webhook_url: str | None = None
+    alert_email_recipients: str = ""
+    alert_sms_phones: str = ""
+
     # Email
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587

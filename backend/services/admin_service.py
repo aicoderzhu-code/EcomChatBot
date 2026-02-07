@@ -3,7 +3,7 @@
 """
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import (
@@ -169,4 +169,126 @@ class AdminService:
         """重置密码（管理员操作）"""
         admin = await self.get_admin(admin_id)
         admin.password_hash = hash_password(new_password)
+        await self.db.commit()
+
+    async def list_admins(
+        self,
+        page: int = 1,
+        size: int = 20,
+        role: str | None = None,
+        status: str | None = None,
+        keyword: str | None = None,
+    ) -> tuple[list[Admin], int]:
+        """
+        获取管理员列表
+
+        Args:
+            page: 页码
+            size: 每页数量
+            role: 角色过滤
+            status: 状态过滤
+            keyword: 搜索关键词（用户名/邮箱/手机）
+
+        Returns:
+            (管理员列表, 总数)
+        """
+        stmt = select(Admin).where(Admin.status != "deleted")
+        count_stmt = select(func.count(Admin.id)).where(Admin.status != "deleted")
+
+        # 角色过滤
+        if role:
+            stmt = stmt.where(Admin.role == role)
+            count_stmt = count_stmt.where(Admin.role == role)
+
+        # 状态过滤
+        if status:
+            stmt = stmt.where(Admin.status == status)
+            count_stmt = count_stmt.where(Admin.status == status)
+
+        # 关键词搜索
+        if keyword:
+            search_filter = or_(
+                Admin.username.ilike(f"%{keyword}%"),
+                Admin.email.ilike(f"%{keyword}%"),
+                Admin.phone.ilike(f"%{keyword}%"),
+            )
+            stmt = stmt.where(search_filter)
+            count_stmt = count_stmt.where(search_filter)
+
+        # 获取总数
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        # 分页
+        stmt = stmt.order_by(Admin.created_at.desc())
+        stmt = stmt.offset((page - 1) * size).limit(size)
+
+        result = await self.db.execute(stmt)
+        admins = result.scalars().all()
+
+        return list(admins), total
+
+    async def update_admin(
+        self,
+        admin_id: str,
+        email: str | None = None,
+        phone: str | None = None,
+        role: str | None = None,
+        status: str | None = None,
+        updated_by: str | None = None,
+    ) -> Admin:
+        """
+        更新管理员信息
+
+        Args:
+            admin_id: 管理员ID
+            email: 新邮箱
+            phone: 新手机号
+            role: 新角色
+            status: 新状态
+            updated_by: 更新人
+
+        Returns:
+            更新后的管理员
+        """
+        admin = await self.get_admin(admin_id)
+
+        # 检查邮箱唯一性
+        if email and email != admin.email:
+            existing = await self.get_admin_by_email(email)
+            if existing:
+                raise DuplicateResourceException("管理员", "邮箱", email)
+            admin.email = email
+
+        if phone is not None:
+            admin.phone = phone
+
+        if role:
+            admin.role = role
+
+        if status:
+            admin.status = status
+
+        admin.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(admin)
+
+        return admin
+
+    async def delete_admin(self, admin_id: str, deleted_by: str) -> None:
+        """
+        删除管理员（软删除）
+
+        Args:
+            admin_id: 管理员ID
+            deleted_by: 删除人
+        """
+        admin = await self.get_admin(admin_id)
+
+        # 不能删除自己
+        if admin_id == deleted_by:
+            raise ValueError("不能删除自己")
+
+        admin.status = "deleted"
+        admin.updated_at = datetime.utcnow()
         await self.db.commit()

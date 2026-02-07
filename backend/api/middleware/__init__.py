@@ -18,6 +18,8 @@ from .quota import (
     ConcurrentQuotaManager,
 )
 
+from .rate_limit import RateLimitMiddleware, SlidingWindowRateLimiter
+
 
 async def check_conversation_quota_dependency(
     x_api_key: Annotated[str | None, Header()] = None,
@@ -202,4 +204,6 @@ __all__ = [
     "ConcurrentQuotaDep",
     "StorageQuotaDep",
     "ApiQuotaDep",
+    "RateLimitMiddleware",
+    "SlidingWindowRateLimiter",
 ]
