@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from api.dependencies import DBDep, TenantDep
+from api.middleware import ApiQuotaDep, StorageQuotaDep
 from schemas import ApiResponse
 from services import RAGService
 
@@ -41,13 +42,15 @@ class BatchIndexRequest(BaseModel):
 @router.post("/retrieve", response_model=ApiResponse[list[dict]])
 async def rag_retrieve(
     request: RAGQueryRequest,
-    tenant_id: TenantDep,
+    tenant_id: ApiQuotaDep,  # 检查API调用配额
     db: DBDep,
 ):
     """
     RAG 检索接口
-    
+
     从知识库中检索相关内容（支持向量检索）
+
+    ⚠️ 会检查API调用配额
     """
     service = RAGService(db, tenant_id)
 
@@ -63,13 +66,15 @@ async def rag_retrieve(
 @router.post("/generate", response_model=ApiResponse[dict])
 async def rag_generate(
     request: RAGGenerateRequest,
-    tenant_id: TenantDep,
+    tenant_id: ApiQuotaDep,  # 检查API调用配额
     db: DBDep,
 ):
     """
     RAG 生成接口
-    
+
     检索相关知识并生成回复
+
+    ⚠️ 会检查API调用配额
     """
     service = RAGService(db, tenant_id)
 
@@ -84,13 +89,15 @@ async def rag_generate(
 @router.post("/index", response_model=ApiResponse[dict])
 async def index_knowledge(
     request: IndexKnowledgeRequest,
-    tenant_id: TenantDep,
+    tenant_id: StorageQuotaDep,  # 检查存储配额
     db: DBDep,
 ):
     """
     为知识库项创建向量索引
-    
+
     将知识库内容向量化并存入 Milvus
+
+    ⚠️ 会检查存储空间配额
     """
     service = RAGService(db, tenant_id)
 
@@ -102,13 +109,15 @@ async def index_knowledge(
 @router.post("/index-batch", response_model=ApiResponse[dict])
 async def batch_index_knowledge(
     request: BatchIndexRequest,
-    tenant_id: TenantDep,
+    tenant_id: StorageQuotaDep,  # 检查存储配额
     db: DBDep,
 ):
     """
     批量索引知识库
-    
+
     为多个知识库项创建向量索引
+
+    ⚠️ 会检查存储空间配额
     """
     service = RAGService(db, tenant_id)
 

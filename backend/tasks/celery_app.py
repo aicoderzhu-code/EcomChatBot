@@ -95,6 +95,30 @@ celery_app.conf.beat_schedule = {
         "schedule": 3600.0 * 24,  # 每24小时执行一次
         "args": (30,),  # 保留30天
     },
+    # 每天凌晨4点检查服务降级
+    "check-service-degradation": {
+        "task": "tasks.billing_tasks.check_service_degradation",
+        "schedule": crontab(hour=4, minute=0),  # 每天凌晨4点
+        "options": {"queue": "billing"}
+    },
+    # 每天凌晨2点处理订阅续费
+    "process-subscription-renewal": {
+        "task": "tasks.billing_tasks.process_subscription_renewal",
+        "schedule": crontab(hour=2, minute=0),  # 每天凌晨2点
+        "options": {"queue": "billing"}
+    },
+    # 每天凌晨5点计算日用量费用
+    "calculate-daily-usage-charges": {
+        "task": "tasks.billing_tasks.calculate_usage_charges",
+        "schedule": crontab(hour=5, minute=0),  # 每天凌晨5点
+        "options": {"queue": "billing"}
+    },
+    # 每月1号凌晨0点重置月度配额
+    "reset-monthly-quota": {
+        "task": "tasks.billing_tasks.reset_monthly_quotas",
+        "schedule": crontab(hour=0, minute=0, day_of_month=1),  # 每月1号凌晨0点
+        "options": {"queue": "billing"}
+    },
 }
 
 logger.info("Celery 应用初始化完成")

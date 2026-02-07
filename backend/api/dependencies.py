@@ -15,9 +15,10 @@ from core import (
     decode_token,
     has_permission,
 )
-from db import get_db
+from db import get_db, get_redis
 from models import Admin
 from services import AdminService, TenantService
+from services.quota_service import QuotaService
 
 # HTTP Bearer Token
 security = HTTPBearer()
@@ -114,6 +115,9 @@ async def get_current_admin(
 def require_admin_permission(permission: str):
     """
     权限检查装饰器（用于管理员API）
+
+    使用示例:
+        @router.post("/path", dependencies=[Depends(require_admin_permission(Permission.TENANT_CREATE))])
     """
 
     async def permission_checker(
@@ -127,8 +131,44 @@ def require_admin_permission(permission: str):
     return permission_checker
 
 
+def require_role(*allowed_roles: AdminRole):
+    """
+    角色检查装饰器（用于管理员API）
+
+    Args:
+        allowed_roles: 允许的角色列表
+
+    使用示例:
+        @router.post("/path", dependencies=[Depends(require_role(AdminRole.SUPER_ADMIN))])
+    """
+
+    async def role_checker(
+        admin: Annotated[Admin, Depends(get_current_admin)]
+    ) -> Admin:
+        role = AdminRole(admin.role)
+        if role not in allowed_roles:
+            roles_str = ", ".join([r.value for r in allowed_roles])
+            raise InsufficientPermissionException(
+                f"需要角色: {roles_str}，当前角色: {role.value}"
+            )
+        return admin
+
+    return role_checker
+
+
+async def get_quota_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> QuotaService:
+    """
+    获取配额服务实例(带Redis支持)
+    """
+    redis = await get_redis()
+    return QuotaService(db, redis)
+
+
 # 常用依赖注入类型定义
 TenantDep = Annotated[str, Depends(get_current_tenant_from_api_key)]
 TenantTokenDep = Annotated[str, Depends(get_current_tenant_from_token)]
 AdminDep = Annotated[Admin, Depends(get_current_admin)]
 DBDep = Annotated[AsyncSession, Depends(get_db)]
+QuotaServiceDep = Annotated[QuotaService, Depends(get_quota_service)]

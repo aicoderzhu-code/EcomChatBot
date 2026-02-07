@@ -41,6 +41,7 @@ sentence-transformers==2.3.1
 # Task Queue
 celery[redis]==5.3.6
 flower==2.0.1
+gevent==24.2.1  # For async Celery worker support
 
 # Monitoring & Logging
 prometheus-client==0.19.0
@@ -68,6 +69,15 @@ isort==5.13.2
 
 # Payment
 python-alipay-sdk==3.4.0
+
+# Email
+aiosmtplib==3.0.1
+
+# Aliyun SMS
+alibabacloud-dysmsapi20170525==2.0.24
+
+# PDF Generation
+reportlab==4.1.0
 
 # Utilities
 python-dotenv==1.0.0

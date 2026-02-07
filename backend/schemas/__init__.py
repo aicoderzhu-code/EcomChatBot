@@ -72,6 +72,13 @@ from schemas.tenant import (
     TokenRefreshResponse,
     UsageRecordResponse,
 )
+from schemas.subscription import (
+    SubscribePlanRequest,
+    ChangePlanRequest,
+    SubscriptionDetail,
+    ProratedPriceDetail,
+    SubscriptionResponse as SubscriptionOperationResponse,
+)
 from schemas.webhook import (
     WebhookCreateRequest,
     WebhookUpdateRequest,
@@ -155,4 +162,10 @@ __all__ = [
     "WebhookUpdateRequest",
     "WebhookResponse",
     "WebhookLogResponse",
+    # Subscription (new)
+    "SubscribePlanRequest",
+    "ChangePlanRequest",
+    "SubscriptionDetail",
+    "ProratedPriceDetail",
+    "SubscriptionOperationResponse",
 ]

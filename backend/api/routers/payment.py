@@ -18,7 +18,15 @@ from schemas.payment import (
     RefundRequest,
     RefundResponse,
 )
+from schemas.subscription import (
+    SubscribePlanRequest,
+    ChangePlanRequest,
+    SubscriptionDetail,
+    SubscriptionResponse,
+    ProratedPriceDetail,
+)
 from services.payment_service import PaymentService
+from services.subscription_service import SubscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -344,3 +352,478 @@ async def refund_order(
     except Exception as e:
         logger.error(f"Error processing refund: {e}")
         raise HTTPException(status_code=500, detail=f"退款失败: {str(e)}")
+
+
+# ===== 微信支付相关接口 =====
+
+@router.post("/wechat/orders/create", summary="创建微信支付订单")
+async def create_wechat_payment_order(
+    payment_data: PaymentOrderCreate,
+    payment_method: str = Query("native", description="支付方式: native(扫码) 或 jsapi(公众号/小程序)"),
+    openid: str | None = Query(None, description="用户openid(JSAPI支付必需)"),
+    tenant_id: TenantDep = None,
+    db: DBDep = None,
+):
+    """
+    创建微信支付订单
+
+    **支付方式**:
+    - native: 扫码支付(PC端),返回二维码URL
+    - jsapi: 公众号/小程序支付,返回调起支付参数
+
+    **请求参数**:
+    - plan_type: 套餐类型(basic/professional/enterprise)
+    - duration_months: 订阅时长(1/3/6/12个月)
+    - subscription_type: 订阅类型(new/renewal/upgrade)
+    - openid: 用户openid(JSAPI支付必需)
+
+    **响应**:
+    - Native支付: {"order_number": "...", "code_url": "weixin://..."}
+    - JSAPI支付: {"order_number": "...", "appId": "...", "timeStamp": "...", ...}
+    """
+    try:
+        payment_service = PaymentService(db)
+
+        # 创建微信支付订单
+        order, payment_params = await payment_service.create_wechat_payment_order(
+            tenant_id=tenant_id,
+            plan_type=payment_data.plan_type,
+            duration_months=payment_data.duration_months,
+            payment_method=payment_method,
+            subscription_type=payment_data.subscription_type,
+            openid=openid,
+            description=payment_data.description,
+        )
+
+        return {
+            "success": True,
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "amount": float(order.amount),
+            "currency": order.currency,
+            "payment_method": payment_method,
+            "payment_params": payment_params,  # Native: {code_url}, JSAPI: {appId, timeStamp, ...}
+            "expires_at": order.expired_at.isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Error creating wechat payment order: {e}")
+        raise HTTPException(status_code=500, detail=f"创建微信支付订单失败: {str(e)}")
+
+
+@router.post("/callback/wechat/notify", summary="微信支付异步回调")
+async def wechat_notify_callback(
+    request: Request,
+    db: DBDep,
+):
+    """
+    微信支付异步回调(服务器到服务器通知)
+
+    **功能**:
+    - 验证签名(必须)
+    - 解密回调数据
+    - 更新订单状态
+    - 激活订阅
+
+    **重要**:
+    - 必须返回 {"code": "SUCCESS", "message": "成功"} 表示处理成功
+    - 必须返回 {"code": "FAIL", "message": "失败原因"} 表示处理失败
+    - 微信会重试多次
+
+    **请求体**: 微信POST的加密JSON数据
+    """
+    try:
+        # 获取请求头和请求体
+        headers = dict(request.headers)
+        body = await request.body()
+
+        logger.info(f"Received wechat notify, serial: {headers.get('Wechatpay-Serial')}")
+
+        # 处理异步通知
+        payment_service = PaymentService(db)
+        success = await payment_service.handle_wechat_notify(headers, body.decode())
+
+        if success:
+            logger.info("Wechat notify processed successfully")
+            return {"code": "SUCCESS", "message": "成功"}
+        else:
+            logger.error("Wechat notify processing failed")
+            return {"code": "FAIL", "message": "处理失败"}
+
+    except Exception as e:
+        logger.error(f"Error in wechat notify callback: {e}")
+        return {"code": "FAIL", "message": str(e)}
+
+
+@router.post("/wechat/orders/{order_number}/refund", summary="微信支付退款")
+async def refund_wechat_order(
+    order_number: str,
+    refund_data: RefundRequest,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    微信支付退款
+
+    **路径参数**:
+    - order_number: 订单编号
+
+    **请求参数**:
+    - refund_amount: 退款金额(不填则全额退款)
+    - refund_reason: 退款原因
+
+    **响应**:
+    - refund_id: 微信退款单号
+    - refund_status: 退款状态
+    - refund_amount: 退款金额
+    """
+    try:
+        payment_service = PaymentService(db)
+
+        result = await payment_service.refund_wechat_order(
+            order_number=order_number,
+            refund_amount=refund_data.refund_amount,
+            refund_reason=refund_data.refund_reason,
+        )
+
+        return {
+            "refund_id": result.get("refund_id", ""),
+            "refund_status": "success" if result["success"] else "failed",
+            "refund_amount": result["refund_amount"],
+            "refund_time": "",
+            "message": result["message"],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing wechat refund: {e}")
+        raise HTTPException(status_code=500, detail=f"微信退款失败: {str(e)}")
+
+
+# ===== 套餐订阅管理接口 =====
+
+@router.post("/subscription/subscribe", response_model=SubscriptionResponse, summary="订阅套餐")
+async def subscribe_plan(
+    request_data: SubscribePlanRequest,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    订阅套餐流程:
+    1. 验证套餐有效性
+    2. 计算价格
+    3. 创建支付订单
+    4. 返回支付信息
+
+    **请求参数**:
+    - plan_type: 套餐类型(basic/professional/enterprise)
+    - duration_months: 订阅时长(1/3/6/12个月)
+    - payment_method: 支付方式(alipay/wechat)
+    - auto_renew: 是否自动续费
+
+    **响应**:
+    - success: 是否成功
+    - message: 提示信息
+    - order_number: 支付订单号
+    - payment_required: 是否需要支付
+    - payment_amount: 需支付金额
+    """
+    try:
+        # 验证套餐类型
+        valid_plans = ["basic", "professional", "enterprise"]
+        if request_data.plan_type not in valid_plans:
+            raise HTTPException(status_code=400, detail=f"无效的套餐类型: {request_data.plan_type}")
+
+        # 计算订单金额
+        payment_service = PaymentService(db)
+        amount = payment_service.calculate_amount(
+            plan_type=request_data.plan_type,
+            duration_months=request_data.duration_months
+        )
+
+        # 创建支付订单
+        payment_type = PaymentType.PC if request_data.payment_method == "alipay" else PaymentType.MOBILE
+
+        order, payment_html = await payment_service.create_payment_order(
+            tenant_id=tenant_id,
+            plan_type=request_data.plan_type,
+            duration_months=request_data.duration_months,
+            payment_type=payment_type,
+            subscription_type=SubscriptionType.NEW,
+            description=f"订阅{request_data.plan_type}套餐 {request_data.duration_months}个月"
+        )
+
+        logger.info(
+            f"Created subscription order: tenant={tenant_id}, "
+            f"plan={request_data.plan_type}, order={order.order_number}"
+        )
+
+        return SubscriptionResponse(
+            success=True,
+            message="订单创建成功，请完成支付",
+            order_number=order.order_number,
+            payment_required=True,
+            payment_amount=amount
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error subscribing plan: {e}")
+        raise HTTPException(status_code=500, detail=f"订阅套餐失败: {str(e)}")
+
+
+@router.put("/subscription/change", response_model=SubscriptionResponse, summary="变更套餐")
+async def change_plan(
+    request_data: ChangePlanRequest,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    变更套餐(升级/降级):
+    - 升级: 立即生效，计算差价并创建支付订单
+    - 降级: 下个计费周期生效，不退款
+
+    **请求参数**:
+    - new_plan_type: 新套餐类型
+    - effective_immediately: 是否立即生效(默认true)
+
+    **响应**:
+    - success: 是否成功
+    - message: 提示信息
+    - subscription: 订阅详情
+    - order_number: 支付订单号(仅升级时)
+    - payment_required: 是否需要支付
+    - payment_amount: 需支付金额(仅升级时)
+    """
+    try:
+        subscription_service = SubscriptionService(db)
+
+        # 获取当前订阅
+        subscription = await subscription_service.get_subscription(tenant_id)
+
+        if subscription.plan_type == request_data.new_plan_type:
+            raise HTTPException(status_code=400, detail="新套餐与当前套餐相同")
+
+        # 判断是升级还是降级
+        plan_levels = {"free": 0, "basic": 1, "professional": 2, "enterprise": 3}
+        current_level = plan_levels.get(subscription.plan_type, 0)
+        new_level = plan_levels.get(request_data.new_plan_type, 0)
+
+        is_upgrade = new_level > current_level
+
+        if is_upgrade and request_data.effective_immediately:
+            # 升级: 计算差价并创建支付订单
+            price_detail = await subscription_service.calculate_prorated_price(
+                tenant_id=tenant_id,
+                new_plan=request_data.new_plan_type
+            )
+
+            if price_detail["prorated_charge"] > 0:
+                # 创建差价支付订单
+                payment_service = PaymentService(db)
+                from decimal import Decimal
+
+                # 创建一个特殊的升级订单
+                order, payment_html = await payment_service.create_payment_order(
+                    tenant_id=tenant_id,
+                    plan_type=request_data.new_plan_type,
+                    duration_months=1,  # 使用1个月作为基数
+                    payment_type=PaymentType.PC,
+                    subscription_type=SubscriptionType.UPGRADE,
+                    description=f"升级到{request_data.new_plan_type}套餐差价"
+                )
+
+                # 更新订单金额为实际差价
+                order.amount = Decimal(str(price_detail["prorated_charge"]))
+                await db.commit()
+
+                return SubscriptionResponse(
+                    success=True,
+                    message=f"需要补差价 ¥{price_detail['prorated_charge']}，请完成支付",
+                    order_number=order.order_number,
+                    payment_required=True,
+                    payment_amount=Decimal(str(price_detail["prorated_charge"]))
+                )
+            else:
+                # 无需补差价，直接升级
+                updated_subscription = await subscription_service.change_plan(
+                    tenant_id=tenant_id,
+                    new_plan=request_data.new_plan_type,
+                    effective_date=None
+                )
+
+                return SubscriptionResponse(
+                    success=True,
+                    message="套餐升级成功",
+                    payment_required=False
+                )
+
+        else:
+            # 降级: 设置为下个周期生效
+            effective_date = subscription.expire_at
+            updated_subscription = await subscription_service.change_plan(
+                tenant_id=tenant_id,
+                new_plan=request_data.new_plan_type,
+                effective_date=effective_date
+            )
+
+            return SubscriptionResponse(
+                success=True,
+                message=f"套餐将在 {effective_date.strftime('%Y-%m-%d')} 降级为 {request_data.new_plan_type}",
+                payment_required=False
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error changing plan: {e}")
+        raise HTTPException(status_code=500, detail=f"变更套餐失败: {str(e)}")
+
+
+@router.get("/subscription", response_model=SubscriptionDetail, summary="获取订阅详情")
+async def get_subscription(
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    获取当前订阅详情
+
+    **响应**:
+    - subscription_id: 订阅ID
+    - tenant_id: 租户ID
+    - plan_type: 套餐类型
+    - status: 订阅状态
+    - start_date: 开始日期
+    - expire_at: 到期日期
+    - auto_renew: 是否自动续费
+    - conversation_quota: 对话配额
+    - api_quota: API配额
+    - storage_quota: 存储配额
+    - concurrent_quota: 并发配额
+    - enabled_features: 已启用功能列表
+    - pending_plan: 待变更套餐(如有)
+    """
+    try:
+        subscription_service = SubscriptionService(db)
+        subscription = await subscription_service.get_subscription(tenant_id)
+
+        # 解析 enabled_features (可能是JSON字符串)
+        import json
+        features = subscription.enabled_features
+        if isinstance(features, str):
+            features = json.loads(features)
+
+        return SubscriptionDetail(
+            id=subscription.id,
+            tenant_id=subscription.tenant_id,
+            plan_type=subscription.plan_type,
+            status=subscription.status,
+            start_date=subscription.start_date,
+            expire_at=subscription.expire_at,
+            auto_renew=subscription.auto_renew,
+            is_trial=subscription.is_trial,
+            conversation_quota=subscription.conversation_quota,
+            api_quota=subscription.api_quota,
+            storage_quota=subscription.storage_quota,
+            concurrent_quota=subscription.concurrent_quota,
+            enabled_features=features,
+            pending_plan=subscription.pending_plan,
+            plan_change_date=subscription.plan_change_date,
+            created_at=subscription.created_at,
+            updated_at=subscription.updated_at
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting subscription: {e}")
+        raise HTTPException(status_code=500, detail=f"获取订阅详情失败: {str(e)}")
+
+
+@router.post("/subscription/cancel-renewal", summary="取消自动续费")
+async def cancel_auto_renewal(
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    取消自动续费
+
+    **功能**:
+    - 将auto_renew设置为False
+    - 不影响当前订阅周期
+
+    **响应**:
+    - success: 是否成功
+    - message: 提示信息
+    """
+    try:
+        subscription_service = SubscriptionService(db)
+        subscription = await subscription_service.get_subscription(tenant_id)
+
+        if not subscription.auto_renew:
+            return {
+                "success": True,
+                "message": "当前未开启自动续费"
+            }
+
+        subscription.auto_renew = False
+        await db.commit()
+
+        logger.info(f"Cancelled auto renewal: tenant={tenant_id}")
+
+        return {
+            "success": True,
+            "message": "已取消自动续费，当前订阅周期不受影响"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling auto renewal: {e}")
+        raise HTTPException(status_code=500, detail=f"取消自动续费失败: {str(e)}")
+
+
+@router.get("/subscription/prorated-price", response_model=ProratedPriceDetail, summary="计算升级差价")
+async def get_prorated_price(
+    new_plan_type: str = Query(..., description="新套餐类型"),
+    tenant_id: TenantDep = None,
+    db: DBDep = None,
+):
+    """
+    计算升级到新套餐需要补的差价
+
+    **查询参数**:
+    - new_plan_type: 新套餐类型(basic/professional/enterprise)
+
+    **响应**:
+    - current_plan: 当前套餐
+    - new_plan: 新套餐
+    - current_plan_value: 当前套餐剩余价值
+    - new_plan_value: 新套餐剩余价值
+    - prorated_charge: 需补差价
+    - remaining_days: 剩余天数
+    """
+    try:
+        subscription_service = SubscriptionService(db)
+        price_detail = await subscription_service.calculate_prorated_price(
+            tenant_id=tenant_id,
+            new_plan=new_plan_type
+        )
+
+        from decimal import Decimal
+        return ProratedPriceDetail(
+            current_plan=price_detail["current_plan"],
+            new_plan=price_detail["new_plan"],
+            current_plan_value=Decimal(str(price_detail["current_plan_value"])),
+            new_plan_value=Decimal(str(price_detail["new_plan_value"])),
+            prorated_charge=Decimal(str(price_detail["prorated_charge"])),
+            remaining_days=price_detail["remaining_days"]
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating prorated price: {e}")
+        raise HTTPException(status_code=500, detail=f"计算差价失败: {str(e)}")

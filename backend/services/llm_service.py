@@ -3,12 +3,16 @@ LLM 服务 - 封装 LangChain LLM 调用
 支持多种 LLM 提供商（OpenAI、Azure OpenAI 等）
 """
 from typing import Any
+import logging
 
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
+from api.content_filter import filter_llm_output
 from core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class LLMService:
@@ -61,16 +65,18 @@ class LLMService:
         self,
         messages: list[dict[str, str]],
         system_prompt: str | None = None,
+        enable_safety_filter: bool = True,
     ) -> str:
         """
         生成回复
-        
+
         Args:
             messages: 对话历史 [{"role": "user/assistant", "content": "..."}]
             system_prompt: 系统提示词
-            
+            enable_safety_filter: 是否启用安全过滤（默认True）
+
         Returns:
-            AI 回复内容
+            AI 回复内容（已过滤PII等敏感信息）
         """
         # 构建消息列表
         langchain_messages = []
@@ -94,22 +100,40 @@ class LLMService:
         # 调用 LLM
         response = await self.llm.ainvoke(langchain_messages)
 
-        return response.content
+        # 获取原始回复
+        content = response.content
+
+        # 应用安全过滤（脱敏PII数据）
+        if enable_safety_filter:
+            filtered_content = filter_llm_output(content)
+
+            # 如果内容被修改，记录日志
+            if filtered_content != content:
+                logger.info(
+                    f"LLM output filtered for tenant {self.tenant_id}: "
+                    f"Original length: {len(content)}, Filtered length: {len(filtered_content)}"
+                )
+
+            return filtered_content
+
+        return content
 
     async def generate_with_functions(
         self,
         messages: list[dict[str, str]],
         functions: list[dict[str, Any]],
         system_prompt: str | None = None,
+        enable_safety_filter: bool = True,
     ) -> dict[str, Any]:
         """
         使用函数调用生成回复
-        
+
         Args:
             messages: 对话历史
             functions: 函数定义列表
             system_prompt: 系统提示词
-            
+            enable_safety_filter: 是否启用安全过滤（默认True）
+
         Returns:
             包含回复和函数调用信息的字典
         """
@@ -133,8 +157,14 @@ class LLMService:
         response = await llm_with_functions.ainvoke(langchain_messages)
 
         # 解析响应
+        content = response.content
+
+        # 应用安全过滤
+        if enable_safety_filter and content:
+            content = filter_llm_output(content)
+
         result = {
-            "content": response.content,
+            "content": content,
             "function_call": None,
         }
 

@@ -22,6 +22,25 @@ from services.tenant_service import TenantService
 from services.usage_service import UsageService
 from services.webhook_service import WebhookService
 from services.webhook import WebhookPublisher
+from services.invoice_service import InvoiceService
+from services.notification_service import (
+    NotificationService,
+    EmailService,
+    SMSService,
+    InAppNotificationService,
+    NotificationType,
+    NotificationPriority,
+    NotificationTemplates,
+)
+from services.financial_reports_service import FinancialReportsService
+from services.rerank_service import (
+    RerankService,
+    RerankResult,
+    RerankConfig,
+    RerankProvider,
+    get_rerank_service,
+    init_rerank_service,
+)
 
 __all__ = [
     "AdminService",
@@ -53,4 +72,23 @@ __all__ = [
     # Webhook
     "WebhookService",
     "WebhookPublisher",
+    # Invoice
+    "InvoiceService",
+    # Notification
+    "NotificationService",
+    "EmailService",
+    "SMSService",
+    "InAppNotificationService",
+    "NotificationType",
+    "NotificationPriority",
+    "NotificationTemplates",
+    # Financial Reports
+    "FinancialReportsService",
+    # Rerank
+    "RerankService",
+    "RerankResult",
+    "RerankConfig",
+    "RerankProvider",
+    "get_rerank_service",
+    "init_rerank_service",
 ]

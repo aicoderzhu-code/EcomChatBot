@@ -1,9 +1,10 @@
 """
 租户认证 API 路由
 """
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 
 from api.dependencies import DBDep, TenantTokenDep
+from api.middleware import generate_csrf_token
 from core import (
     InvalidTokenException,
     create_access_token,
@@ -163,3 +164,41 @@ async def logout(
     response = TenantLogoutResponse(message="登出成功")
 
     return ApiResponse(data=response)
+
+
+@router.get("/csrf-token")
+async def get_csrf_token(
+    request: Request,
+    response: Response,
+):
+    """
+    获取 CSRF Token
+
+    用于需要 CSRF 保护的表单提交。
+    Token 会同时在响应体和 Cookie 中返回。
+
+    Returns:
+        {
+            "csrf_token": "token_string",
+            "expires_in": 3600
+        }
+    """
+    # 生成 CSRF Token
+    csrf_token = generate_csrf_token()
+
+    # 设置 Cookie（SameSite 和 Secure 选项）
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        max_age=3600,  # 1小时
+        httponly=True,  # 防止 JavaScript 访问
+        samesite="lax",  # CSRF 保护
+        secure=False,  # 生产环境应设为 True (需要 HTTPS)
+    )
+
+    return ApiResponse(
+        data={
+            "csrf_token": csrf_token,
+            "expires_in": 3600,
+        }
+    )

@@ -106,13 +106,15 @@ async def list_conversations(
 async def send_message(
     conversation_id: str,
     message_data: MessageCreate,
-    tenant_id: TenantDep,
+    tenant_id: ConversationQuotaDep,  # 检查对话次数配额
     db: DBDep,
 ):
     """
     发送消息（同步方式）
-    
+
     注：生产环境建议使用 WebSocket 接口实现流式返回
+
+    ⚠️ 会检查对话次数配额
     """
     service = ConversationService(db, tenant_id)
 

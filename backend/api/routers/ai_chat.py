@@ -2,10 +2,13 @@
 AI 智能对话 API 路由 - 集成 LangChain
 """
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+import asyncio
+import json
 
 from api.dependencies import DBDep, TenantDep
-from api.middleware import ConversationQuotaDep
+from api.middleware import ConversationQuotaDep, ApiQuotaDep
 from schemas import ApiResponse
 from services import ConversationChainService, simple_chat
 from services.knowledge_service import KnowledgeService
@@ -102,17 +105,107 @@ async def ai_chat(
         raise HTTPException(status_code=500, detail=f"对话失败: {str(e)}")
 
 
+@router.post("/chat-stream")
+async def ai_chat_stream(
+    request: ChatRequest,
+    tenant_id: ConversationQuotaDep,  # 检查对话次数配额
+    db: DBDep,
+):
+    """
+    AI 智能对话流式接口
+
+    ⚠️ 会检查对话次数配额
+
+    以 Server-Sent Events (SSE) 格式返回流式响应
+    适用于需要实时显示打字效果的场景
+    """
+    async def event_generator():
+        try:
+            knowledge_items = None
+
+            # 如果使用 RAG，先检索知识库
+            if request.use_rag:
+                knowledge_service = KnowledgeService(db, tenant_id)
+                knowledge_list = await knowledge_service.search_knowledge(
+                    query=request.message,
+                    top_k=request.rag_top_k,
+                )
+
+                knowledge_items = [
+                    {
+                        "knowledge_id": k.knowledge_id,
+                        "title": k.title,
+                        "content": k.content,
+                        "category": k.category,
+                        "source": k.source,
+                    }
+                    for k in knowledge_list
+                ]
+
+            # 调用对话服务
+            result = await simple_chat(
+                db=db,
+                tenant_id=tenant_id,
+                conversation_id=request.conversation_id,
+                user_input=request.message,
+                use_rag=request.use_rag,
+                knowledge_items=knowledge_items,
+            )
+
+            # 模拟流式输出 (实际应用中需要使用支持流式的LLM)
+            response_text = result["response"]
+            words = response_text.split()
+
+            for i, word in enumerate(words):
+                chunk_data = {
+                    "type": "chunk",
+                    "content": word + " ",
+                    "index": i,
+                }
+                yield f"data: {json.dumps(chunk_data)}\n\n"
+                await asyncio.sleep(0.05)  # 模拟延迟
+
+            # 发送完成事件
+            final_data = {
+                "type": "done",
+                "conversation_id": request.conversation_id,
+                "input_tokens": result["input_tokens"],
+                "output_tokens": result["output_tokens"],
+                "total_tokens": result["total_tokens"],
+                "model": result["model"],
+            }
+            yield f"data: {json.dumps(final_data)}\n\n"
+
+        except Exception as e:
+            error_data = {
+                "type": "error",
+                "message": str(e),
+            }
+            yield f"data: {json.dumps(error_data)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
+
 @router.post("/classify-intent", response_model=ApiResponse[dict])
 async def classify_intent(
     conversation_id: str,
     message: str,
-    tenant_id: TenantDep,
+    tenant_id: ApiQuotaDep,  # 检查API调用配额
     db: DBDep,
 ):
     """
     意图分类接口
-    
+
     识别用户消息的意图类别
+
+    ⚠️ 会检查API调用配额
     """
     try:
         chain = ConversationChainService(
@@ -138,13 +231,15 @@ async def classify_intent(
 async def extract_entities(
     conversation_id: str,
     message: str,
-    tenant_id: TenantDep,
+    tenant_id: ApiQuotaDep,  # 检查API调用配额
     db: DBDep,
 ):
     """
     实体提取接口
-    
+
     从用户消息中提取关键实体（订单号、商品名等）
+
+    ⚠️ 会检查API调用配额
     """
     try:
         chain = ConversationChainService(
@@ -169,13 +264,15 @@ async def extract_entities(
 @router.get("/conversation/{conversation_id}/summary", response_model=ApiResponse[dict])
 async def get_conversation_summary(
     conversation_id: str,
-    tenant_id: TenantDep,
+    tenant_id: ApiQuotaDep,  # 检查API调用配额
     db: DBDep,
 ):
     """
     获取对话摘要
-    
+
     返回当前对话的简要摘要
+
+    ⚠️ 会检查API调用配额
     """
     try:
         chain = ConversationChainService(
