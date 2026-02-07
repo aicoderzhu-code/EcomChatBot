@@ -71,27 +71,42 @@ pipeline {
             steps {
                 script {
                     echo '>>> 构建Docker镜像...'
-                    echo '注意: 首次构建可能需要 10-20 分钟下载依赖'
+                    echo '⚠️  注意: 首次构建需要下载 1.5GB 依赖，可能需要 20-40 分钟'
+                    echo '⚠️  主要耗时: PyTorch (915MB), pandas, pillow 等'
                     sh '''
                         cd ${DEPLOY_PATH}
-                        echo "开始构建时间: $(date)"
+                        echo "构建开始时间: $(date '+%Y-%m-%d %H:%M:%S')"
                         
-                        # 显示 Docker 版本
-                        docker --version
-                        docker-compose --version
+                        # 显示 Docker 信息
+                        echo "Docker 版本: $(docker --version)"
+                        echo "可用磁盘空间:"
+                        df -h / | grep -v tmpfs
+                        echo ""
                         
-                        # 构建镜像（不使用并行，避免输出混乱）
-                        echo "正在构建镜像..."
-                        docker-compose build --no-cache || {
-                            echo "镜像构建失败，查看详细错误"
+                        # 构建镜像
+                        echo "=========================================="
+                        echo "正在构建镜像... 请耐心等待"
+                        echo "=========================================="
+                        
+                        docker-compose build 2>&1 | while read line; do
+                            echo "$line"
+                            # 每 100 行输出一次时间戳，防止 Jenkins 认为卡住
+                            if [ $((RANDOM % 100)) -eq 0 ]; then
+                                echo "[$(date '+%H:%M:%S')] 构建进行中..."
+                            fi
+                        done || {
+                            echo "❌ 镜像构建失败"
                             exit 1
                         }
                         
-                        echo "构建完成时间: $(date)"
+                        echo ""
+                        echo "构建完成时间: $(date '+%Y-%m-%d %H:%M:%S')"
                         echo "✓ 镜像构建完成"
                         
                         # 显示构建的镜像
-                        docker images | grep ecom-chatbot || true
+                        echo ""
+                        echo "构建的镜像："
+                        docker images | head -10
                     '''
                 }
             }
