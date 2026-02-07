@@ -39,10 +39,10 @@ async def register(
     自助注册新租户账户，默认为免费套餐
     """
     service = TenantService(db)
-    tenant, api_key = await service.register_tenant(register_data)
+    tenant_id, api_key = await service.register_tenant(register_data)
 
     response = TenantRegisterResponse(
-        tenant_id=tenant.tenant_id,
+        tenant_id=tenant_id,
         api_key=api_key,
         message="注册成功",
     )
