@@ -120,20 +120,6 @@ pipeline {
             }
         }
         
-        stage('停止旧服务') {
-            steps {
-                script {
-                    echo '>>> 停止旧版本服务...'
-                    sh '''
-                        cd ${DEPLOY_PATH}
-                        # 停止应用服务（保留数据库等基础服务）
-                        docker-compose stop api celery-worker || true
-                        echo "✓ 旧服务已停止"
-                    '''
-                }
-            }
-        }
-        
         stage('部署新服务') {
             steps {
                 script {
@@ -141,18 +127,13 @@ pipeline {
                     sh '''
                         cd ${DEPLOY_PATH}
                         
-                        # 确保基础服务正在运行
-                        docker-compose up -d postgres redis milvus-etcd milvus-minio milvus rabbitmq
+                        # 完全停止所有服务，避免容器状态冲突
+                        echo ">>> 停止所有旧服务..."
+                        docker-compose down || true
                         
-                        # 等待基础服务就绪
-                        echo "等待基础服务就绪..."
-                        sleep 20
-                        
-                        # 运行数据库初始化（如果需要）
-                        docker-compose up db-init || true
-                        
-                        # 启动应用服务
-                        docker-compose up -d api celery-worker
+                        # 使用 --force-recreate 和 --remove-orphans 避免 ContainerConfig 错误
+                        echo ">>> 启动所有服务（强制重建）..."
+                        docker-compose up -d --force-recreate --remove-orphans
                         
                         # 清理未使用的镜像
                         docker image prune -f || true
