@@ -75,7 +75,41 @@ pipeline {
             }
         }
         
+        stage('检查是否需要重建镜像') {
+            steps {
+                script {
+                    echo '>>> 检查是否需要重建镜像...'
+                    env.NEED_REBUILD = sh(
+                        script: '''
+                            cd ${DEPLOY_PATH}
+                            
+                            # 检查 requirements.txt 或 Dockerfile 是否变化
+                            if git diff HEAD~1 HEAD --name-only | grep -E 'requirements.txt|Dockerfile|docker-entrypoint.sh'; then
+                                echo "检测到依赖文件变化，需要重建镜像"
+                                echo "true"
+                            else
+                                # 检查镜像是否存在
+                                if docker images | grep -q "ecom-chat-bot_api"; then
+                                    echo "镜像已存在且依赖未变化，跳过构建"
+                                    echo "false"
+                                else
+                                    echo "镜像不存在，需要构建"
+                                    echo "true"
+                                fi
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+                    
+                    echo "是否需要重建: ${env.NEED_REBUILD}"
+                }
+            }
+        }
+        
         stage('构建镜像') {
+            when {
+                expression { env.NEED_REBUILD == 'true' }
+            }
             steps {
                 script {
                     echo '>>> 构建Docker镜像...'
@@ -91,7 +125,7 @@ pipeline {
                         df -h / | grep -v tmpfs
                         echo ""
                         
-                        # 构建镜像
+                        # 构建镜像（利用缓存）
                         echo "=========================================="
                         echo "正在构建镜像... 请耐心等待"
                         echo "=========================================="
