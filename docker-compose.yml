@@ -139,6 +139,16 @@ services:
       POSTGRES_DB: ecom_chatbot
       RUN_INIT_DB: "true"
       RUN_MIGRATIONS: "false"
+      # JWT配置
+      JWT_SECRET: "ecom-chatbot-secret-key-change-in-production-2024"
+      JWT_ALGORITHM: "HS256"
+      # API Key配置
+      API_KEY_PREFIX: "eck_"
+      API_KEY_LENGTH: "32"
+      # 基础配置
+      APP_NAME: "电商智能客服系统"
+      DEBUG: "false"
+      ENVIRONMENT: "production"
     command: python init_db.py
     networks:
       - ecom-network
@@ -175,6 +185,26 @@ services:
       POSTGRES_DB: ecom_chatbot
       RUN_INIT_DB: "false"
       RUN_MIGRATIONS: "false"
+      # JWT配置
+      JWT_SECRET: "ecom-chatbot-secret-key-change-in-production-2024"
+      JWT_ALGORITHM: "HS256"
+      JWT_ACCESS_TOKEN_EXPIRE_HOURS: "8"
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: "30"
+      # API Key配置
+      API_KEY_PREFIX: "eck_"
+      API_KEY_LENGTH: "32"
+      # 基础配置
+      APP_NAME: "电商智能客服系统"
+      APP_VERSION: "1.0.0"
+      DEBUG: "false"
+      ENVIRONMENT: "production"
+      API_V1_PREFIX: "/api/v1"
+      # OpenAI配置（可选）
+      OPENAI_API_KEY: "sk-xxx"
+      OPENAI_MODEL: "gpt-4o"
+      # 日志配置
+      LOG_LEVEL: "INFO"
+      LOG_FORMAT: "json"
     ports:
       - "8000:8000"
     volumes:
@@ -209,6 +239,14 @@ services:
       POSTGRES_DB: ecom_chatbot
       RUN_INIT_DB: "false"
       RUN_MIGRATIONS: "false"
+      # JWT配置
+      JWT_SECRET: "ecom-chatbot-secret-key-change-in-production-2024"
+      JWT_ALGORITHM: "HS256"
+      # 基础配置
+      APP_NAME: "电商智能客服系统"
+      DEBUG: "false"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "INFO"
     command: celery -A tasks.celery_app worker --loglevel=info
     networks:
       - ecom-network
