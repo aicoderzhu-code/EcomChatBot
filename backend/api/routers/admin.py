@@ -1,14 +1,14 @@
 """
 管理员 API 路由（平台管理）
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 
 from api.dependencies import AdminDep, DBDep, require_admin_permission
 from core import AdminRole, Permission, create_access_token
-from models import Subscription
+from models import Subscription, Tenant
 from schemas import (
     AdminCreate,
     AdminLoginRequest,
@@ -304,6 +304,107 @@ async def list_tenants(
     return ApiResponse(data=paginated)
 
 
+# ============ 欠费租户管理 (必须在 /tenants/{tenant_id} 之前定义) ============
+@router.get("/tenants/overdue")
+async def get_overdue_tenants(
+    admin: AdminDep,
+    db: DBDep,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    min_days_overdue: int = Query(0, ge=0, description="最小逾期天数"),
+):
+    """
+    获取欠费租户列表
+
+    返回有未支付账单的租户信息
+
+    参数：
+    - page: 页码
+    - page_size: 每页数量
+    - min_days_overdue: 最小逾期天数（0表示所有欠费租户）
+
+    权限：需要 BILLING_READ 权限
+    """
+    from models.tenant import Bill
+    from schemas.billing import OverdueTenantInfo, OverdueTenantListResponse
+
+    now = datetime.utcnow()
+
+    # 查询有欠费的租户
+    subquery = (
+        select(
+            Bill.tenant_id,
+            func.sum(Bill.total_amount).label("total_overdue"),
+            func.min(Bill.due_date).label("oldest_due_date"),
+            func.count(Bill.id).label("overdue_bills_count"),
+        )
+        .where(
+            and_(
+                Bill.status.in_(["pending", "overdue"]),
+                Bill.due_date < now,
+            )
+        )
+        .group_by(Bill.tenant_id)
+        .subquery()
+    )
+
+    query = (
+        select(Tenant, subquery.c)
+        .join(subquery, Tenant.tenant_id == subquery.c.tenant_id)
+    )
+
+    # 按逾期天数过滤
+    if min_days_overdue > 0:
+        threshold_date = now - timedelta(days=min_days_overdue)
+        query = query.where(subquery.c.oldest_due_date <= threshold_date)
+
+    # 按欠费金额排序
+    query = query.order_by(subquery.c.total_overdue.desc())
+
+    # 获取总数
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # 分页
+    query = query.offset((page - 1) * page_size).limit(page_size)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    items = []
+    for row in rows:
+        tenant = row[0]
+        total_overdue = row.total_overdue
+        oldest_due_date = row.oldest_due_date
+        bills_count = row.overdue_bills_count
+        days_overdue = (now - oldest_due_date).days if oldest_due_date else 0
+
+        items.append(
+            OverdueTenantInfo(
+                tenant_id=tenant.tenant_id,
+                company_name=tenant.company_name,
+                contact_name=tenant.contact_name,
+                email=tenant.contact_email,
+                phone=tenant.contact_phone,
+                total_overdue=float(total_overdue),
+                overdue_bills_count=bills_count,
+                days_overdue=days_overdue,
+                oldest_due_date=oldest_due_date,
+                degradation_level=getattr(tenant, "degradation_level", None),
+            )
+        )
+
+    response = OverdueTenantListResponse(
+        total=total,
+        page=page,
+        page_size=page_size,
+        items=items,
+    )
+
+    return ApiResponse(data=response)
+
+
 @router.get("/tenants/{tenant_id}", response_model=ApiResponse[TenantResponse])
 async def get_tenant(
     tenant_id: str,
@@ -562,107 +663,6 @@ async def batch_operation(
         failed_count=len(results["failed"]),
     )
 
-    return ApiResponse(data=response)
-
-
-# ============ 欠费租户管理 ============
-@router.get("/tenants/overdue")
-async def get_overdue_tenants(
-    admin: AdminDep,
-    db: DBDep,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    min_days_overdue: int = Query(0, ge=0, description="最小逾期天数"),
-):
-    """
-    获取欠费租户列表
-    
-    返回有未支付账单的租户信息
-    
-    参数：
-    - page: 页码
-    - page_size: 每页数量
-    - min_days_overdue: 最小逾期天数（0表示所有欠费租户）
-    
-    权限：需要 BILLING_READ 权限
-    """
-    from models.tenant import Bill
-    from schemas.billing import OverdueTenantInfo, OverdueTenantListResponse
-    
-    now = datetime.utcnow()
-    
-    # 查询有欠费的租户
-    subquery = (
-        select(
-            Bill.tenant_id,
-            func.sum(Bill.total_amount).label("total_overdue"),
-            func.min(Bill.due_date).label("oldest_due_date"),
-            func.count(Bill.id).label("overdue_bills_count"),
-        )
-        .where(
-            and_(
-                Bill.status.in_(["pending", "overdue"]),
-                Bill.due_date < now,
-            )
-        )
-        .group_by(Bill.tenant_id)
-        .subquery()
-    )
-    
-    query = (
-        select(Tenant, subquery.c)
-        .join(subquery, Tenant.tenant_id == subquery.c.tenant_id)
-    )
-    
-    # 按逾期天数过滤
-    if min_days_overdue > 0:
-        threshold_date = now - timedelta(days=min_days_overdue)
-        query = query.where(subquery.c.oldest_due_date <= threshold_date)
-    
-    # 按欠费金额排序
-    query = query.order_by(subquery.c.total_overdue.desc())
-    
-    # 获取总数
-    count_query = select(func.count()).select_from(query.subquery())
-    total_result = await db.execute(count_query)
-    total = total_result.scalar() or 0
-    
-    # 分页
-    query = query.offset((page - 1) * page_size).limit(page_size)
-    
-    result = await db.execute(query)
-    rows = result.all()
-    
-    items = []
-    for row in rows:
-        tenant = row[0]
-        total_overdue = row.total_overdue
-        oldest_due_date = row.oldest_due_date
-        bills_count = row.overdue_bills_count
-        days_overdue = (now - oldest_due_date).days if oldest_due_date else 0
-        
-        items.append(
-            OverdueTenantInfo(
-                tenant_id=tenant.tenant_id,
-                company_name=tenant.company_name,
-                contact_name=tenant.contact_name,
-                email=tenant.contact_email,
-                phone=tenant.contact_phone,
-                total_overdue=float(total_overdue),
-                overdue_bills_count=bills_count,
-                days_overdue=days_overdue,
-                oldest_due_date=oldest_due_date,
-                degradation_level=getattr(tenant, "degradation_level", None),
-            )
-        )
-    
-    response = OverdueTenantListResponse(
-        total=total,
-        page=page,
-        page_size=page_size,
-        items=items,
-    )
-    
     return ApiResponse(data=response)
 
 

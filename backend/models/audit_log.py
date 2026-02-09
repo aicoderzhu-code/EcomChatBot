@@ -11,27 +11,40 @@ from models.base import Base
 
 
 class GUID(TypeDecorator):
-    """跨数据库兼容的 UUID 类型"""
+    """跨数据库兼容的 UUID 类型
+
+    在 PostgreSQL 上使用原生 UUID 类型，在其他数据库（如 SQLite）上使用 VARCHAR(36)。
+    这确保了测试环境（SQLite）和生产环境（PostgreSQL）的兼容性。
+    """
+    # 使用 String(36) 作为基础实现，确保在所有数据库上都能工作
     impl = String(36)
     cache_ok = True
 
     def process_bind_param(self, value, dialect):
+        """将 Python UUID 转换为数据库格式"""
         if value is not None:
             if isinstance(value, uuid.UUID):
+                # PostgreSQL 原生支持 UUID，其他数据库使用字符串
+                if dialect.name == 'postgresql':
+                    return value
                 return str(value)
             return str(value)
         return value
 
     def process_result_value(self, value, dialect):
+        """将数据库值转换为 Python UUID"""
         if value is not None:
             if not isinstance(value, uuid.UUID):
-                return uuid.UUID(value)
+                return uuid.UUID(str(value))
+            return value
         return value
 
     def load_dialect_impl(self, dialect):
+        """根据数据库方言选择合适的类型实现"""
         if dialect.name == 'postgresql':
             return dialect.type_descriptor(PG_UUID(as_uuid=True))
         else:
+            # SQLite 和其他数据库使用 VARCHAR(36)
             return dialect.type_descriptor(String(36))
 
 

@@ -30,36 +30,61 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 # ==================== SQLite UUID 兼容性修复 ====================
 # 问题：SQLAlchemy 在 SQLite 上编译 PostgreSQL UUID 类型时失败
-# 解决方案：为 SQLite 方言注册 UUID 类型编译器
+# 解决方案：为 SQLite 方言注册 UUID 类型编译器，并确保在导入模型前执行
 
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy import String as SAString
 
 
 # 为 SQLite 注册 PostgreSQL UUID 类型的编译器
 # 当 SQLite 遇到 PG_UUID 类型时，将其编译为 VARCHAR(36)
+# 注意：这必须在导入任何使用 PG_UUID 的模型之前执行
 @compiles(PG_UUID, 'sqlite')
 def compile_uuid_sqlite(element, compiler, **kw):
     """在 SQLite 上将 UUID 编译为 VARCHAR(36)"""
     return "VARCHAR(36)"
 
 
-# 同时修补 GUID 类型以确保在 SQLite 上工作
+# 同时为 INET 类型注册编译器（用于 IP 地址字段）
+from sqlalchemy.dialects.postgresql import INET as PG_INET
+
+
+@compiles(PG_INET, 'sqlite')
+def compile_inet_sqlite(element, compiler, **kw):
+    """在 SQLite 上将 INET 编译为 VARCHAR(45)"""
+    return "VARCHAR(45)"
+
+
+# 修补 GUID 类型以确保在 SQLite 上工作
 def _patch_guid_for_sqlite():
     """修补 GUID 类型以支持 SQLite"""
     try:
         from models.audit_log import GUID
 
-        # 保存原始方法
+        # 保存原始方法（仅在尚未修补时）
         if not hasattr(GUID, '_original_load_dialect_impl'):
             GUID._original_load_dialect_impl = GUID.load_dialect_impl
 
             def patched_load_dialect_impl(self, dialect):
                 if dialect.name == 'sqlite':
-                    return dialect.type_descriptor(String(36))
+                    return dialect.type_descriptor(SAString(36))
                 return GUID._original_load_dialect_impl(self, dialect)
 
             GUID.load_dialect_impl = patched_load_dialect_impl
+
+        # 同样修补 IPAddress 类型
+        from models.audit_log import IPAddress
+        if not hasattr(IPAddress, '_original_load_dialect_impl'):
+            IPAddress._original_load_dialect_impl = IPAddress.load_dialect_impl
+
+            def patched_ip_load_dialect_impl(self, dialect):
+                if dialect.name == 'sqlite':
+                    return dialect.type_descriptor(SAString(45))
+                return IPAddress._original_load_dialect_impl(self, dialect)
+
+            IPAddress.load_dialect_impl = patched_ip_load_dialect_impl
+
     except ImportError:
         pass
 
