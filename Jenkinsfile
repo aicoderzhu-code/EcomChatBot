@@ -250,12 +250,37 @@ pipeline {
                     sh '''
                         cd ${DEPLOY_PATH}/backend
                         
-                        # 使用专门的CI测试脚本
-                        chmod +x tests/run_ci_tests.sh
-                        ./tests/run_ci_tests.sh || true
+                        echo ">>> 当前工作目录: $(pwd)"
+                        echo ">>> Python版本: $(python3 --version)"
+                        echo ">>> 检查测试脚本..."
+                        ls -la tests/run_ci_tests.sh
                         
                         echo ""
-                        echo "✓ 测试执行完成"
+                        echo ">>> 开始执行测试..."
+                        
+                        # 使用专门的CI测试脚本
+                        chmod +x tests/run_ci_tests.sh
+                        
+                        # 执行测试，捕获退出码但不中断流水线
+                        set +e
+                        ./tests/run_ci_tests.sh
+                        TEST_EXIT_CODE=$?
+                        set -e
+                        
+                        echo ""
+                        echo ">>> 测试执行完成，退出码: $TEST_EXIT_CODE"
+                        
+                        # 检查报告是否生成
+                        echo ">>> 检查测试报告..."
+                        if [ -d "test-reports" ]; then
+                            echo "✓ test-reports 目录存在"
+                            ls -la test-reports/
+                        else
+                            echo "✗ test-reports 目录不存在"
+                        fi
+                        
+                        echo ""
+                        echo "✓ 测试阶段完成"
                     '''
                 }
             }
@@ -265,39 +290,73 @@ pipeline {
     post {
         always {
             script {
-                // 归档测试报告
-                echo '>>> 归档测试报告...'
+                echo '>>> 开始归档测试报告...'
+                
+                // 切换到backend目录
                 dir("${env.DEPLOY_PATH}/backend") {
+                    // 显示当前目录和文件
+                    sh '''
+                        echo "=== 当前目录 ==="
+                        pwd
+                        echo ""
+                        echo "=== test-reports 内容 ==="
+                        if [ -d "test-reports" ]; then
+                            find test-reports -type f -ls
+                        else
+                            echo "✗ test-reports 目录不存在"
+                        fi
+                    '''
+                    
                     // 发布JUnit测试报告
-                    junit allowEmptyResults: true, testResults: 'test-reports/junit-report.xml'
+                    try {
+                        junit allowEmptyResults: true, testResults: 'test-reports/junit-report.xml'
+                        echo '✓ JUnit报告已发布'
+                    } catch (Exception e) {
+                        echo "⚠ JUnit报告发布失败: ${e.message}"
+                    }
                     
                     // 发布HTML测试报告
-                    publishHTML([
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'test-reports',
-                        reportFiles: 'test-report.html',
-                        reportName: '测试报告',
-                        reportTitles: '自动化测试报告'
-                    ])
+                    try {
+                        publishHTML([
+                            allowMissing: false,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'test-reports',
+                            reportFiles: 'test-report.html',
+                            reportName: '测试报告',
+                            reportTitles: '自动化测试报告'
+                        ])
+                        echo '✓ HTML测试报告已发布'
+                    } catch (Exception e) {
+                        echo "⚠ HTML测试报告发布失败: ${e.message}"
+                    }
                     
                     // 发布覆盖率报告
-                    publishHTML([
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'test-reports/coverage-html',
-                        reportFiles: 'index.html',
-                        reportName: '覆盖率报告',
-                        reportTitles: '代码覆盖率报告'
-                    ])
+                    try {
+                        publishHTML([
+                            allowMissing: false,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'test-reports/coverage-html',
+                            reportFiles: 'index.html',
+                            reportName: '覆盖率报告',
+                            reportTitles: '代码覆盖率报告'
+                        ])
+                        echo '✓ 覆盖率报告已发布'
+                    } catch (Exception e) {
+                        echo "⚠ 覆盖率报告发布失败: ${e.message}"
+                    }
                     
                     // 归档所有测试报告文件
-                    archiveArtifacts artifacts: 'test-reports/**/*', allowEmptyArchive: true, fingerprint: true
+                    try {
+                        archiveArtifacts artifacts: 'test-reports/**/*', allowEmptyArchive: true, fingerprint: true
+                        echo '✓ 测试报告文件已归档'
+                    } catch (Exception e) {
+                        echo "⚠ 报告归档失败: ${e.message}"
+                    }
                 }
                 
-                echo '✓ 测试报告已归档'
+                echo '>>> 测试报告归档流程结束'
             }
             
             echo '>>> 构建流程结束'
