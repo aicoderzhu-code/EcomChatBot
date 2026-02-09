@@ -240,31 +240,134 @@ pipeline {
                 }
             }
         }
+        
+        stage('运行自动化测试') {
+            steps {
+                script {
+                    echo '=========================================='
+                    echo '  🧪 执行CI/CD自动化测试'
+                    echo '=========================================='
+                    sh '''
+                        cd ${DEPLOY_PATH}/backend
+                        
+                        # 使用专门的CI测试脚本
+                        chmod +x tests/run_ci_tests.sh
+                        ./tests/run_ci_tests.sh || true
+                        
+                        echo ""
+                        echo "✓ 测试执行完成"
+                    '''
+                }
+            }
+        }
     }
     
     post {
+        always {
+            script {
+                // 归档测试报告
+                echo '>>> 归档测试报告...'
+                dir("${env.DEPLOY_PATH}/backend") {
+                    // 发布JUnit测试报告
+                    junit allowEmptyResults: true, testResults: 'test-reports/junit-report.xml'
+                    
+                    // 发布HTML测试报告
+                    publishHTML([
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'test-reports',
+                        reportFiles: 'test-report.html',
+                        reportName: '测试报告',
+                        reportTitles: '自动化测试报告'
+                    ])
+                    
+                    // 发布覆盖率报告
+                    publishHTML([
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'test-reports/coverage-html',
+                        reportFiles: 'index.html',
+                        reportName: '覆盖率报告',
+                        reportTitles: '代码覆盖率报告'
+                    ])
+                    
+                    // 归档所有测试报告文件
+                    archiveArtifacts artifacts: 'test-reports/**/*', allowEmptyArchive: true, fingerprint: true
+                }
+                
+                echo '✓ 测试报告已归档'
+            }
+            
+            echo '>>> 构建流程结束'
+        }
+        
         success {
-            echo '=========================================='
-            echo '  🎉 部署成功！'
-            echo "  构建编号: ${env.BUILD_NUMBER}"
-            echo "  Git分支: ${env.GIT_BRANCH}"
-            echo "  提交ID: ${env.GIT_COMMIT}"
-            echo '  '
-            echo '  访问地址:'
-            echo '  API服务: http://localhost:8000'
-            echo '  API文档: http://localhost:8000/docs'
-            echo '=========================================='
+            script {
+                // 读取测试结果
+                def testSummary = ""
+                try {
+                    testSummary = readFile("${env.DEPLOY_PATH}/backend/test-reports/test-summary.txt")
+                } catch (Exception e) {
+                    testSummary = "测试报告文件未生成"
+                }
+                
+                echo '=========================================='
+                echo '  🎉 部署成功！'
+                echo "  构建编号: ${env.BUILD_NUMBER}"
+                echo "  Git分支: ${env.GIT_BRANCH}"
+                echo "  提交ID: ${env.GIT_COMMIT}"
+                echo '  '
+                echo '  访问地址:'
+                echo '  API服务: http://localhost:8000'
+                echo '  API文档: http://localhost:8000/docs'
+                echo '  '
+                echo '  测试报告:'
+                echo "  查看测试报告: ${env.BUILD_URL}测试报告/"
+                echo "  查看覆盖率: ${env.BUILD_URL}覆盖率报告/"
+                echo '=========================================='
+                
+                // 如果配置了钉钉机器人，发送成功通知
+                if (env.DINGTALK_WEBHOOK) {
+                    dingtalk(
+                        robot: env.DINGTALK_WEBHOOK,
+                        type: 'MARKDOWN',
+                        title: '部署成功通知',
+                        text: [
+                            "### 🎉 电商智能客服系统 - 部署成功",
+                            "",
+                            "#### 构建信息",
+                            "- **构建编号**: ${env.BUILD_NUMBER}",
+                            "- **Git分支**: ${env.GIT_BRANCH}",
+                            "- **提交ID**: ${env.GIT_COMMIT}",
+                            "- **构建时间**: ${new Date().format('yyyy-MM-dd HH:mm:ss')}",
+                            "",
+                            "#### 服务地址",
+                            "- API服务: http://localhost:8000",
+                            "- API文档: http://localhost:8000/docs",
+                            "",
+                            "#### 测试报告",
+                            "- [查看测试报告](${env.BUILD_URL}测试报告/)",
+                            "- [查看覆盖率报告](${env.BUILD_URL}覆盖率报告/)",
+                            "",
+                            "---",
+                            "部署人: ${env.BUILD_USER ?: 'Jenkins'}"
+                        ]
+                    )
+                }
+            }
         }
         
         failure {
-            echo '=========================================='
-            echo '  ❌ 部署失败！'
-            echo "  构建编号: ${env.BUILD_NUMBER}"
-            echo '  请检查日志以获取详细信息'
-            echo '=========================================='
-            
             script {
-                sh '''
+                echo '=========================================='
+                echo '  ❌ 部署失败！'
+                echo "  构建编号: ${env.BUILD_NUMBER}"
+                echo '  请检查日志以获取详细信息'
+                echo '=========================================='
+                
+                sh """
                     cd ${DEPLOY_PATH}
                     echo "=== 错误诊断信息 ==="
                     echo "服务状态:"
@@ -272,12 +375,33 @@ pipeline {
                     echo ""
                     echo "最近日志:"
                     docker-compose logs --tail=30 || true
-                '''
+                """
+                
+                // 如果配置了钉钉机器人，发送失败通知
+                if (env.DINGTALK_WEBHOOK) {
+                    dingtalk(
+                        robot: env.DINGTALK_WEBHOOK,
+                        type: 'MARKDOWN',
+                        title: '部署失败通知',
+                        text: [
+                            "### ❌ 电商智能客服系统 - 部署失败",
+                            "",
+                            "#### 构建信息",
+                            "- **构建编号**: ${env.BUILD_NUMBER}",
+                            "- **Git分支**: ${env.GIT_BRANCH}",
+                            "- **提交ID**: ${env.GIT_COMMIT}",
+                            "- **失败时间**: ${new Date().format('yyyy-MM-dd HH:mm:ss')}",
+                            "",
+                            "#### 操作建议",
+                            "- [查看构建日志](${env.BUILD_URL}console)",
+                            "- [查看测试报告](${env.BUILD_URL}测试报告/)",
+                            "",
+                            "---",
+                            "请及时处理！"
+                        ]
+                    )
+                }
             }
-        }
-        
-        always {
-            echo '>>> 构建流程结束'
         }
     }
 }

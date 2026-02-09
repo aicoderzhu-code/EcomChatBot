@@ -1,0 +1,44 @@
+# 测试框架核心
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-xdist==3.5.0
+pytest-html==4.1.1
+pytest-timeout==2.2.0
+pytest-randomly==3.15.0
+
+# HTTP测试
+httpx==0.26.0
+requests==2.31.0
+
+# WebSocket测试
+websocket-client==1.7.0
+python-socketio[asyncio]==5.11.0
+
+# 数据库测试
+pytest-postgresql==5.0.0
+aiosqlite==0.19.0
+
+# Redis测试
+fakeredis[asyncio]==2.20.1
+
+# 数据生成
+faker==22.0.0
+factory-boy==3.3.0
+
+# 性能测试
+locust==2.20.0
+pytest-benchmark==4.0.0
+
+# 测试报告
+allure-pytest==2.13.2
+pytest-json-report==1.5.0
+
+# 代码质量
+coverage[toml]==7.4.0
+pytest-clarity==1.0.1
+
+# 工具库
+freezegun==1.4.0
+respx==0.20.2
