@@ -222,7 +222,7 @@ pipeline {
             steps {
                 script {
                     echo '=========================================='
-                    echo '  🧪 部署后自动化测试'
+                    echo '  开始执行部署后自动化测试'
                     echo '=========================================='
                     sh '''
                         cd ${DEPLOY_PATH}
@@ -230,149 +230,12 @@ pipeline {
                         echo ">>> 在Docker容器中运行测试..."
                         echo ""
 
-                        # 在API容器中执行测试
-                        docker-compose exec -T api bash << 'DOCKER_EOF'
-set -e
+                        # 复制测试脚本到容器
+                        docker cp ${DEPLOY_PATH}/scripts/run-tests.sh ecom-chatbot-api:/app/run-tests.sh
+                        docker exec ecom-chatbot-api chmod +x /app/run-tests.sh
 
-echo "╔════════════════════════════════════════════════════════╗"
-echo "║   电商智能客服SaaS平台 - 部署后自动化测试              ║"
-echo "╚════════════════════════════════════════════════════════╝"
-echo ""
-
-# 显示环境信息
-echo "[INFO] 测试环境:"
-echo "  - Python版本: $(python --version)"
-echo "  - 工作目录: $(pwd)"
-echo "  - 执行时间: $(date '+%Y-%m-%d %H:%M:%S')"
-echo ""
-
-# 安装/更新测试依赖
-echo "[INFO] 准备测试依赖..."
-pip install -q \
-    pytest \
-    pytest-asyncio \
-    pytest-cov \
-    pytest-html \
-    httpx \
-    faker \
-    aiosqlite \
-    || echo "[WARNING] 部分依赖安装失败"
-
-echo "[SUCCESS] 测试依赖已就绪"
-
-# 创建测试报告目录
-echo ""
-echo "[INFO] 准备测试报告目录..."
-mkdir -p /app/test-reports/coverage-html
-mkdir -p /app/test-reports/logs
-rm -f /app/test-reports/*.xml /app/test-reports/*.html 2>/dev/null || true
-
-# 设置Python路径
-export PYTHONPATH=/app:$PYTHONPATH
-
-# 运行测试
-echo ""
-echo "=========================================="
-echo "  开始运行测试套件"
-echo "=========================================="
-echo ""
-
-cd /app
-
-# 执行测试并生成报告
-pytest tests/ \
-    -v \
-    --tb=short \
-    --maxfail=50 \
-    --junit-xml=/app/test-reports/junit-report.xml \
-    --html=/app/test-reports/test-report.html \
-    --self-contained-html \
-    --cov=api \
-    --cov=services \
-    --cov=models \
-    --cov-report=html:/app/test-reports/coverage-html \
-    --cov-report=xml:/app/test-reports/coverage.xml \
-    --cov-report=term-missing:skip-covered \
-    -m "not slow" \
-    --continue-on-collection-errors \
-    2>&1 | tee /app/test-reports/logs/test-output.log || TEST_EXIT_CODE=$?
-
-echo ""
-echo "[INFO] 测试执行完成，退出码: ${TEST_EXIT_CODE:-0}"
-
-# 生成测试摘要
-echo ""
-echo "[INFO] 生成测试摘要..."
-
-# 解析测试结果
-if [ -f "/app/test-reports/junit-report.xml" ]; then
-    TOTAL_TESTS=$(grep 'tests=' /app/test-reports/junit-report.xml | head -1 | sed 's/.*tests="\([0-9]*\)".*/\1/' || echo "0")
-    FAILURES=$(grep 'failures=' /app/test-reports/junit-report.xml | head -1 | sed 's/.*failures="\([0-9]*\)".*/\1/' || echo "0")
-    ERRORS=$(grep 'errors=' /app/test-reports/junit-report.xml | head -1 | sed 's/.*errors="\([0-9]*\)".*/\1/' || echo "0")
-    SKIPPED=$(grep 'skipped=' /app/test-reports/junit-report.xml | head -1 | sed 's/.*skipped="\([0-9]*\)".*/\1/' || echo "0")
-    PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
-else
-    TOTAL_TESTS="0"
-    PASSED="0"
-    FAILURES="0"
-    ERRORS="0"
-    SKIPPED="0"
-fi
-
-# 获取覆盖率
-if [ -f "/app/test-reports/coverage.xml" ]; then
-    COVERAGE=$(grep 'line-rate=' /app/test-reports/coverage.xml | head -1 | sed 's/.*line-rate="\([0-9.]*\)".*/\1/' || echo "0")
-    COVERAGE_PERCENT=$(echo "$COVERAGE * 100" | bc 2>/dev/null || echo "0")
-else
-    COVERAGE_PERCENT="0"
-fi
-
-# 生成摘要文件
-cat > /app/test-reports/test-summary.txt << EOF
-========================================
-  电商智能客服SaaS平台 - 测试报告
-========================================
-
-执行信息:
-  构建编号: ${BUILD_NUMBER:-Manual}
-  执行时间: $(date '+%Y-%m-%d %H:%M:%S')
-  测试环境: Docker容器 (ecom-chatbot-api)
-  Python版本: $(python --version)
-
-测试结果:
-  总测试数: ${TOTAL_TESTS}
-  通过: ${PASSED}
-  失败: ${FAILURES}
-  错误: ${ERRORS}
-  跳过: ${SKIPPED}
-  代码覆盖率: ${COVERAGE_PERCENT}%
-
-测试状态: $([ "${TEST_EXIT_CODE:-0}" = "0" ] && echo "✓ 通过" || echo "✗ 失败")
-
-报告文件:
-  - JUnit报告: test-reports/junit-report.xml
-  - HTML报告: test-reports/test-report.html
-  - 覆盖率HTML: test-reports/coverage-html/index.html
-  - 覆盖率XML: test-reports/coverage.xml
-  - 测试日志: test-reports/logs/test-output.log
-
-========================================
-EOF
-
-cat /app/test-reports/test-summary.txt
-
-echo ""
-echo "[SUCCESS] 测试完成！"
-echo ""
-
-# 列出生成的文件
-echo "[INFO] 生成的测试报告文件:"
-ls -lh /app/test-reports/ 2>/dev/null | tail -n +2 || true
-
-# 退出（允许部分测试失败）
-exit 0
-
-DOCKER_EOF
+                        # 在容器中执行测试脚本
+                        docker exec -e BUILD_NUMBER=${BUILD_NUMBER} ecom-chatbot-api /app/run-tests.sh || true
 
                         echo ""
                         echo ">>> 从容器复制测试报告到宿主机..."
@@ -381,17 +244,17 @@ DOCKER_EOF
                         mkdir -p ${DEPLOY_PATH}/test-reports
 
                         # 从容器复制报告文件
-                        docker cp ecom-chatbot-api:/app/test-reports/. ${DEPLOY_PATH}/test-reports/
+                        docker cp ecom-chatbot-api:/app/test-reports/. ${DEPLOY_PATH}/test-reports/ || true
 
-                        echo "✓ 测试报告已复制到: ${DEPLOY_PATH}/test-reports/"
+                        echo "测试报告已复制到: ${DEPLOY_PATH}/test-reports/"
                         echo ""
 
                         # 显示报告文件统计
                         echo ">>> 测试报告文件:"
-                        ls -lh ${DEPLOY_PATH}/test-reports/ | grep -E "\\.(xml|html|txt)$" || true
+                        ls -lh ${DEPLOY_PATH}/test-reports/ 2>/dev/null || echo "暂无报告文件"
 
                         echo ""
-                        echo "✓ 测试阶段完成"
+                        echo "测试阶段完成"
                     '''
                 }
             }
