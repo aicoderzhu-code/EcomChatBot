@@ -20,8 +20,8 @@ class TestSettings(BaseSettings):
     api_prefix: str = "/api/v1"
 
     # ============ 超时设置 ============
-    request_timeout: int = 30
-    llm_request_timeout: int = 60
+    request_timeout: int = 60  # 增加到60秒，支持真实LLM调用
+    llm_request_timeout: int = 120  # 增加到120秒，支持复杂的AI操作
 
     # ============ 并发设置 ============
     max_concurrent: int = 10
@@ -46,7 +46,7 @@ class TestSettings(BaseSettings):
     performance_duration: int = 30
 
     # ============ LLM 配置 ============
-    llm_provider: Literal["zhipuai", "openai", "anthropic"] = "zhipuai"
+    llm_provider: Literal["zhipuai", "openai", "anthropic", "deepseek"] = "deepseek"
 
     # 智谱AI配置
     zhipuai_api_key: str = ""
@@ -56,6 +56,11 @@ class TestSettings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-3.5-turbo"
     openai_base_url: str = "https://api.openai.com/v1"
+    
+    # DeepSeek配置
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com"
 
     @property
     def full_url(self) -> str:
@@ -74,6 +79,8 @@ class TestSettings(BaseSettings):
             return bool(self.zhipuai_api_key)
         elif self.llm_provider == "openai":
             return bool(self.openai_api_key)
+        elif self.llm_provider == "deepseek":
+            return bool(self.deepseek_api_key)
         return False
 
 

@@ -230,14 +230,20 @@ pipeline {
                             -w /workspace/backend/tests \
                             -e TEST_BASE_URL=\${TEST_BASE_URL} \
                             -e TEST_API_PREFIX=/api/v1 \
-                            -e TEST_REQUEST_TIMEOUT=30 \
-                            -e TEST_LLM_REQUEST_TIMEOUT=60 \
+                            -e TEST_REQUEST_TIMEOUT=60 \
+                            -e TEST_LLM_REQUEST_TIMEOUT=120 \
                             -e TEST_CLEANUP_AFTER_TEST=${params.CLEANUP_TEST_DATA} \
                             -e TEST_SKIP_PERFORMANCE=${!params.RUN_PERFORMANCE_TESTS} \
                             -e TEST_SKIP_SECURITY=${!params.RUN_SECURITY_TESTS} \
                             -e TEST_LOG_LEVEL=INFO \
                             -e TEST_TENANT_PREFIX=ci_test_ \
                             -e TEST_MAX_CONCURRENT=10 \
+                            -e LLM_PROVIDER=deepseek \
+                            -e DEEPSEEK_API_KEY=your-deepseek-api-key-here \
+                            -e DEEPSEEK_MODEL=deepseek-chat \
+                            -e DEEPSEEK_BASE_URL=https://api.deepseek.com \
+                            -e MILVUS_HOST=localhost \
+                            -e MILVUS_PORT=19530 \
                             ${TEST_IMAGE}:${TEST_IMAGE_TAG} \
                             /bin/bash -c "
                                 set -e
@@ -245,6 +251,8 @@ pipeline {
                                 echo '开始执行测试...'
                                 echo '测试级别: ${params.TEST_LEVEL}'
                                 echo '测试服务器: \${TEST_BASE_URL}'
+                                echo 'LLM 提供商: deepseek'
+                                echo 'LLM 模型: deepseek-chat'
                                 echo ''
                                 
                                 # 创建报告目录
