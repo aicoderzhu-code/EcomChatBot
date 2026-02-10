@@ -202,7 +202,7 @@ pipeline {
                     def testCommand = ''
                     switch(params.TEST_LEVEL) {
                         case 'quick':
-                            testCommand = 'pytest -m "not slow and not performance and not security" --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
+                            testCommand = 'pytest -m "(not slow) and (not performance) and (not security)" --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'api':
                             testCommand = 'pytest api/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
@@ -211,10 +211,10 @@ pipeline {
                             testCommand = 'pytest integration/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'performance':
-                            testCommand = 'pytest -m performance --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
+                            testCommand = 'pytest -m "performance" --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'security':
-                            testCommand = 'pytest -m security --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
+                            testCommand = 'pytest -m "security" --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'full':
                         default:

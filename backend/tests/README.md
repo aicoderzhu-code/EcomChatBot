@@ -129,6 +129,8 @@ pytest -m monitor         # 监控统计
 pytest -m quality         # 质量评估
 pytest -m model_config    # 模型配置
 pytest -m admin           # 管理员
+pytest -m analytics       # 数据分析
+pytest -m statistics      # 统计分析
 
 # 按测试类型
 pytest -m integration     # 集成测试
@@ -138,6 +140,20 @@ pytest -m security        # 安全测试
 # 按速度
 pytest -m "not slow"      # 跳过慢速测试
 ```
+
+### 检查标记完整性
+
+使用 `check_markers.py` 脚本验证所有标记都已正确注册：
+
+```bash
+python check_markers.py
+
+# 输出示例:
+# ✅ 所有标记都已正确注册！
+# 📊 标记统计: 已注册 19 个，使用中 18 个
+```
+
+如果发现未注册的标记，脚本会提示需要在 `pytest.ini` 中添加。
 
 ## 📊 测试报告
 
