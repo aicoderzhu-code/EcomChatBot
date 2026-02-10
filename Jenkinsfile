@@ -73,9 +73,6 @@ pipeline {
         
         // 时间戳
         timestamps()
-        
-        // 彩色输出
-        ansiColor('xterm')
     }
     
     stages {
