@@ -11,8 +11,8 @@ pipeline {
         TEST_ENV = 'production'
         TEST_BASE_URL = 'http://115.190.75.88:8000'
         
-        // Conda环境
-        CONDA_ENV = 'ecom-chat-bot'
+        // 虚拟环境路径
+        VENV_PATH = "${WORKSPACE}/.venv"
         
         // 报告目录
         REPORT_DIR = 'backend/tests/reports'
@@ -48,6 +48,11 @@ pipeline {
             name: 'CLEANUP_TEST_DATA',
             defaultValue: true,
             description: '测试后是否清理测试数据'
+        )
+        booleanParam(
+            name: 'CLEAN_VENV',
+            defaultValue: false,
+            description: '是否清理虚拟环境（清理后下次构建会重新创建，耗时更长）'
         )
     }
     
@@ -95,8 +100,10 @@ pipeline {
                 sh '''
                     echo "==================================="
                     echo "项目: ${PROJECT_NAME}"
-                    echo "Python版本: ${PYTHON_VERSION}"
+                    echo "Python 要求版本: ${PYTHON_VERSION}"
                     echo "测试环境: ${TEST_ENV}"
+                    echo "测试服务器: ${TEST_BASE_URL}"
+                    echo "虚拟环境路径: ${VENV_PATH}"
                     echo "==================================="
                 '''
             }
@@ -105,12 +112,18 @@ pipeline {
         stage('检查环境') {
             steps {
                 sh '''
-                    # 检查Python和Conda
-                    python3 --version || echo "Python3未安装"
-                    conda --version || echo "Conda未安装"
+                    # 检查Python版本
+                    echo "检查 Python 环境..."
+                    python3 --version || (echo "❌ Python3 未安装" && exit 1)
+                    
+                    # 检查 pip
+                    python3 -m pip --version || (echo "❌ pip 未安装" && exit 1)
                     
                     # 检查测试环境URL
-                    curl -s ${TEST_BASE_URL}/health || echo "测试环境不可访问"
+                    echo "检查测试服务器..."
+                    curl -s ${TEST_BASE_URL}/health || echo "⚠️ 测试环境暂时不可访问"
+                    
+                    echo "✓ 环境检查完成"
                 '''
             }
         }
@@ -118,24 +131,55 @@ pipeline {
         stage('安装依赖') {
             steps {
                 script {
-                    echo "📦 安装测试依赖..."
+                    echo "📦 准备 Python 虚拟环境..."
                 }
                 
                 sh '''
-                    # 激活conda环境（如果不存在则创建）
-                    if conda env list | grep -q "^${CONDA_ENV} "; then
-                        echo "Conda环境已存在"
+                    # 虚拟环境目录
+                    VENV_DIR="${WORKSPACE}/.venv"
+                    
+                    # 如果虚拟环境不存在则创建
+                    if [ ! -d "${VENV_DIR}" ]; then
+                        echo "创建 Python 虚拟环境..."
+                        python3 -m venv ${VENV_DIR}
+                        FRESH_INSTALL=true
                     else
-                        echo "创建Conda环境"
-                        conda create -n ${CONDA_ENV} python=${PYTHON_VERSION} -y
+                        echo "✓ 虚拟环境已存在，复用以加快构建"
+                        FRESH_INSTALL=false
                     fi
                     
-                    # 激活环境并安装依赖
-                    source activate ${CONDA_ENV}
-                    cd backend/tests
-                    pip install -r requirements-test.txt -q
+                    # 激活虚拟环境
+                    . ${VENV_DIR}/bin/activate
                     
-                    echo "✓ 依赖安装完成"
+                    # 显示 Python 信息
+                    echo "Python 版本:"
+                    python --version
+                    echo "pip 版本:"
+                    pip --version
+                    
+                    # 升级 pip
+                    echo "升级 pip..."
+                    pip install --upgrade pip -q
+                    
+                    # 进入测试目录
+                    cd backend/tests
+                    
+                    # 检查是否需要安装依赖
+                    if [ "$FRESH_INSTALL" = "true" ]; then
+                        echo "首次安装，安装所有测试依赖..."
+                        pip install -r requirements-test.txt
+                    else
+                        echo "检查并更新依赖..."
+                        pip install -r requirements-test.txt --upgrade
+                    fi
+                    
+                    # 显示已安装的包
+                    echo ""
+                    echo "已安装的测试依赖包:"
+                    pip list | grep -E "pytest|httpx|faker|locust|requests"
+                    
+                    echo ""
+                    echo "✓ 依赖准备完成"
                 '''
             }
         }
@@ -210,7 +254,9 @@ EOF
                     }
                     
                     sh """
-                        source activate ${CONDA_ENV}
+                        # 激活虚拟环境
+                        . ${WORKSPACE}/.venv/bin/activate
+                        
                         cd backend/tests
                         
                         # 创建报告目录
@@ -315,14 +361,23 @@ EOF
             script {
                 echo "🧹 清理环境..."
                 
-                // 清理临时文件（可选）
+                // 清理临时文件
                 try {
                     sh '''
-                        cd backend/tests
-                        rm -f .env.test.local
+                        # 清理测试配置文件
+                        if [ -f backend/tests/.env.test.local ]; then
+                            rm -f backend/tests/.env.test.local
+                            echo "✓ 已清理测试配置文件"
+                        fi
+                        
+                        # 清理 Python 缓存
+                        find backend/tests -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+                        find backend/tests -type f -name "*.pyc" -delete 2>/dev/null || true
+                        
+                        echo "✓ 清理完成"
                     '''
                 } catch (Exception e) {
-                    echo "清理临时文件失败: ${e.message}"
+                    echo "清理失败: ${e.message}"
                 }
             }
         }
@@ -369,13 +424,22 @@ EOF
         cleanup {
             script {
                 echo "🧹 最终清理..."
-                // 最终清理（可选）
-                // cleanWs(
-                //     cleanWhenNotBuilt: false,
-                //     deleteDirs: true,
-                //     disableDeferredWipeout: true,
-                //     notFailBuild: true
-                // )
+                
+                // 根据参数决定是否清理虚拟环境
+                if (params.CLEAN_VENV) {
+                    try {
+                        sh '''
+                            if [ -d "${VENV_PATH}" ]; then
+                                rm -rf ${VENV_PATH}
+                                echo "✓ 已清理虚拟环境"
+                            fi
+                        '''
+                    } catch (Exception e) {
+                        echo "清理虚拟环境失败: ${e.message}"
+                    }
+                } else {
+                    echo "保留虚拟环境以加快下次构建"
+                }
             }
         }
     }
