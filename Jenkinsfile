@@ -5,14 +5,14 @@ pipeline {
     environment {
         // 项目配置
         PROJECT_NAME = 'ecom-chat-bot'
-        PYTHON_VERSION = '3.11'
+        
+        // Docker 镜像配置
+        TEST_IMAGE = 'ecom-chat-bot-test'
+        TEST_IMAGE_TAG = "${env.BUILD_NUMBER}"
         
         // 测试环境配置
         TEST_ENV = 'production'
         TEST_BASE_URL = 'http://115.190.75.88:8000'
-        
-        // 虚拟环境路径
-        VENV_PATH = "${WORKSPACE}/.venv"
         
         // 报告目录
         REPORT_DIR = 'backend/tests/reports'
@@ -50,9 +50,9 @@ pipeline {
             description: '测试后是否清理测试数据'
         )
         booleanParam(
-            name: 'CLEAN_VENV',
+            name: 'REBUILD_IMAGE',
             defaultValue: false,
-            description: '是否清理虚拟环境（清理后下次构建会重新创建，耗时更长）'
+            description: '是否强制重新构建 Docker 镜像（清理缓存）'
         )
     }
     
@@ -90,9 +90,6 @@ pipeline {
                     echo "📌 测试级别: ${params.TEST_LEVEL}"
                 }
                 
-                // 清理工作空间（可选）
-                // cleanWs()
-                
                 // 检出代码
                 checkout scm
                 
@@ -100,10 +97,9 @@ pipeline {
                 sh '''
                     echo "==================================="
                     echo "项目: ${PROJECT_NAME}"
-                    echo "Python 要求版本: ${PYTHON_VERSION}"
                     echo "测试环境: ${TEST_ENV}"
                     echo "测试服务器: ${TEST_BASE_URL}"
-                    echo "虚拟环境路径: ${VENV_PATH}"
+                    echo "Docker 镜像: ${TEST_IMAGE}:${TEST_IMAGE_TAG}"
                     echo "==================================="
                 '''
             }
@@ -112,114 +108,87 @@ pipeline {
         stage('检查环境') {
             steps {
                 sh '''
-                    # 检查Python版本
-                    echo "检查 Python 环境..."
-                    python3 --version || (echo "❌ Python3 未安装" && exit 1)
+                    echo "=================================="
+                    echo "环境检查"
+                    echo "=================================="
                     
-                    # 检查 pip
-                    python3 -m pip --version || (echo "❌ pip 未安装" && exit 1)
+                    # 检查 Docker
+                    echo "检查 Docker..."
+                    if docker --version; then
+                        echo "✓ Docker 可用"
+                    else
+                        echo "❌ Docker 未安装"
+                        exit 1
+                    fi
                     
-                    # 检查测试环境URL
+                    # 检查 Docker Compose
+                    echo ""
+                    echo "检查 Docker Compose..."
+                    if docker-compose --version || docker compose version; then
+                        echo "✓ Docker Compose 可用"
+                    else
+                        echo "⚠️  Docker Compose 不可用（可选）"
+                    fi
+                    
+                    # 检查测试服务器
+                    echo ""
                     echo "检查测试服务器..."
-                    curl -s ${TEST_BASE_URL}/health || echo "⚠️ 测试环境暂时不可访问"
+                    if curl -s -f ${TEST_BASE_URL}/health >/dev/null 2>&1; then
+                        echo "✓ 测试服务器可访问: ${TEST_BASE_URL}"
+                    else
+                        echo "⚠️  测试服务器暂时不可访问: ${TEST_BASE_URL}"
+                    fi
                     
+                    echo ""
                     echo "✓ 环境检查完成"
+                    echo "=================================="
                 '''
             }
         }
         
-        stage('安装依赖') {
+        stage('构建测试镜像') {
             steps {
                 script {
-                    echo "📦 准备 Python 虚拟环境..."
+                    echo "🐳 构建 Docker 测试镜像..."
+                    
+                    def buildArgs = ""
+                    if (params.REBUILD_IMAGE) {
+                        buildArgs = "--no-cache"
+                        echo "强制重新构建镜像（清理缓存）"
+                    }
+                    
+                    sh """
+                        # 构建测试镜像
+                        docker build ${buildArgs} \
+                            -t ${TEST_IMAGE}:${TEST_IMAGE_TAG} \
+                            -t ${TEST_IMAGE}:latest \
+                            -f .jenkins/Dockerfile \
+                            .
+                        
+                        # 显示镜像信息
+                        echo ""
+                        echo "镜像构建完成:"
+                        docker images ${TEST_IMAGE}
+                        
+                        echo ""
+                        echo "✓ 测试镜像构建完成"
+                    """
                 }
-                
-                sh '''
-                    # 虚拟环境目录
-                    VENV_DIR="${WORKSPACE}/.venv"
-                    
-                    # 如果虚拟环境不存在则创建
-                    if [ ! -d "${VENV_DIR}" ]; then
-                        echo "创建 Python 虚拟环境..."
-                        python3 -m venv ${VENV_DIR}
-                        FRESH_INSTALL=true
-                    else
-                        echo "✓ 虚拟环境已存在，复用以加快构建"
-                        FRESH_INSTALL=false
-                    fi
-                    
-                    # 激活虚拟环境
-                    . ${VENV_DIR}/bin/activate
-                    
-                    # 显示 Python 信息
-                    echo "Python 版本:"
-                    python --version
-                    echo "pip 版本:"
-                    pip --version
-                    
-                    # 升级 pip
-                    echo "升级 pip..."
-                    pip install --upgrade pip -q
-                    
-                    # 进入测试目录
-                    cd backend/tests
-                    
-                    # 检查是否需要安装依赖
-                    if [ "$FRESH_INSTALL" = "true" ]; then
-                        echo "首次安装，安装所有测试依赖..."
-                        pip install -r requirements-test.txt
-                    else
-                        echo "检查并更新依赖..."
-                        pip install -r requirements-test.txt --upgrade
-                    fi
-                    
-                    # 显示已安装的包
-                    echo ""
-                    echo "已安装的测试依赖包:"
-                    pip list | grep -E "pytest|httpx|faker|locust|requests"
-                    
-                    echo ""
-                    echo "✓ 依赖准备完成"
-                '''
             }
         }
         
         stage('配置测试环境') {
             steps {
                 script {
-                    echo "⚙️ 配置测试环境变量..."
+                    echo "⚙️ 准备测试配置..."
                 }
                 
                 sh '''
-                    cd backend/tests
+                    # 创建报告目录
+                    mkdir -p ${WORKSPACE}/${REPORT_DIR}/html
+                    mkdir -p ${WORKSPACE}/${REPORT_DIR}/coverage
                     
-                    # 创建测试配置文件
-                    cat > .env.test.local << EOF
-# Jenkins CI 测试配置
-TEST_BASE_URL=${TEST_BASE_URL}
-TEST_API_PREFIX=/api/v1
-
-# 超时设置
-TEST_REQUEST_TIMEOUT=30
-TEST_LLM_REQUEST_TIMEOUT=60
-
-# 测试控制
-TEST_CLEANUP_AFTER_TEST=${CLEANUP_TEST_DATA}
-TEST_SKIP_PERFORMANCE=${!RUN_PERFORMANCE_TESTS}
-TEST_SKIP_SECURITY=${!RUN_SECURITY_TESTS}
-
-# 日志级别
-TEST_LOG_LEVEL=INFO
-
-# 测试租户前缀
-TEST_TENANT_PREFIX=ci_test_
-
-# 并发设置
-TEST_MAX_CONCURRENT=10
-EOF
-                    
-                    echo "✓ 配置文件已创建"
-                    cat .env.test.local
+                    echo "✓ 报告目录已创建"
                 '''
             }
         }
@@ -227,7 +196,7 @@ EOF
         stage('运行测试') {
             steps {
                 script {
-                    echo "🧪 执行测试套件..."
+                    echo "🧪 在 Docker 容器中执行测试套件..."
                     
                     // 根据参数选择测试级别
                     def testCommand = ''
@@ -254,18 +223,40 @@ EOF
                     }
                     
                     sh """
-                        # 激活虚拟环境
-                        . ${WORKSPACE}/.venv/bin/activate
+                        # 在 Docker 容器中运行测试
+                        docker run --rm \
+                            -v \${WORKSPACE}:/workspace \
+                            -w /workspace/backend/tests \
+                            -e TEST_BASE_URL=\${TEST_BASE_URL} \
+                            -e TEST_API_PREFIX=/api/v1 \
+                            -e TEST_REQUEST_TIMEOUT=30 \
+                            -e TEST_LLM_REQUEST_TIMEOUT=60 \
+                            -e TEST_CLEANUP_AFTER_TEST=${params.CLEANUP_TEST_DATA} \
+                            -e TEST_SKIP_PERFORMANCE=${!params.RUN_PERFORMANCE_TESTS} \
+                            -e TEST_SKIP_SECURITY=${!params.RUN_SECURITY_TESTS} \
+                            -e TEST_LOG_LEVEL=INFO \
+                            -e TEST_TENANT_PREFIX=ci_test_ \
+                            -e TEST_MAX_CONCURRENT=10 \
+                            ${TEST_IMAGE}:${TEST_IMAGE_TAG} \
+                            /bin/bash -c "
+                                set -e
+                                
+                                echo '开始执行测试...'
+                                echo '测试级别: ${params.TEST_LEVEL}'
+                                echo '测试服务器: \${TEST_BASE_URL}'
+                                echo ''
+                                
+                                # 创建报告目录
+                                mkdir -p reports/html reports/coverage
+                                
+                                # 执行测试
+                                ${testCommand} || true
+                                
+                                echo ''
+                                echo '✓ 测试执行完成'
+                            "
                         
-                        cd backend/tests
-                        
-                        # 创建报告目录
-                        mkdir -p reports/html reports/coverage
-                        
-                        # 执行测试
-                        ${testCommand} || true
-                        
-                        echo "✓ 测试执行完成"
+                        echo "✓ Docker 容器测试完成"
                     """
                 }
             }
@@ -361,15 +352,8 @@ EOF
             script {
                 echo "🧹 清理环境..."
                 
-                // 清理临时文件
                 try {
                     sh '''
-                        # 清理测试配置文件
-                        if [ -f backend/tests/.env.test.local ]; then
-                            rm -f backend/tests/.env.test.local
-                            echo "✓ 已清理测试配置文件"
-                        fi
-                        
                         # 清理 Python 缓存
                         find backend/tests -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
                         find backend/tests -type f -name "*.pyc" -delete 2>/dev/null || true
@@ -386,7 +370,6 @@ EOF
             script {
                 echo "✅ 构建成功！"
                 
-                // 发送成功通知
                 try {
                     sendNotification('SUCCESS')
                 } catch (Exception e) {
@@ -399,7 +382,6 @@ EOF
             script {
                 echo "❌ 构建失败！"
                 
-                // 发送失败通知
                 try {
                     sendNotification('FAILURE')
                 } catch (Exception e) {
@@ -412,7 +394,6 @@ EOF
             script {
                 echo "⚠️ 构建不稳定！"
                 
-                // 发送警告通知
                 try {
                     sendNotification('UNSTABLE')
                 } catch (Exception e) {
@@ -425,20 +406,24 @@ EOF
             script {
                 echo "🧹 最终清理..."
                 
-                // 根据参数决定是否清理虚拟环境
-                if (params.CLEAN_VENV) {
-                    try {
-                        sh '''
-                            if [ -d "${VENV_PATH}" ]; then
-                                rm -rf ${VENV_PATH}
-                                echo "✓ 已清理虚拟环境"
-                            fi
-                        '''
-                    } catch (Exception e) {
-                        echo "清理虚拟环境失败: ${e.message}"
-                    }
-                } else {
-                    echo "保留虚拟环境以加快下次构建"
+                // 清理旧的 Docker 镜像
+                try {
+                    sh '''
+                        # 保留最近 3 个测试镜像，删除旧的
+                        echo "清理旧的 Docker 镜像..."
+                        docker images ${TEST_IMAGE} --format "{{.Tag}}" | \
+                            grep -E '^[0-9]+$' | \
+                            sort -rn | \
+                            tail -n +4 | \
+                            xargs -r -I {} docker rmi ${TEST_IMAGE}:{} 2>/dev/null || true
+                        
+                        # 清理悬空镜像
+                        docker image prune -f || true
+                        
+                        echo "✓ Docker 镜像清理完成"
+                    '''
+                } catch (Exception e) {
+                    echo "清理 Docker 镜像失败: ${e.message}"
                 }
             }
         }

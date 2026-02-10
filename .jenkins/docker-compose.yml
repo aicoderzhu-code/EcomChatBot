@@ -1,34 +1,43 @@
 version: '3.8'
 
+# 用于 CI/CD 测试的 Docker Compose 配置
+# 可以在本地或 Jenkins 中使用
+
 services:
-  jenkins-test-agent:
+  test-runner:
     build:
       context: ..
       dockerfile: .jenkins/Dockerfile
-    image: ecom-chat-bot-jenkins-agent:latest
-    container_name: ecom-chat-bot-test-agent
+    image: ecom-chat-bot-test:latest
+    container_name: ecom-chat-bot-test-runner
     environment:
       # 测试环境配置
-      - TEST_BASE_URL=http://115.190.75.88:8000
+      - TEST_BASE_URL=${TEST_BASE_URL:-http://115.190.75.88:8000}
       - TEST_API_PREFIX=/api/v1
       - TEST_REQUEST_TIMEOUT=30
       - TEST_LLM_REQUEST_TIMEOUT=60
-      - TEST_CLEANUP_AFTER_TEST=true
-      - TEST_SKIP_PERFORMANCE=true
-      - TEST_SKIP_SECURITY=true
-      - TEST_LOG_LEVEL=INFO
+      - TEST_CLEANUP_AFTER_TEST=${TEST_CLEANUP_AFTER_TEST:-true}
+      - TEST_SKIP_PERFORMANCE=${TEST_SKIP_PERFORMANCE:-true}
+      - TEST_SKIP_SECURITY=${TEST_SKIP_SECURITY:-true}
+      - TEST_LOG_LEVEL=${TEST_LOG_LEVEL:-INFO}
       - TEST_TENANT_PREFIX=ci_test_
       - TEST_MAX_CONCURRENT=10
     volumes:
       # 挂载代码目录
       - ../:/workspace
-      # 挂载报告目录
-      - ./reports:/workspace/backend/tests/reports
     working_dir: /workspace/backend/tests
-    command: /bin/bash -c "source activate ecom-chat-bot && tail -f /dev/null"
+    # 默认运行快速测试
+    command: >
+      /bin/bash -c "
+        mkdir -p reports/html reports/coverage &&
+        pytest -m 'not slow and not performance and not security' 
+          --html=reports/html/report.html 
+          --self-contained-html 
+          --junitxml=reports/junit.xml
+      "
     networks:
-      - jenkins-network
+      - test-network
 
 networks:
-  jenkins-network:
+  test-network:
     driver: bridge
