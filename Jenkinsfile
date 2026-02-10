@@ -202,23 +202,23 @@ pipeline {
                     def testCommand = ''
                     switch(params.TEST_LEVEL) {
                         case 'quick':
-                            testCommand = 'pytest -m "not slow and not performance and not security" --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml'
+                            testCommand = 'pytest -m "not slow and not performance and not security" --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'api':
-                            testCommand = 'pytest api/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml'
+                            testCommand = 'pytest api/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'integration':
-                            testCommand = 'pytest integration/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml'
+                            testCommand = 'pytest integration/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'performance':
-                            testCommand = 'pytest -m performance --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml'
+                            testCommand = 'pytest -m performance --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'security':
-                            testCommand = 'pytest -m security --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml'
+                            testCommand = 'pytest -m security --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
                             break
                         case 'full':
                         default:
-                            testCommand = 'pytest --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml --cov=. --cov-report=html:reports/coverage --cov-report=term-missing'
+                            testCommand = 'pytest --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml --cov=. --cov-report=html:reports/coverage --cov-report=term-missing -n 0'
                             break
                     }
                     

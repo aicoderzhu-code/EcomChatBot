@@ -26,7 +26,7 @@ services:
       # 挂载代码目录
       - ../:/workspace
     working_dir: /workspace/backend/tests
-    # 默认运行快速测试
+    # 默认运行快速测试（禁用并行以避免资源冲突）
     command: >
       /bin/bash -c "
         mkdir -p reports/html reports/coverage &&
@@ -34,6 +34,7 @@ services:
           --html=reports/html/report.html 
           --self-contained-html 
           --junitxml=reports/junit.xml
+          -n 0
       "
     networks:
       - test-network
