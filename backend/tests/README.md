@@ -54,12 +54,27 @@ pytest -m health
 pytest -m tenant
 pytest -m integration
 
-# 跳过慢速测试
+# 跳过慢速测试（含 LLM 调用、集成测试），日常推荐
 pytest -m "not slow"
 
 # 跳过性能和安全测试
 pytest -m "not performance and not security"
+
+# 快速验证（排除 LLM/集成/性能/安全），约 15 分钟
+pytest api/ -m "not slow and not performance and not security"
 ```
+
+## ⚡ 测试执行优化
+
+完整测试套件约 60+ 分钟，主要耗时在 LLM 调用（每次 10-30 秒）。可通过以下方式加速：
+
+| 场景 | 命令 | 预计耗时 |
+|------|------|----------|
+| 快速验证 | `pytest api/ -m "not slow and not performance and not security"` | ~15 分钟 |
+| 日常开发 | `pytest -m "not slow"` | ~20 分钟 |
+| 完整测试 | `pytest` | ~60+ 分钟 |
+
+**慢速测试 (slow)** 包含：AI 对话、RAG 生成、意图实体提取、集成测试、性能测试。
 
 ## 📁 项目结构
 

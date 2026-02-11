@@ -80,8 +80,8 @@ case $choice in
         pytest -v --tb=short
         ;;
     2)
-        echo "🚀 执行基础 API 测试..."
-        pytest api/ -v --tb=short -m "not performance and not security"
+        echo "🚀 执行基础 API 测试（排除 LLM/性能/安全，约 15 分钟）..."
+        pytest api/ -v --tb=short -m "not slow and not performance and not security"
         ;;
     3)
         echo "🚀 执行集成测试..."

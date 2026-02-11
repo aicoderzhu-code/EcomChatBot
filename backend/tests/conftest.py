@@ -140,8 +140,16 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "integration" in str(item.fspath):
             item.add_marker(pytest.mark.integration)
+            item.add_marker(pytest.mark.slow)
         if "performance" in str(item.fspath):
             item.add_marker(pytest.mark.performance)
             item.add_marker(pytest.mark.slow)
         if "security" in str(item.fspath):
             item.add_marker(pytest.mark.security)
+        # AI 对话、RAG 生成、LLM 相关测试标记为 slow（每次调用 LLM 需 10-30 秒）
+        if "test_ai_chat" in str(item.fspath):
+            item.add_marker(pytest.mark.slow)
+        if "test_rag" in str(item.fspath) and "test_rag_generate" in item.name:
+            item.add_marker(pytest.mark.slow)
+        if "test_intent" in str(item.fspath) and "test_extract_entities" in item.name:
+            item.add_marker(pytest.mark.slow)

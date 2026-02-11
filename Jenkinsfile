@@ -26,8 +26,8 @@ pipeline {
     parameters {
         choice(
             name: 'TEST_LEVEL',
-            choices: ['quick', 'full', 'api', 'integration', 'performance', 'security'],
-            description: '选择测试级别'
+            choices: ['fast', 'quick', 'full', 'api', 'integration', 'performance', 'security'],
+            description: 'fast=仅核心API(~5min), quick=排除LLM/集成(~15min), full=全部(~60min+)'
         )
         booleanParam(
             name: 'SKIP_SLOW_TESTS',
@@ -201,9 +201,13 @@ pipeline {
                     // 根据参数选择测试级别
                     def testCommand = ''
                     switch(params.TEST_LEVEL) {
+                        case 'fast':
+                            // 最快：仅核心 API，无 LLM/集成/覆盖率，约 5 分钟
+                            testCommand = "pytest api/ -m 'not slow and not performance and not security' --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0 --timeout=60"
+                            break
                         case 'quick':
-                            // 使用单引号包裹表达式，避免引号冲突
-                            testCommand = "pytest -m 'not slow and not performance and not security' --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0"
+                            // 日常：排除 LLM 调用、集成、性能、安全，约 15 分钟
+                            testCommand = "pytest api/ -m 'not slow and not performance and not security' --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0 --timeout=120"
                             break
                         case 'api':
                             testCommand = 'pytest api/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
@@ -219,7 +223,8 @@ pipeline {
                             break
                         case 'full':
                         default:
-                            testCommand = 'pytest --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml --cov=. --cov-report=html:reports/coverage --cov-report=term-missing -n 0'
+                            // 完整测试：含覆盖率，约 60 分钟+
+                            testCommand = 'pytest --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml --cov=. --cov-report=html:reports/coverage --cov-report=term-missing -n 0 --timeout=180'
                             break
                     }
                     
