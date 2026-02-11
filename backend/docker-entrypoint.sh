@@ -35,6 +35,19 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
     fi
 fi
 
+# 执行 schema 同步（补充 conversations 表缺失列，兼容已有数据库升级）
+if [ -n "$POSTGRES_HOST" ] && [ -n "$POSTGRES_USER" ] && [ -n "$POSTGRES_DB" ]; then
+    echo "🔄 执行 schema 同步..."
+    PGPASSWORD="${POSTGRES_PASSWORD:-}" psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=0 -c "
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS resolved INTEGER DEFAULT 0;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS resolution_type VARCHAR(20);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS transferred_to_human INTEGER DEFAULT 0;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS transfer_reason VARCHAR(255);
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS resolution_time INTEGER;
+        ALTER TABLE conversations ADD COLUMN IF NOT EXISTS summary TEXT;
+    " 2>/dev/null && echo "✅ Schema 同步完成" || echo "⚠️  Schema 同步跳过"
+fi
+
 # 启动应用
 echo "🎉 启动应用服务..."
 exec "$@"

@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from schemas.base import BaseSchema, TimestampSchema
 
@@ -13,7 +13,7 @@ class KnowledgeBaseBase(BaseSchema):
     """知识库基础 Schema"""
 
     knowledge_type: str = Field(
-        ..., pattern="^(faq|doc|product|policy)$", description="知识类型"
+        "faq", pattern="^(faq|doc|product|policy)$", description="知识类型(默认faq)"
     )
     title: str = Field(..., min_length=1, max_length=512, description="标题")
     content: str = Field(..., min_length=1, description="内容")
@@ -56,6 +56,15 @@ class KnowledgeBaseResponse(KnowledgeBaseBase, TimestampSchema):
     reviewed: bool
 
 
+# ============ 知识库搜索 Schema ============
+class KnowledgeSearchRequest(BaseSchema):
+    """知识库搜索请求(支持POST body)"""
+
+    query: str = Field(..., min_length=1, max_length=500, description="搜索关键词")
+    knowledge_type: str | None = Field(None, description="知识类型过滤")
+    top_k: int = Field(5, ge=1, le=20, description="返回结果数")
+
+
 # ============ RAG 检索 Schema ============
 class RAGQueryRequest(BaseSchema):
     """RAG 查询请求"""
@@ -74,10 +83,13 @@ class RAGQueryResponse(BaseSchema):
 
 # ============ 知识库批量导入 Schema ============
 class KnowledgeBatchImportRequest(BaseSchema):
-    """批量导入知识库"""
+    """批量导入知识库，支持 knowledge_items 或 items 字段"""
 
     knowledge_items: list[KnowledgeBaseCreate] = Field(
-        ..., min_length=1, description="知识条目列表"
+        ...,
+        min_length=1,
+        description="知识条目列表",
+        validation_alias=AliasChoices("knowledge_items", "items"),
     )
 
 
@@ -87,3 +99,4 @@ class KnowledgeBatchImportResponse(BaseSchema):
     success_count: int
     failed_count: int
     failed_items: list[dict] | None = None
+    created: list[dict] | None = None  # 成功创建的知识条目(含knowledge_id)

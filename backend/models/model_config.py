@@ -15,6 +15,7 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     AZURE_OPENAI = "azure_openai"
     ZHIPUAI = "zhipuai"  # 智谱AI
+    DEEPSEEK = "deepseek"  # DeepSeek
     LOCAL_LLM = "local_llm"
     # 可以继续扩展其他提供商
 

@@ -1,7 +1,7 @@
 """
 知识库管理 API 路由
 """
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, Query
 
 from api.dependencies import DBDep, TenantDep
 from api.middleware import StorageQuotaDep, ApiQuotaDep
@@ -16,6 +16,7 @@ from schemas import (
     RAGQueryRequest,
     RAGQueryResponse,
 )
+from schemas.knowledge import KnowledgeSearchRequest
 from services.knowledge_service import KnowledgeService
 from services.rag_service import RAGService
 
@@ -140,10 +141,15 @@ async def batch_import_knowledge(
         knowledge_items=[item.model_dump() for item in import_data.knowledge_items]
     )
 
+    created_list = [
+        {"knowledge_id": k.knowledge_id, "title": k.title}
+        for k in results["success"]  # 现为 KnowledgeBase 对象列表
+    ]
     response = KnowledgeBatchImportResponse(
         success_count=len(results["success"]),
         failed_count=len(results["failed"]),
         failed_items=results["failed"] if results["failed"] else None,
+        created=created_list,
     )
 
     return ApiResponse(data=response)
@@ -153,20 +159,32 @@ async def batch_import_knowledge(
 async def search_knowledge(
     tenant_id: ApiQuotaDep,  # 检查API调用配额
     db: DBDep,
-    query: str = Query(..., description="搜索关键词"),
-    knowledge_type: str | None = None,
-    top_k: int = Query(5, ge=1, le=20),
+    search_data: KnowledgeSearchRequest | None = Body(None),
+    query: str = Query(None, description="搜索关键词(URL参数)"),
+    top_k: int = Query(5, ge=1, le=20, description="返回结果数"),
 ):
     """
-    搜索知识
+    搜索知识，支持 POST body 或 URL 参数
 
     ⚠️ 会检查API调用配额
     """
+    if search_data:
+        query_str = search_data.query
+        top_k_val = search_data.top_k
+        knowledge_type = search_data.knowledge_type
+    else:
+        if not query:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=422, detail="query 参数必填")
+        query_str = query
+        top_k_val = top_k
+        knowledge_type = None
+
     service = KnowledgeService(db, tenant_id)
     knowledge_list = await service.search_knowledge(
-        query=query,
+        query=query_str,
         knowledge_type=knowledge_type,
-        top_k=top_k,
+        top_k=top_k_val,
     )
     return ApiResponse(data=knowledge_list)
 

@@ -1,11 +1,21 @@
 """
 HTTP 客户端封装
 """
+import asyncio
 import httpx
 from typing import Optional, Dict, Any
 from rich.console import Console
 
 console = Console()
+
+# 可重试的瞬时网络错误
+RETRYABLE_EXCEPTIONS = (
+    httpx.ReadError,
+    httpx.RemoteProtocolError,
+    httpx.ConnectError,
+    httpx.PoolTimeout,
+    ConnectionError,
+)
 
 
 class APIClient:
@@ -20,9 +30,12 @@ class APIClient:
 
     async def __aenter__(self):
         """异步上下文管理器入口"""
+        # 禁用代理，直接连接本地服务
         self.client = httpx.AsyncClient(
             timeout=self.timeout,
             follow_redirects=True,
+            proxies=None,  # 禁用所有代理
+            trust_env=False,  # 不从环境变量读取代理配置
         )
         return self
 
@@ -66,37 +79,41 @@ class APIClient:
         endpoint: str,
         **kwargs
     ) -> httpx.Response:
-        """统一请求方法"""
+        """统一请求方法，对瞬时网络错误自动重试"""
         if not self.client:
             raise RuntimeError("Client not initialized. Use 'async with' context manager.")
 
         url = f"{self.base_url}{endpoint}"
-
-        # 合并headers
         headers = self._get_headers(kwargs.pop("headers", None))
+        max_retries = 3
+        retry_delay = 0.5
 
-        console.print(f"[blue]→ {method} {endpoint}[/blue]")
+        for attempt in range(max_retries):
+            try:
+                console.print(f"[blue]→ {method} {endpoint}[/blue]")
+                response = await self.client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    **kwargs
+                )
+                status_color = "green" if response.status_code < 400 else "red"
+                console.print(f"[{status_color}]← {response.status_code}[/{status_color}]")
+                return response
 
-        try:
-            response = await self.client.request(
-                method=method,
-                url=url,
-                headers=headers,
-                **kwargs
-            )
-
-            # 打印响应状态
-            status_color = "green" if response.status_code < 400 else "red"
-            console.print(f"[{status_color}]← {response.status_code}[/{status_color}]")
-
-            return response
-
-        except httpx.TimeoutException:
-            console.print("[red]✗ 请求超时[/red]")
-            raise
-        except Exception as e:
-            console.print(f"[red]✗ 请求失败: {str(e)}[/red]")
-            raise
+            except RETRYABLE_EXCEPTIONS as e:
+                if attempt < max_retries - 1:
+                    console.print(f"[yellow]⚠ 网络错误(重试 {attempt + 1}/{max_retries}): {e}[/yellow]")
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+                else:
+                    console.print(f"[red]✗ 请求失败(已重试{max_retries}次): {e}[/red]")
+                    raise
+            except httpx.TimeoutException:
+                console.print("[red]✗ 请求超时[/red]")
+                raise
+            except Exception as e:
+                console.print(f"[red]✗ 请求失败: {str(e)}[/red]")
+                raise
 
     async def get(self, endpoint: str, **kwargs) -> httpx.Response:
         """GET 请求"""

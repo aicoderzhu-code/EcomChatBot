@@ -25,7 +25,7 @@ async def init_database():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("✅ 数据库表创建完成")
-    
+
     # 2. 创建默认超级管理员
     print("👤 创建默认超级管理员...")
     async with AsyncSessionLocal() as session:

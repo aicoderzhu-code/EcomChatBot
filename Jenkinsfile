@@ -71,7 +71,7 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '10'))
         
         // 超时设置
-        timeout(time: 60, unit: 'MINUTES')
+        timeout(time: 120, unit: 'MINUTES')
         
         // 不允许并发构建
         disableConcurrentBuilds()

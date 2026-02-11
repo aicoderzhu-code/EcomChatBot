@@ -228,13 +228,13 @@ class KnowledgeService:
         self,
         knowledge_items: list[dict],
     ) -> dict:
-        """批量导入知识"""
+        """批量导入知识，返回 {created: [{knowledge_id, ...}], failed: [...]}"""
         results = {"success": [], "failed": []}
 
         for item in knowledge_items:
             try:
                 knowledge = await self.create_knowledge(
-                    knowledge_type=item["knowledge_type"],
+                    knowledge_type=item.get("knowledge_type", "faq"),
                     title=item["title"],
                     content=item["content"],
                     category=item.get("category"),
@@ -242,7 +242,7 @@ class KnowledgeService:
                     source=item.get("source"),
                     priority=item.get("priority", 0),
                 )
-                results["success"].append(knowledge.knowledge_id)
+                results["success"].append(knowledge)
             except Exception as e:
                 results["failed"].append({"item": item, "error": str(e)})
 

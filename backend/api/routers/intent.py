@@ -2,7 +2,7 @@
 意图识别 API 路由
 """
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.dependencies import DBDep, TenantDep
 from schemas import ApiResponse
@@ -12,17 +12,29 @@ router = APIRouter(prefix="/intent", tags=["意图识别"])
 
 
 class IntentClassifyRequest(BaseModel):
-    """意图分类请求"""
+    """意图分类请求，支持 message 或 text 字段"""
 
-    message: str
+    message: str | None = Field(None, description="用户消息")
+    text: str | None = Field(None, description="用户消息(兼容)")
     use_llm: bool = False  # 是否使用 LLM
+
+    @property
+    def user_message(self) -> str:
+        """获取用户输入，优先 message"""
+        return self.message or self.text or ""
 
 
 class EntityExtractRequest(BaseModel):
-    """实体提取请求"""
+    """实体提取请求，支持 message 或 text 字段"""
 
-    message: str
+    message: str | None = Field(None, description="用户消息")
+    text: str | None = Field(None, description="用户消息(兼容)")
     use_llm: bool = True  # 是否使用 LLM
+
+    @property
+    def user_message(self) -> str:
+        """获取用户输入，优先 message"""
+        return self.message or self.text or ""
 
 
 @router.post("/classify", response_model=ApiResponse[dict])
@@ -40,16 +52,21 @@ async def classify_intent(
     """
     service = IntentService(db, tenant_id)
 
+    msg = request.user_message
+    if not msg:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="message 或 text 字段必填")
+
     if request.use_llm:
         # 混合模式
         result = await service.classify_intent_hybrid(
-            user_input=request.message,
+            user_input=msg,
             use_llm_fallback=True,
         )
     else:
         # 纯规则模式
-        intent = service.classify_intent_by_rules(request.message)
-        confidence = service.get_intent_confidence(request.message, intent)
+        intent = service.classify_intent_by_rules(msg)
+        confidence = service.get_intent_confidence(msg, intent)
 
         result = {
             "intent": intent.value,
@@ -74,17 +91,22 @@ async def extract_entities(
     
     从用户消息中提取关键实体
     """
+    msg = request.user_message
+    if not msg:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="message 或 text 字段必填")
+
     service = IntentService(db, tenant_id)
 
     if request.use_llm:
         # 混合模式
         result = await service.extract_entities_hybrid(
-            user_input=request.message,
+            user_input=msg,
             use_llm=True,
         )
     else:
         # 纯规则模式
-        entities = service.extract_entities_by_rules(request.message)
+        entities = service.extract_entities_by_rules(msg)
         result = {
             "entities": entities,
             "method": "rule",

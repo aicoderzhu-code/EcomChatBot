@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, Depends, Query
 
-from api.dependencies import AdminDep, DBDep, require_admin_permission
+from api.dependencies import AdminDep, DBDep, TenantDep, require_admin_permission
 from core import Permission
 from schemas.analytics import (
     ChurnAnalysisResponse,
@@ -17,6 +17,46 @@ from schemas.base import ApiResponse
 from services.analytics_service import AnalyticsService
 
 router = APIRouter(prefix="/analytics", tags=["运营分析"])
+
+
+# ============ 租户端数据分析（API Key 认证） ============
+
+
+@router.get("", response_model=ApiResponse[dict])
+async def get_tenant_analytics(
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    租户获取基础分析数据（对话数、消息数等）
+
+    使用 X-API-Key 认证
+    """
+    from services.monitor_service import MonitorService
+
+    service = MonitorService(db, tenant_id)
+    summary = await service.get_dashboard_summary("24h")
+    return ApiResponse(data=summary)
+
+
+@router.get("/conversations", response_model=ApiResponse[dict])
+async def get_tenant_conversation_analytics(
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """
+    租户获取对话分析数据
+
+    使用 X-API-Key 认证
+    """
+    from services.monitor_service import MonitorService
+
+    service = MonitorService(db, tenant_id)
+    stats = await service.get_conversation_stats()
+    return ApiResponse(data=stats)
+
+
+# ============ 管理端运营分析（Admin 认证） ============
 
 
 @router.get("/growth", response_model=ApiResponse[GrowthAnalysisResponse])
