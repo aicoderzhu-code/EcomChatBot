@@ -123,7 +123,10 @@ pipeline {
                     $class: 'GitSCM',
                     branches: [[name: '*/develop']],
                     userRemoteConfigs: [[url: env.GIT_URL]],
-                    extensions: [[$class: 'CleanBeforeCheckout']]
+                    extensions: [
+                        [$class: 'CleanCheckout'],
+                        [$class: 'WipeWorkspace']
+                    ]
                 ])
                 
                 script {
@@ -306,6 +309,9 @@ pipeline {
                         
                         # 复制测试报告
                         docker cp jenkins-test-api:/app/reports \${WORKSPACE}/backend/tests/ || true
+                        
+                        # 修复权限以便Jenkins可以读取和清理
+                        sudo chown -R jenkins:jenkins \${WORKSPACE}/backend/tests/reports || true
                         
                         echo '✓ 测试执行完成'
                         echo "=========================================="
