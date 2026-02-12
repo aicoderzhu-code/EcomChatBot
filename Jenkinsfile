@@ -228,10 +228,32 @@ pipeline {
             steps {
                 echo "🧪 运行完整测试套件..."
                 script {
-                    // 构建测试镜像
+                    // 启动测试环境
                     sh """
-                        echo "构建测试镜像..."
-                        docker build -t ${TEST_IMAGE}:${BUILD_NUMBER} -f backend/Dockerfile backend/
+                        echo "=========================================="
+                        echo "启动测试环境"
+                        echo "=========================================="
+                        
+                        # 清理旧的测试环境
+                        docker-compose -f docker-compose.jenkins-test.yml down -v || true
+                        
+                        # 启动测试环境
+                        TEST_IMAGE=${IMAGE_NAME}:${BUILD_NUMBER} docker-compose -f docker-compose.jenkins-test.yml up -d
+                        
+                        # 等待服务就绪
+                        sleep 15
+                        docker-compose -f docker-compose.jenkins-test.yml ps
+                    """
+                    
+                    // 安装测试依赖
+                    sh """
+                        echo "=========================================="
+                        echo "安装测试依赖"
+                        echo "=========================================="
+                        
+                        docker-compose -f docker-compose.jenkins-test.yml exec -T test-api bash -c "
+                            pip install -q -r tests/requirements-test.txt
+                        "
                     """
                     
                     // 运行测试
@@ -240,45 +262,25 @@ pipeline {
                         echo "执行测试套件"
                         echo "=========================================="
                         
-                        # 创建报告目录
-                        mkdir -p \${WORKSPACE}/backend/tests/reports/html
-                        mkdir -p \${WORKSPACE}/backend/tests/reports/coverage
+                        # 运行测试
+                        docker-compose -f docker-compose.jenkins-test.yml exec -T test-api bash -c "
+                            cd /app
+                            pytest tests/ \\
+                                --junitxml=reports/junit.xml \\
+                                --html=reports/html/report.html \\
+                                --self-contained-html \\
+                                --cov=. \\
+                                --cov-report=xml:reports/coverage.xml \\
+                                --cov-report=html:reports/coverage \\
+                                --cov-report=term-missing \\
+                                -v \\
+                                || exit 0
+                        "
                         
-                        # 在Docker容器中运行测试
-                        docker run --rm \\
-                            --network host \\
-                            -v \${WORKSPACE}:/workspace \\
-                            -w /workspace/backend/tests \\
-                            -e TEST_BASE_URL=\${TEST_BASE_URL} \\
-                            -e TEST_API_PREFIX=/api/v1 \\
-                            -e TEST_REQUEST_TIMEOUT=60 \\
-                            -e TEST_LLM_REQUEST_TIMEOUT=120 \\
-                            -e TEST_CLEANUP_AFTER_TEST=true \\
-                            -e TEST_LOG_LEVEL=INFO \\
-                            -e TEST_TENANT_PREFIX=ci_test_ \\
-                            -e LLM_PROVIDER=deepseek \\
-                            -e DEEPSEEK_API_KEY=your-deepseek-api-key-here \\
-                            -e DEEPSEEK_MODEL=deepseek-chat \\
-                            -e DEEPSEEK_BASE_URL=https://api.deepseek.com \\
-                            ${TEST_IMAGE}:${BUILD_NUMBER} \\
-                            /bin/bash -c "
-                                pip install -q pytest pytest-asyncio pytest-html pytest-cov httpx python-dotenv faker
-                                
-                                echo '开始执行测试...'
-                                pytest \\
-                                    --html=reports/html/report.html \\
-                                    --self-contained-html \\
-                                    --junitxml=reports/junit.xml \\
-                                    --cov=. \\
-                                    --cov-report=html:reports/coverage \\
-                                    --cov-report=term-missing \\
-                                    -n 4 \\
-                                    --timeout=180 \\
-                                    || exit 0
-                                
-                                echo '✓ 测试执行完成'
-                            "
+                        # 复制测试报告
+                        docker cp jenkins-test-api:/app/reports \${WORKSPACE}/backend/tests/ || true
                         
+                        echo '✓ 测试执行完成'
                         echo "=========================================="
                     """
                 }
@@ -305,6 +307,12 @@ pipeline {
                     reportName: '覆盖率报告',
                     reportTitles: "Build #${env.BUILD_NUMBER} 覆盖率报告"
                 ])
+            }
+            post {
+                always {
+                    // 清理测试环境
+                    sh 'docker-compose -f docker-compose.jenkins-test.yml down -v || true'
+                }
             }
         }
         
