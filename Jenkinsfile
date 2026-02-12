@@ -85,6 +85,22 @@ pipeline {
     // ============================================
     stages {
         // ----------------------------------------
+        // 阶段0: 清理权限问题文件
+        // ----------------------------------------
+        stage('预清理') {
+            steps {
+                script {
+                    sh '''
+                        # 清理可能存在的权限问题文件
+                        sudo rm -rf backend/reports backend/tests/__pycache__ backend/tests/.pytest_cache || true
+                        # 清理docker-compose测试环境
+                        docker-compose -f docker-compose.jenkins-test.yml down -v || true
+                    '''
+                }
+            }
+        }
+        
+        // ----------------------------------------
         // 阶段1: 代码检出
         // ----------------------------------------
         stage('代码检出') {
