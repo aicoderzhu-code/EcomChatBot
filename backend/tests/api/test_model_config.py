@@ -13,13 +13,9 @@ class TestModelConfig(BaseAPITest, TenantTestMixin, ModelConfigTestMixin):
     @pytest.mark.asyncio
     async def test_create_model_config(self):
         """测试创建模型配置"""
-        # 创建租户并登录（模型配置可能需要JWT Token）
+        # 创建租户并使用API Key认证
         tenant_info = await self.create_test_tenant()
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
+        self.client.set_api_key(tenant_info["api_key"])
 
         # 创建模型配置
         config_data = self.data_gen.generate_model_config(
@@ -45,13 +41,9 @@ class TestModelConfig(BaseAPITest, TenantTestMixin, ModelConfigTestMixin):
     @pytest.mark.asyncio
     async def test_list_model_configs(self):
         """测试列出模型配置"""
-        # 创建租户
+        # 创建租户并使用API Key认证
         tenant_info = await self.create_test_tenant()
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
+        self.client.set_api_key(tenant_info["api_key"])
 
         # 创建几个模型配置
         for provider in ["zhipuai", "openai"]:
@@ -73,13 +65,9 @@ class TestModelConfig(BaseAPITest, TenantTestMixin, ModelConfigTestMixin):
     @pytest.mark.asyncio
     async def test_get_default_model(self):
         """测试获取默认模型"""
-        # 创建租户
+        # 创建租户并使用API Key认证
         tenant_info = await self.create_test_tenant()
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
+        self.client.set_api_key(tenant_info["api_key"])
 
         # 创建默认模型配置
         config_data = self.data_gen.generate_model_config(
@@ -100,13 +88,9 @@ class TestModelConfig(BaseAPITest, TenantTestMixin, ModelConfigTestMixin):
     @pytest.mark.asyncio
     async def test_get_model_config_detail(self):
         """测试获取模型配置详情"""
-        # 创建租户
+        # 创建租户并使用API Key认证
         tenant_info = await self.create_test_tenant()
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
+        self.client.set_api_key(tenant_info["api_key"])
 
         # 创建模型配置
         config_id = await self.create_test_model_config(
@@ -126,13 +110,9 @@ class TestModelConfig(BaseAPITest, TenantTestMixin, ModelConfigTestMixin):
     @pytest.mark.asyncio
     async def test_update_model_config(self):
         """测试更新模型配置"""
-        # 创建租户
+        # 创建租户并使用API Key认证
         tenant_info = await self.create_test_tenant()
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
+        self.client.set_api_key(tenant_info["api_key"])
 
         # 创建模型配置
         config_id = await self.create_test_model_config()
@@ -156,13 +136,9 @@ class TestModelConfig(BaseAPITest, TenantTestMixin, ModelConfigTestMixin):
     @pytest.mark.asyncio
     async def test_delete_model_config(self):
         """测试删除模型配置"""
-        # 创建租户
+        # 创建租户并使用API Key认证
         tenant_info = await self.create_test_tenant()
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
+        self.client.set_api_key(tenant_info["api_key"])
 
         # 创建模型配置
         config_data = self.data_gen.generate_model_config(
@@ -185,13 +161,9 @@ class TestModelConfig(BaseAPITest, TenantTestMixin, ModelConfigTestMixin):
     @pytest.mark.asyncio
     async def test_create_config_with_different_providers(self):
         """测试创建不同提供商的配置"""
-        # 创建租户
+        # 创建租户并使用API Key认证
         tenant_info = await self.create_test_tenant()
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
+        self.client.set_api_key(tenant_info["api_key"])
 
         # 测试不同的提供商
         providers = ["zhipuai", "openai", "anthropic"]

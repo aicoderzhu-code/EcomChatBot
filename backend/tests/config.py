@@ -20,8 +20,8 @@ class TestSettings(BaseSettings):
     api_prefix: str = "/api/v1"
 
     # ============ 超时设置 ============
-    request_timeout: int = 60  # 增加到60秒，支持真实LLM调用
-    llm_request_timeout: int = 120  # 增加到120秒，支持复杂的AI操作
+    request_timeout: int = 300  # 增加到300秒，应对慢速数据库操作
+    llm_request_timeout: int = 600  # 增加到600秒，支持复杂的AI操作
 
     # ============ 并发设置 ============
     max_concurrent: int = 10
