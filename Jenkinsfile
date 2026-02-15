@@ -462,33 +462,87 @@ pipeline {
             }
             steps {
                 echo "🚀 部署到生产环境..."
-                sh '''
-                    echo "=========================================="
-                    echo "部署到生产环境"
-                    echo "=========================================="
-                    
-                    # 确保部署目录存在
-                    sudo mkdir -p ${DEPLOY_DIR}/shared/logs
-                    sudo chown -R jenkins:jenkins ${DEPLOY_DIR} 2>/dev/null || true
-                    
-                    # 复制配置文件
-                    echo "复制配置文件..."
-                    sudo cp docker-compose.prod.yml ${DEPLOY_DIR}/ || cp docker-compose.prod.yml ${DEPLOY_DIR}/
-                    
-                    # 复制环境配置模板（如果不存在）
-                    if [ ! -f "${DEPLOY_DIR}/shared/.env.production" ]; then
-                        echo "创建生产环境配置..."
-                        sudo cp .env.production.template ${DEPLOY_DIR}/shared/.env.production || \
-                            cp .env.production.template ${DEPLOY_DIR}/shared/.env.production
-                        echo "⚠️  请检查并修改 ${DEPLOY_DIR}/shared/.env.production 中的配置"
-                    fi
-                    
-                    # 执行部署脚本
-                    echo ""
-                    echo "执行部署脚本..."
-                    bash scripts/jenkins-deploy.sh ${BUILD_NUMBER}
-                    
-                    echo "=========================================="
+                script {
+                    try {
+                        sh '''
+                            echo "=========================================="
+                            echo "部署到生产环境"
+                            echo "=========================================="
+                            
+                            # 检查部署目录权限
+                            if [ -d "${DEPLOY_DIR}" ]; then
+                                echo "✓ 部署目录已存在: ${DEPLOY_DIR}"
+                            else
+                                echo "⚠️  部署目录不存在，尝试创建..."
+                                # 尝试不使用 sudo 创建
+                                mkdir -p ${DEPLOY_DIR}/shared/logs 2>/dev/null || {
+                                    echo "❌ 无权限创建部署目录"
+                                    echo "请系统管理员执行以下命令:"
+                                    echo "  sudo mkdir -p ${DEPLOY_DIR}/shared/logs"
+                                    echo "  sudo chown -R jenkins:jenkins ${DEPLOY_DIR}"
+                                    exit 1
+                                }
+                            fi
+                            
+                            # 确保 shared/logs 目录存在（无sudo）
+                            mkdir -p ${DEPLOY_DIR}/shared/logs 2>/dev/null || true
+                            
+                            # 检查写权限
+                            if [ ! -w "${DEPLOY_DIR}" ]; then
+                                echo "❌ 无写入权限到 ${DEPLOY_DIR}"
+                                echo "请系统管理员执行: sudo chown -R jenkins:jenkins ${DEPLOY_DIR}"
+                                exit 1
+                            fi
+                            
+                            echo "✓ 部署目录权限检查通过"
+                            
+                            # 复制配置文件
+                            echo "复制配置文件..."
+                            cp docker-compose.prod.yml ${DEPLOY_DIR}/ || {
+                                echo "❌ 无法复制配置文件"
+                                exit 1
+                            }
+                            
+                            # 复制环境配置模板（如果不存在）
+                            if [ ! -f "${DEPLOY_DIR}/shared/.env.production" ]; then
+                                echo "创建生产环境配置..."
+                                cp .env.production.template ${DEPLOY_DIR}/shared/.env.production || {
+                                    echo "⚠️  环境配置模板不存在，跳过"
+                                }
+                                if [ -f "${DEPLOY_DIR}/shared/.env.production" ]; then
+                                    echo "⚠️  请检查并修改 ${DEPLOY_DIR}/shared/.env.production 中的配置"
+                                fi
+                            fi
+                            
+                            # 执行部署脚本
+                            echo ""
+                            echo "执行部署脚本..."
+                            if [ -f "scripts/jenkins-deploy.sh" ]; then
+                                bash scripts/jenkins-deploy.sh ${BUILD_NUMBER}
+                            else
+                                echo "⚠️  部署脚本不存在: scripts/jenkins-deploy.sh"
+                                echo "跳过部署脚本执行"
+                            fi
+                            
+                            echo "=========================================="
+                            echo "✓ 部署配置准备完成"
+                            echo "=========================================="
+                        '''
+                    } catch (Exception e) {
+                        echo "❌ 部署失败: ${e.message}"
+                        echo ""
+                        echo "可能的原因:"
+                        echo "1. 部署目录 ${DEPLOY_DIR} 不存在或无权限"
+                        echo "2. 需要系统管理员配置 sudoers:"
+                        echo "   echo 'jenkins ALL=(ALL) NOPASSWD: /bin/mkdir, /bin/chown' | sudo tee -a /etc/sudoers.d/jenkins"
+                        echo "   或手动创建目录:"
+                        echo "   sudo mkdir -p ${DEPLOY_DIR}/shared/logs"
+                        echo "   sudo chown -R jenkins:jenkins ${DEPLOY_DIR}"
+                        throw e
+                    }
+                }
+            }
+        }
                 '''
             }
         }
