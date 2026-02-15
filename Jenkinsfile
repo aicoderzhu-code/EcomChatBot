@@ -127,25 +127,31 @@ pipeline {
                 // 清理workspace中的Python缓存文件（避免权限问题）
                 sh '''
                     echo "清理workspace中的缓存文件..."
-                    # 尝试修改权限后删除
+                    # 清理Python缓存
                     find . -type d -name "__pycache__" -exec sudo chmod -R 777 {} + 2>/dev/null || true
                     find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
                     find . -type f -name "*.pyc" -exec sudo chmod 666 {} + 2>/dev/null || true
                     find . -type f -name "*.pyc" -delete 2>/dev/null || true
+                    
+                    # 清理pytest缓存
+                    find . -type d -name ".pytest_cache" -exec sudo chmod -R 777 {} + 2>/dev/null || true
+                    find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+                    
+                    # 清理测试报告
+                    find . -type f -name ".coverage" -exec sudo chmod 666 {} + 2>/dev/null || true
+                    find . -type f -name ".coverage" -delete 2>/dev/null || true
+                    
                     echo "清理完成"
                 '''
                 
-                // 检出develop分支代码（手动控制，避免权限冲突）
+                // 检出develop分支代码（不使用CleanCheckout，避免权限冲突）
                 checkout([
                     $class: 'GitSCM',
                     branches: [[name: '*/develop']],
                     userRemoteConfigs: [[
                         url: 'https://gitee.com/fridge1/ecom-chat-bot.git',
                         credentialsId: 'f6d0a8e1-45e2-4947-89ef-45db554f89a4'
-                    ]],
-                    extensions: [
-                        [$class: 'CleanCheckout']
-                    ]
+                    ]]
                 ])
                 
                 script {
