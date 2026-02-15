@@ -78,6 +78,9 @@ pipeline {
         
         // 显示时间戳
         timestamps()
+        
+        // 禁用自动 checkout，由我们手动控制（避免权限冲突）
+        skipDefaultCheckout()
     }
     
     // ============================================
@@ -132,11 +135,14 @@ pipeline {
                     echo "清理完成"
                 '''
                 
-                // 检出develop分支代码（移除WipeWorkspace以避免权限冲突）
+                // 检出develop分支代码（手动控制，避免权限冲突）
                 checkout([
                     $class: 'GitSCM',
                     branches: [[name: '*/develop']],
-                    userRemoteConfigs: [[url: env.GIT_URL]],
+                    userRemoteConfigs: [[
+                        url: 'https://gitee.com/fridge1/ecom-chat-bot.git',
+                        credentialsId: 'f6d0a8e1-45e2-4947-89ef-45db554f89a4'
+                    ]],
                     extensions: [
                         [$class: 'CleanCheckout']
                     ]
