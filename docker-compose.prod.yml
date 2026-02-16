@@ -36,9 +36,8 @@ services:
       RUN_MIGRATIONS: "false"
     env_file:
       - /opt/ecom-chat-bot/shared/.env.production
-    ports:
-      - "8000:8000"
     network_mode: host
+    # host 网络模式下不需要 ports 映射，直接使用宿主机端口
     # 移除 depends_on，假设基础服务已在宿主机运行
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
