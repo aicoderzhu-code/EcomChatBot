@@ -113,10 +113,11 @@ cd "$DEPLOY_DIR" || error "无法进入部署目录"
 # 注意：假设基础服务(postgres, redis, milvus, rabbitmq)已在宿主机运行
 info "启动新版本容器..."
 
-# 先停止并删除旧容器，避免docker-compose尝试复用旧容器配置
-info "清理旧容器..."
-docker stop ecom-chatbot-api ecom-chatbot-celery 2>/dev/null || true
-docker rm ecom-chatbot-api ecom-chatbot-celery 2>/dev/null || true
+# 先停止并删除所有相关旧容器（包括带hash前缀的），避免docker-compose尝试复用旧容器配置
+info "清理所有旧容器（包括失败的容器）..."
+# 使用docker ps过滤并强制删除所有ecom-chatbot-api和ecom-chatbot-celery容器
+docker ps -a --filter "name=ecom-chatbot-api" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+docker ps -a --filter "name=ecom-chatbot-celery" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
 
 # 启动新容器
 BUILD_NUMBER=$IMAGE_TAG $DOCKER_COMPOSE -f "$COMPOSE_FILE" -p ecom-prod up -d
