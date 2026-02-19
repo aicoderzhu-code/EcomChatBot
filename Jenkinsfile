@@ -43,25 +43,20 @@ pipeline {
         )
     }
     
-    // ============================================
-    // 触发器配置
-    // ============================================
-    // 注意: 自动触发需要配置相应的触发器
-    // 方式1: 手动触发 - 直接注释整个 triggers 块（最简单）
-    // 方式2: Gitee触发 - 需要在Job配置中启用Gitee插件触发
-    // 方式3: Generic Webhook - 需要安装Generic Webhook Trigger插件
-    
-    // 当前配置: 暂时禁用自动触发，使用手动触发
-    // 如需自动触发，请在Jenkins Job配置页面的"Build Triggers"中配置
-    /*
+    // ==================== 触发器配置 ====================
     triggers {
-        gitee(
-            triggerOnPush: true,
-            branchFilterName: 'develop',
-            noteRegex: ''
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref'],
+                [key: 'repository', value: '$.repository.name']
+            ],
+            token: 'ecom-chatbot-deploy-token',
+            regexpFilterText: '$ref',
+            regexpFilterExpression: 'refs/heads/develop',
+            printContributedVariables: true,
+            printPostContent: true
         )
     }
-    */
     
     // ============================================
     // 构建选项
