@@ -2,11 +2,9 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Layout, Spin } from 'antd';
+import { Spin } from 'antd';
 import { Sidebar, Header } from '@/components/layout';
 import { useAuthStore } from '@/store';
-
-const { Content } = Layout;
 
 export default function DashboardLayout({
   children,
@@ -32,12 +30,14 @@ export default function DashboardLayout({
   }
 
   return (
-    <Layout className="min-h-screen">
+    <div className="min-h-screen">
       <Sidebar />
-      <Layout className="ml-60">
+      <div style={{ marginLeft: 200 }}>
         <Header />
-        <Content className="p-6 bg-gray-100">{children}</Content>
-      </Layout>
-    </Layout>
+        <main style={{ padding: '20px 16px', background: '#f3f4f6', minHeight: 'calc(100vh - 64px)' }}>
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }

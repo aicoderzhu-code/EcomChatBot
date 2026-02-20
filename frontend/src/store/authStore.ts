@@ -8,6 +8,7 @@ interface AuthState {
   isLoading: boolean;
   tenant: Tenant | null;
   tenantId: string | null;
+  userEmail: string | null;
   error: string | null;
 
   login: (data: LoginRequest) => Promise<boolean>;
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       tenant: null,
       tenantId: null,
+      userEmail: null,
       error: null,
 
       login: async (data: LoginRequest) => {
@@ -38,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
             set({
               isAuthenticated: true,
               tenantId: response.data.tenant_id,
+              userEmail: data.email,
               isLoading: false,
             });
             return true;
@@ -108,6 +111,7 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: false,
             tenant: null,
             tenantId: null,
+            userEmail: null,
             isLoading: false,
           });
         }
@@ -117,7 +121,7 @@ export const useAuthStore = create<AuthState>()(
         const token = tokenManager.getAccessToken();
         const isAuth = !!token;
         if (!isAuth && get().isAuthenticated) {
-          set({ isAuthenticated: false, tenant: null, tenantId: null });
+          set({ isAuthenticated: false, tenant: null, tenantId: null, userEmail: null });
         }
         return isAuth;
       },
@@ -129,6 +133,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         tenantId: state.tenantId,
+        userEmail: state.userEmail,
       }),
     }
   )

@@ -41,11 +41,11 @@ export default function Header() {
   ];
 
   return (
-    <AntHeader className="bg-white px-6 flex items-center justify-between shadow-sm h-16 sticky top-0 z-10">
+    <AntHeader className="bg-white flex items-center justify-between shadow-sm sticky top-0 z-10" style={{ padding: '0 16px', height: 64, lineHeight: '64px' }}>
       <Breadcrumb items={breadcrumbItems} />
 
       <div className="flex items-center gap-6">
-        <Badge count={3} size="small">
+        <Badge count={0} size="small">
           <BellOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-600" />
         </Badge>
         <div className="flex items-center gap-2">

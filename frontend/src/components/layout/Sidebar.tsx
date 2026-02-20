@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { Layout, Menu, Avatar, Typography, Button, Tooltip } from 'antd';
+import { Menu, Avatar, Typography, Button, Tooltip } from 'antd';
 import {
   DashboardOutlined,
   MessageOutlined,
@@ -9,10 +9,10 @@ import {
   SettingOutlined,
   LogoutOutlined,
   ShoppingCartOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store';
 
-const { Sider } = Layout;
 const { Text } = Typography;
 
 const menuItems = [
@@ -41,7 +41,7 @@ const menuItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout, tenantId } = useAuthStore();
+  const { logout, tenantId, userEmail } = useAuthStore();
 
   const handleMenuClick = ({ key }: { key: string }) => {
     router.push(key);
@@ -53,9 +53,8 @@ export default function Sidebar() {
   };
 
   return (
-    <Sider
-      width={240}
-      className="fixed left-0 top-0 h-screen"
+    <aside
+      className="fixed left-0 top-0 h-screen w-[200px] z-50"
       style={{ background: '#1f2937' }}
     >
       <div className="flex flex-col h-full">
@@ -85,11 +84,11 @@ export default function Sidebar() {
             <Avatar
               size={36}
               className="bg-gray-600"
-              icon={<ShoppingCartOutlined />}
+              icon={<UserOutlined />}
             />
             <div className="ml-3 flex-1 min-w-0">
               <Text className="text-white text-sm block truncate">
-                Admin User
+                {userEmail || '管理员'}
               </Text>
               <Text className="text-gray-400 text-xs block truncate">
                 Tenant: {tenantId?.slice(0, 8) || 'N/A'}
@@ -105,6 +104,6 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
-    </Sider>
+    </aside>
   );
 }

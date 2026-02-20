@@ -11,6 +11,8 @@ interface TrendChartProps {
 }
 
 export default function TrendChart({ data, title }: TrendChartProps) {
+  const allZero = data.every((d) => d.value === 0);
+
   const config = {
     data,
     xField: 'date',
@@ -24,10 +26,17 @@ export default function TrendChart({ data, title }: TrendChartProps) {
     xAxis: {
       label: {
         autoHide: true,
-        autoRotate: false,
+        autoRotate: true,
+        formatter: (v: string) => {
+          const timePart = v.split(' ').pop() || v;
+          return timePart.slice(0, 5);
+        },
       },
+      tickCount: 12,
     },
     yAxis: {
+      min: 0,
+      ...(allZero ? { max: 10 } : {}),
       label: {
         formatter: (v: string) => `${v}`,
       },

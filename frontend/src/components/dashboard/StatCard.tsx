@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, Statistic, Typography } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined, ArrowDownOutlined, MinusOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
@@ -20,7 +20,30 @@ export default function StatCard({
   suffix,
   prefix,
 }: StatCardProps) {
-  const isPositive = change !== undefined && change >= 0;
+  const getChangeDisplay = () => {
+    if (change === undefined) return null;
+    if (change === 0) {
+      return {
+        icon: <MinusOutlined />,
+        colorClass: 'text-gray-500',
+        text: '0% 较昨日',
+      };
+    }
+    if (change > 0) {
+      return {
+        icon: <ArrowUpOutlined />,
+        colorClass: 'text-green-600',
+        text: `${change}% 较昨日`,
+      };
+    }
+    return {
+      icon: <ArrowDownOutlined />,
+      colorClass: 'text-red-600',
+      text: `${Math.abs(change)}% 较昨日`,
+    };
+  };
+
+  const changeDisplay = getChangeDisplay();
 
   return (
     <Card className="h-full">
@@ -30,15 +53,13 @@ export default function StatCard({
         prefix={prefix}
         valueStyle={{ fontSize: '1.75rem', fontWeight: 'bold' }}
       />
-      {change !== undefined && (
+      {changeDisplay && (
         <div className="mt-2">
           <Text
-            className={isPositive ? 'text-green-600' : 'text-red-600'}
+            className={changeDisplay.colorClass}
             style={{ fontSize: '0.85rem' }}
           >
-            {isPositive ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-            {' '}
-            {Math.abs(change)}% 较昨日
+            {changeDisplay.icon} {changeDisplay.text}
           </Text>
         </div>
       )}
