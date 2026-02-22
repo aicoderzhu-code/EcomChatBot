@@ -56,6 +56,7 @@ class TenantService:
         tenant_id = generate_tenant_id()
         api_key = generate_api_key()
         api_key_hash = hash_api_key(api_key)
+        api_key_prefix = api_key[:12] if len(api_key) >= 12 else api_key  # 保存前缀用于快速查找
         password_hash = hash_password(register_data.password)
 
         # 计算套餐过期时间
@@ -70,6 +71,7 @@ class TenantService:
             contact_phone=register_data.contact_phone,
             password_hash=password_hash,
             api_key_hash=api_key_hash,
+            api_key_prefix=api_key_prefix,  # 保存API Key前缀用于快速认证
             status="active",
             current_plan="free",
             plan_expire_at=plan_expire_at,  # 设置套餐过期时间
@@ -147,6 +149,7 @@ class TenantService:
         tenant_id = generate_tenant_id()
         api_key = generate_api_key()
         api_key_hash = hash_api_key(api_key)
+        api_key_prefix = api_key[:12] if len(api_key) >= 12 else api_key  # 保存前缀用于快速查找
         # 为管理员创建的租户生成默认密码
         default_password = generate_api_key()  # 使用API Key格式作为临时密码
         password_hash = hash_password(default_password)
@@ -160,6 +163,7 @@ class TenantService:
             contact_phone=tenant_data.contact_phone,
             password_hash=password_hash,
             api_key_hash=api_key_hash,
+            api_key_prefix=api_key_prefix,  # 保存API Key前缀用于快速认证
             status="active",
             current_plan=tenant_data.initial_plan,
         )
@@ -208,17 +212,80 @@ class TenantService:
     async def get_tenant_by_api_key(self, api_key: str) -> Tenant | None:
         """
         根据 API Key 获取租户（用于认证）
-        
-        注意：需要验证API Key哈希值
+
+        优化策略（按优先级）：
+        1. 格式验证（快速拒绝无效格式）
+        2. 使用 api_key_prefix 字段直接查询（O(1)，新租户）
+        3. 回退到 Redis 缓存查询（旧租户）
+        4. 最后回退到遍历验证（仅首次，且仅针对旧租户）
         """
-        # 获取所有激活的租户
-        stmt = select(Tenant).where(Tenant.status == "active")
+        # 快速格式验证：API Key 必须以 eck_ 开头且长度足够
+        if not api_key or len(api_key) < 20 or not api_key.startswith("eck_"):
+            return None
+
+        # 从 API Key 中提取前缀
+        api_key_prefix = api_key[:12] if len(api_key) >= 12 else api_key
+
+        # 方案1：直接通过 api_key_prefix 索引查询（最快，O(1)）
+        stmt = select(Tenant).where(
+            and_(
+                Tenant.api_key_prefix == api_key_prefix,
+                Tenant.status == "active"
+            )
+        )
+        result = await self.db.execute(stmt)
+        tenant = result.scalar_one_or_none()
+
+        if tenant and verify_api_key(api_key, tenant.api_key_hash):
+            return tenant
+
+        # 方案2：尝试从 Redis 缓存获取（旧租户，没有 api_key_prefix）
+        from db import get_cache
+        try:
+            cache = await get_cache()
+            cache_key = f"api_key_tenant:{api_key_prefix}"
+            cached_tenant_id = await cache.get(cache_key)
+
+            if cached_tenant_id:
+                stmt = select(Tenant).where(
+                    and_(
+                        Tenant.tenant_id == cached_tenant_id,
+                        Tenant.status == "active"
+                    )
+                )
+                result = await self.db.execute(stmt)
+                tenant = result.scalar_one_or_none()
+
+                if tenant and verify_api_key(api_key, tenant.api_key_hash):
+                    return tenant
+                else:
+                    await cache.delete(cache_key)
+        except Exception:
+            pass
+
+        # 方案3：回退到遍历验证（仅针对没有 api_key_prefix 的旧租户，首次查询）
+        stmt = select(Tenant).where(
+            and_(
+                Tenant.status == "active",
+                Tenant.api_key_prefix.is_(None)  # 只查询没有设置前缀的旧租户
+            )
+        ).limit(1000)
         result = await self.db.execute(stmt)
         tenants = result.scalars().all()
 
-        # 验证API Key
         for tenant in tenants:
             if verify_api_key(api_key, tenant.api_key_hash):
+                # 验证成功，更新租户的 api_key_prefix 字段（永久修复）
+                tenant.api_key_prefix = api_key_prefix
+                await self.db.commit()
+
+                # 同时缓存到 Redis
+                try:
+                    cache = await get_cache()
+                    cache_key = f"api_key_tenant:{api_key_prefix}"
+                    await cache.set(cache_key, tenant.tenant_id, expire=300)
+                except Exception:
+                    pass
                 return tenant
 
         return None
@@ -302,7 +369,7 @@ class TenantService:
     async def reset_api_key(self, tenant_id: str) -> tuple[Tenant, str]:
         """
         重置 API Key
-        
+
         Returns:
             (Tenant, api_key): 租户对象和新的API密钥（明文）
         """
@@ -311,6 +378,7 @@ class TenantService:
         # 生成新的API Key
         new_api_key = generate_api_key()
         tenant.api_key_hash = hash_api_key(new_api_key)
+        tenant.api_key_prefix = new_api_key[:12] if len(new_api_key) >= 12 else new_api_key  # 更新前缀
 
         await self.db.commit()
         await self.db.refresh(tenant)
@@ -481,6 +549,7 @@ class TenantService:
         tenant_id = generate_tenant_id()
         api_key = generate_api_key()
         api_key_hash_value = hash_api_key(api_key)
+        api_key_prefix = api_key[:12] if len(api_key) >= 12 else api_key  # 保存前缀用于快速查找
         password_hash_value = hash_password(register_data.password)
 
         # 创建租户
@@ -491,6 +560,7 @@ class TenantService:
             contact_email=register_data.contact_email,
             contact_phone=register_data.contact_phone,
             api_key_hash=api_key_hash_value,
+            api_key_prefix=api_key_prefix,  # 保存API Key前缀用于快速认证
             password_hash=password_hash_value,
             status="active",
             current_plan="free",

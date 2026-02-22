@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电商智能客服 - 对话控制台 Mockup</title>
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Sidebar */
+        .sidebar { width: 240px; background: #1f2937; color: white; display: flex; flex-direction: column; }
+        .logo { padding: 20px; font-weight: bold; font-size: 1.2rem; border-bottom: 1px solid #374151; }
+        .menu { flex: 1; padding: 10px 0; }
+        .menu-item { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .menu-item:hover, .menu-item.active { background: #374151; }
+        .user-profile { padding: 20px; border-top: 1px solid #374151; display: flex; gap: 10px; align-items: center; }
+        
+        /* Main Layout */
+        .main { flex: 1; display: flex; background: #f3f4f6; }
+        
+        /* Chat List */
+        .chat-list { width: 300px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+        .search-bar { padding: 15px; border-bottom: 1px solid #e5e7eb; }
+        .search-input { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; box-sizing: border-box; }
+        .list-items { flex: 1; overflow-y: auto; }
+        .list-item { padding: 15px; border-bottom: 1px solid #f3f4f6; cursor: pointer; }
+        .list-item:hover, .list-item.active { background: #eff6ff; }
+        .list-item-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .username { font-weight: 600; font-size: 0.9rem; }
+        .time { color: #9ca3af; font-size: 0.8rem; }
+        .preview { color: #6b7280; font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .badge { background: #ef4444; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem; }
+        
+        /* Chat Window */
+        .chat-window { flex: 1; display: flex; flex-direction: column; background: white; }
+        .chat-header { padding: 15px 20px; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; background: white; }
+        .chat-title { font-weight: bold; }
+        .chat-actions button { padding: 6px 12px; border: 1px solid #d1d5db; background: white; border-radius: 4px; cursor: pointer; margin-left: 8px; }
+        .chat-actions button.primary { background: #2563eb; color: white; border-color: #2563eb; }
+        
+        .messages { flex: 1; padding: 20px; overflow-y: auto; background: #f9fafb; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 70%; padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; }
+        .message.user { align-self: flex-start; background: white; border: 1px solid #e5e7eb; }
+        .message.ai { align-self: flex-end; background: #eff6ff; border: 1px solid #bfdbfe; }
+        .message.system { align-self: center; background: #f3f4f6; color: #6b7280; font-size: 0.8rem; padding: 5px 10px; border-radius: 4px; }
+        
+        .input-area { padding: 20px; border-top: 1px solid #e5e7eb; background: white; }
+        .input-box { width: 100%; height: 80px; padding: 10px; border: 1px solid #d1d5db; border-radius: 4px; resize: none; margin-bottom: 10px; box-sizing: border-box; font-family: inherit; }
+        .input-actions { display: flex; justify-content: space-between; align-items: center; }
+        .tools { display: flex; gap: 10px; color: #6b7280; font-size: 0.9rem; }
+        
+        /* Right Panel */
+        .right-panel { width: 300px; background: white; border-left: 1px solid #e5e7eb; padding: 20px; overflow-y: auto; }
+        .panel-section { margin-bottom: 25px; }
+        .section-title { font-weight: bold; margin-bottom: 10px; font-size: 0.9rem; color: #374151; display: flex; align-items: center; gap: 5px; }
+        .info-card { background: #f9fafb; padding: 10px; border-radius: 6px; border: 1px solid #e5e7eb; margin-bottom: 10px; font-size: 0.85rem; }
+        .info-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .label { color: #6b7280; }
+        
+        .rag-source { border-left: 3px solid #2563eb; padding-left: 10px; margin-bottom: 10px; }
+        .rag-title { font-weight: 600; font-size: 0.85rem; color: #2563eb; margin-bottom: 4px; }
+        .rag-content { font-size: 0.8rem; color: #4b5563; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        .tag { display: inline-block; background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; margin-right: 5px; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">🛒 电商智能客服</div>
+    <div class="menu">
+        <div class="menu-item">📊 仪表盘</div>
+        <div class="menu-item active">💬 对话管理</div>
+        <div class="menu-item">📚 知识库</div>
+        <div class="menu-item">⚙️ 系统设置</div>
+    </div>
+    <div class="user-profile">
+        <div style="width: 32px; height: 32px; background: #4b5563; border-radius: 50%;"></div>
+        <div>
+            <div style="font-size: 0.9rem; font-weight: bold;">Admin User</div>
+            <div style="font-size: 0.75rem; color: #9ca3af;">Tenant: TechCorp</div>
+        </div>
+    </div>
+</div>
+
+<div class="main">
+    <div class="chat-list">
+        <div class="search-bar">
+            <input type="text" class="search-input" placeholder="搜索会话...">
+        </div>
+        <div class="list-items">
+            <div class="list-item active">
+                <div class="list-item-header">
+                    <span class="username">访客 #8832</span>
+                    <span class="time">10:42</span>
+                </div>
+                <div class="preview">我想了解一下退货流程...</div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-header">
+                    <span class="username">访客 #8831</span>
+                    <span class="time">10:30</span>
+                </div>
+                <div class="preview"><span class="badge">人工</span> 转人工请求</div>
+            </div>
+            <div class="list-item">
+                <div class="list-item-header">
+                    <span class="username">VIP客户_张三</span>
+                    <span class="time">09:15</span>
+                </div>
+                <div class="preview">好的，谢谢你的帮助。</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-window">
+        <div class="chat-header">
+            <div class="chat-title">
+                访客 #8832 
+                <span style="font-weight: normal; color: #6b7280; font-size: 0.85rem; margin-left: 10px;">来源: 微信小程序</span>
+            </div>
+            <div class="chat-actions">
+                <button>结束会话</button>
+                <button class="primary">接管对话</button>
+            </div>
+        </div>
+        
+        <div class="messages">
+            <div class="message user">你好，我想问一下你们的退货流程是怎样的？</div>
+            <div class="message ai">
+                您好！我是智能客服助手。关于退货流程，通常是这样的：<br><br>
+                1. 在订单详情页点击"申请售后"<br>
+                2. 选择"退货退款"并填写原因<br>
+                3. 等待商家审核（通常24小时内）<br>
+                4. 审核通过后寄回商品<br><br>
+                请问您是遇到了什么商品质量问题吗？
+            </div>
+            <div class="message user">不是质量问题，是尺码不合适。运费谁出？</div>
+            <div class="message ai">
+                明白了。如果是由于尺码不合适（非质量问题）导致的退货：<br><br>
+                根据我们的《7天无理由退换货政策》，<strong>运费需要由您（买家）承担</strong>。<br>
+                不过，如果您购买时赠送了运费险，保险公司会理赔首重运费。
+            </div>
+        </div>
+
+        <div class="input-area">
+            <textarea class="input-box" placeholder="输入回复... (Shift+Enter 换行)"></textarea>
+            <div class="input-actions">
+                <div class="tools">
+                    <span>😊 表情</span>
+                    <span>📎 图片</span>
+                    <span>⚡ 快捷回复</span>
+                </div>
+                <button style="padding: 8px 20px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer;">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="panel-section">
+            <div class="section-title">👤 用户画像</div>
+            <div class="info-card">
+                <div class="info-row"><span class="label">ID</span> <span>8832</span></div>
+                <div class="info-row"><span class="label">等级</span> <span>普通会员</span></div>
+                <div class="info-row"><span class="label">地区</span> <span>上海</span></div>
+                <div class="info-row"><span class="label">总订单</span> <span>3 (¥1,200)</span></div>
+            </div>
+            <div>
+                <span class="tag">退货敏感</span>
+                <span class="tag">数码爱好者</span>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <div class="section-title">🧠 RAG 知识库引用</div>
+            <div class="rag-source">
+                <div class="rag-title">退换货政策 v2.0.pdf (Page 3)</div>
+                <div class="rag-content">...非质量问题退货（如不喜欢、尺码不合），运费由买家承担。若商品有质量问题，运费由商家承担...</div>
+                <div style="font-size: 0.75rem; color: #2563eb; margin-top: 4px; cursor: pointer;">查看全文 ></div>
+            </div>
+            <div class="rag-source">
+                <div class="rag-title">运费险理赔说明.docx</div>
+                <div class="rag-content">...运费险理赔金额根据发货地和收货地距离计算，通常覆盖首重费用...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

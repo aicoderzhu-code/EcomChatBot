@@ -1,0 +1,90 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f3f4f6" />
+
+  <!-- Sidebar -->
+  <rect width="240" height="800" fill="#1f2937" />
+  <!-- Logo Area -->
+  <rect width="240" height="60" fill="#111827" />
+  <text x="20" y="40" font-family="sans-serif" font-size="18" fill="white" font-weight="bold">🛒 Ecom Chatbot</text>
+  
+  <!-- Menu Items -->
+  <text x="20" y="105" font-family="sans-serif" font-size="14" fill="#9ca3af">📊 仪表盘 (Dashboard)</text>
+  <text x="20" y="145" font-family="sans-serif" font-size="14" fill="#9ca3af">💬 对话管理 (Chat)</text>
+  <text x="20" y="185" font-family="sans-serif" font-size="14" fill="#9ca3af">📚 知识库 (Knowledge)</text>
+  <text x="20" y="225" font-family="sans-serif" font-size="14" fill="#9ca3af">⚙️ 系统设置 (Settings)</text>
+  <rect x="0" y="240" width="240" height="40" fill="#374151" /> <!-- Active item -->
+  <text x="20" y="265" font-family="sans-serif" font-size="14" fill="white">💳 订阅与账单 (Billing)</text>
+
+  <!-- User Profile at bottom -->
+  <rect x="0" y="740" width="240" height="60" fill="#111827" />
+  <circle cx="30" cy="770" r="16" fill="#4b5563" />
+  <text x="55" y="775" font-family="sans-serif" font-size="12" fill="white">Admin User</text>
+
+  <!-- Main Content Area -->
+  <!-- Header -->
+  <rect x="240" y="0" width="960" height="60" fill="white" stroke="#e5e7eb" />
+  <text x="260" y="35" font-family="sans-serif" font-size="14" fill="#6b7280">首页 / 订阅与账单</text>
+
+  <!-- Current Plan Card -->
+  <g transform="translate(260, 80)">
+    <rect width="880" height="200" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">当前套餐</text>
+    
+    <text x="20" y="70" font-family="sans-serif" font-size="24" fill="#2563eb" font-weight="bold">专业版 (Professional)</text>
+    <rect x="280" y="50" width="80" height="24" rx="12" fill="#dcfce7" />
+    <text x="295" y="66" font-family="sans-serif" font-size="12" fill="#166534" font-weight="bold">活跃中</text>
+
+    <text x="20" y="100" font-family="sans-serif" font-size="14" fill="#6b7280">¥ 299 / 月</text>
+    <text x="20" y="130" font-family="sans-serif" font-size="12" fill="#9ca3af">下次扣款日期: 2024-06-20</text>
+
+    <rect x="700" y="50" width="140" height="40" rx="4" fill="#2563eb" />
+    <text x="770" y="75" text-anchor="middle" font-family="sans-serif" font-size="14" fill="white" font-weight="bold">升级套餐</text>
+    <rect x="700" y="100" width="140" height="40" rx="4" fill="white" stroke="#d1d5db" />
+    <text x="770" y="125" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#374151">管理订阅</text>
+  </g>
+
+  <!-- Usage Details -->
+  <g transform="translate(260, 300)">
+    <rect width="430" height="200" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">资源使用量 (本月)</text>
+    
+    <!-- Usage Bar 1 -->
+    <text x="20" y="70" font-family="sans-serif" font-size="12" fill="#374151">对话次数 (API Calls)</text>
+    <text x="350" y="70" text-anchor="end" font-family="sans-serif" font-size="12" fill="#6b7280">8,450 / 10,000</text>
+    <rect x="20" y="80" width="380" height="8" rx="4" fill="#f3f4f6" />
+    <rect x="20" y="80" width="320" height="8" rx="4" fill="#3b82f6" /> <!-- 84% -->
+
+    <!-- Usage Bar 2 -->
+    <text x="20" y="120" font-family="sans-serif" font-size="12" fill="#374151">存储空间 (Vector DB)</text>
+    <text x="350" y="120" text-anchor="end" font-family="sans-serif" font-size="12" fill="#6b7280">450MB / 1GB</text>
+    <rect x="20" y="130" width="380" height="8" rx="4" fill="#f3f4f6" />
+    <rect x="20" y="130" width="170" height="8" rx="4" fill="#10b981" /> <!-- 45% -->
+  </g>
+
+  <!-- Billing History -->
+  <g transform="translate(710, 300)">
+    <rect width="430" height="400" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">账单历史</text>
+    
+    <!-- Table Header -->
+    <text x="20" y="60" font-family="sans-serif" font-size="12" fill="#6b7280">日期</text>
+    <text x="150" y="60" font-family="sans-serif" font-size="12" fill="#6b7280">金额</text>
+    <text x="250" y="60" font-family="sans-serif" font-size="12" fill="#6b7280">状态</text>
+    <text x="350" y="60" font-family="sans-serif" font-size="12" fill="#6b7280">发票</text>
+    <line x1="20" y1="70" x2="410" y2="70" stroke="#f3f4f6" />
+
+    <!-- Row 1 -->
+    <text x="20" y="95" font-family="sans-serif" font-size="12" fill="#374151">2024-05-20</text>
+    <text x="150" y="95" font-family="sans-serif" font-size="12" fill="#374151">¥ 299.00</text>
+    <text x="250" y="95" font-family="sans-serif" font-size="12" fill="#166534">已支付</text>
+    <text x="350" y="95" font-family="sans-serif" font-size="12" fill="#2563eb">下载</text>
+    <line x1="20" y1="110" x2="410" y2="110" stroke="#f3f4f6" />
+
+    <!-- Row 2 -->
+    <text x="20" y="135" font-family="sans-serif" font-size="12" fill="#374151">2024-04-20</text>
+    <text x="150" y="135" font-family="sans-serif" font-size="12" fill="#374151">¥ 299.00</text>
+    <text x="250" y="135" font-family="sans-serif" font-size="12" fill="#166534">已支付</text>
+    <text x="350" y="135" font-family="sans-serif" font-size="12" fill="#2563eb">下载</text>
+  </g>
+</svg>

@@ -169,10 +169,13 @@ class TestTenant(BaseAPITest, TenantTestMixin):
         response = await self.client.get("/tenant/quota")
         data = self.assert_success(response)
 
-        # 验证返回数据
-        assert "concurrent_sessions" in data
-        assert "conversations_per_day" in data
-        assert "api_calls_per_day" in data
+        # 验证返回数据（API 返回按类型分组的配额信息）
+        assert "conversation" in data
+        assert "concurrent" in data
+        assert "api_call" in data
+        # 每种配额类型包含 used, limit, remaining, percentage
+        assert "limit" in data["conversation"]
+        assert "used" in data["conversation"]
 
     @pytest.mark.asyncio
     async def test_get_usage_statistics(self):

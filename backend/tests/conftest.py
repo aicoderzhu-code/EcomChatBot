@@ -57,49 +57,10 @@ async def prepare_test_environment():
     print("🔧 准备测试环境...")
     print("="*60)
     
-    # 1. 检查并准备管理员账号
-    try:
-        from app.db.session import async_session
-        from app.models.admin import Admin
-        from app.core.security import get_password_hash
-        from sqlalchemy import select
-        
-        async with async_session() as db:
-            # 查询管理员账号
-            result = await db.execute(
-                select(Admin).where(Admin.username == "admin")
-            )
-            admin = result.scalar_one_or_none()
-            
-            if admin:
-                # 重置密码并解锁
-                admin.password_hash = get_password_hash("admin123")
-                admin.failed_login_attempts = 0
-                admin.locked_until = None
-                admin.is_active = True
-                print("✅ 管理员账号已重置并解锁")
-            else:
-                # 创建管理员账号
-                admin = Admin(
-                    username="admin",
-                    email="admin@example.com",
-                    password_hash=get_password_hash("admin123"),
-                    is_super_admin=True,
-                    is_active=True,
-                    failed_login_attempts=0,
-                    locked_until=None
-                )
-                db.add(admin)
-                print("✅ 管理员账号已创建")
-            
-            await db.commit()
-            print(f"   用户名: admin")
-            print(f"   密码: admin123")
-    except Exception as e:
-        print(f"⚠️  管理员账号准备失败: {e}")
-        print("   测试将继续，但管理员相关测试可能失败")
+    print(f"✅ 使用管理员账号: {settings.admin_username}")
+    print(f"✅ API 基础URL: {settings.base_url}")
+    print(f"✅ LLM 提供商: {settings.llm_provider}")
     
-    # 2. 检查 LLM 配置
     if settings.has_llm_config:
         print(f"✅ LLM 已配置: {settings.llm_provider}")
     else:
@@ -112,6 +73,10 @@ async def prepare_test_environment():
     print("="*60 + "\n")
     
     yield
+    
+    print("\n" + "="*60)
+    print("🏁 所有测试执行完毕")
+    print("="*60)
 
 
 @pytest.fixture(scope="session", autouse=True)

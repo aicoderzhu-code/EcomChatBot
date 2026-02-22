@@ -1,0 +1,97 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f3f4f6" />
+
+  <!-- Sidebar -->
+  <rect width="240" height="800" fill="#1f2937" />
+  <!-- Logo Area -->
+  <rect width="240" height="60" fill="#111827" />
+  <text x="20" y="40" font-family="sans-serif" font-size="18" fill="white" font-weight="bold">🛒 Ecom Chatbot</text>
+  
+  <!-- Menu Items -->
+  <text x="20" y="105" font-family="sans-serif" font-size="14" fill="#9ca3af">📊 仪表盘 (Dashboard)</text>
+  <rect x="0" y="120" width="240" height="40" fill="#374151" /> <!-- Active item -->
+  <text x="20" y="145" font-family="sans-serif" font-size="14" fill="white">💬 对话管理 (Chat)</text>
+  <text x="20" y="185" font-family="sans-serif" font-size="14" fill="#9ca3af">📚 知识库 (Knowledge)</text>
+  <text x="20" y="225" font-family="sans-serif" font-size="14" fill="#9ca3af">⚙️ 系统设置 (Settings)</text>
+
+  <!-- User Profile at bottom -->
+  <rect x="0" y="740" width="240" height="60" fill="#111827" />
+  <circle cx="30" cy="770" r="16" fill="#4b5563" />
+  <text x="55" y="775" font-family="sans-serif" font-size="12" fill="white">Admin User</text>
+
+  <!-- Chat List Column -->
+  <rect x="240" y="0" width="260" height="800" fill="white" stroke="#e5e7eb" />
+  <!-- Search Bar -->
+  <rect x="255" y="15" width="230" height="30" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="265" y="35" font-family="sans-serif" font-size="12" fill="#9ca3af">🔍 搜索会话...</text>
+  <line x1="240" y1="60" x2="500" y2="60" stroke="#e5e7eb" />
+
+  <!-- Chat Item 1 (Active) -->
+  <rect x="240" y="60" width="260" height="80" fill="#eff6ff" />
+  <rect x="240" y="60" width="4" height="80" fill="#3b82f6" />
+  <text x="255" y="80" font-family="sans-serif" font-size="14" fill="#111827" font-weight="bold">访客 #8832</text>
+  <text x="450" y="80" font-family="sans-serif" font-size="12" fill="#9ca3af">10:42</text>
+  <text x="255" y="105" font-family="sans-serif" font-size="12" fill="#6b7280">运费谁出？</text>
+  <rect x="255" y="115" width="60" height="16" rx="8" fill="#dcfce7" />
+  <text x="265" y="127" font-family="sans-serif" font-size="10" fill="#166534">AI处理中</text>
+
+  <!-- Chat Item 2 -->
+  <text x="255" y="160" font-family="sans-serif" font-size="14" fill="#111827" font-weight="bold">访客 #8831</text>
+  <text x="450" y="160" font-family="sans-serif" font-size="12" fill="#9ca3af">10:30</text>
+  <text x="255" y="185" font-family="sans-serif" font-size="12" fill="#6b7280">我要转人工客服</text>
+  <rect x="255" y="195" width="60" height="16" rx="8" fill="#fee2e2" />
+  <text x="265" y="207" font-family="sans-serif" font-size="10" fill="#991b1b">待人工</text>
+  <line x1="240" y1="220" x2="500" y2="220" stroke="#f3f4f6" />
+
+  <!-- Chat Window -->
+  <rect x="500" y="0" width="460" height="800" fill="#f9fafb" />
+  <!-- Chat Header -->
+  <rect x="500" y="0" width="460" height="60" fill="white" stroke="#e5e7eb" />
+  <text x="520" y="35" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">访客 #8832</text>
+  <rect x="620" y="22" width="40" height="18" rx="9" fill="#dcfce7" />
+  <text x="628" y="35" font-family="sans-serif" font-size="10" fill="#166534">在线</text>
+  
+  <rect x="800" y="15" width="80" height="30" rx="4" fill="#ef4444" />
+  <text x="815" y="35" font-family="sans-serif" font-size="12" fill="white">结束会话</text>
+  <rect x="890" y="15" width="60" height="30" rx="4" fill="#3b82f6" />
+  <text x="905" y="35" font-family="sans-serif" font-size="12" fill="white">接管</text>
+
+  <!-- Messages -->
+  <!-- User Message -->
+  <path d="M530,90 Q530,80 540,80 L750,80 Q760,80 760,90 L760,120 Q760,130 750,130 L530,130 L530,90 Z" fill="white" stroke="#e5e7eb" />
+  <text x="545" y="110" font-family="sans-serif" font-size="13" fill="#374151">我想问一下退货流程？</text>
+
+  <!-- AI Message -->
+  <path d="M600,150 Q600,140 610,140 L930,140 Q940,140 940,150 L940,250 L610,250 Q600,250 600,240 Z" fill="#eff6ff" stroke="#bfdbfe" />
+  <text x="615" y="170" font-family="sans-serif" font-size="13" fill="#374151">您好！我是智能客服助手。</text>
+  <text x="615" y="190" font-family="sans-serif" font-size="13" fill="#374151">退货流程如下：</text>
+  <text x="615" y="210" font-family="sans-serif" font-size="13" fill="#374151">1. 申请售后</text>
+  <text x="615" y="230" font-family="sans-serif" font-size="13" fill="#374151">2. 寄回商品</text>
+
+  <!-- Input Area -->
+  <rect x="500" y="650" width="460" height="150" fill="white" stroke="#e5e7eb" />
+  <rect x="520" y="670" width="420" height="80" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="530" y="690" font-family="sans-serif" font-size="13" fill="#9ca3af">输入回复内容...</text>
+  <rect x="860" y="760" width="80" height="30" rx="4" fill="#3b82f6" />
+  <text x="885" y="780" font-family="sans-serif" font-size="13" fill="white">发送</text>
+
+  <!-- Right Panel -->
+  <rect x="960" y="0" width="240" height="800" fill="white" stroke="#e5e7eb" />
+  <!-- User Profile Section -->
+  <text x="980" y="35" font-family="sans-serif" font-size="14" fill="#111827" font-weight="bold">👤 用户画像</text>
+  <line x1="960" y1="50" x2="1200" y2="50" stroke="#f3f4f6" />
+  <text x="980" y="80" font-family="sans-serif" font-size="12" fill="#6b7280">ID: 8832</text>
+  <text x="980" y="100" font-family="sans-serif" font-size="12" fill="#6b7280">等级: 普通会员</text>
+  <text x="980" y="120" font-family="sans-serif" font-size="12" fill="#6b7280">地区: 上海</text>
+
+  <!-- RAG Section -->
+  <text x="980" y="180" font-family="sans-serif" font-size="14" fill="#111827" font-weight="bold">🧠 知识库引用</text>
+  <line x1="960" y1="195" x2="1200" y2="195" stroke="#f3f4f6" />
+  
+  <rect x="975" y="210" width="210" height="100" rx="6" fill="#f0f9ff" stroke="#bae6fd" />
+  <text x="985" y="230" font-family="sans-serif" font-size="12" fill="#0369a1" font-weight="bold">📄 退换货政策.pdf</text>
+  <text x="985" y="250" font-family="sans-serif" font-size="10" fill="#334155">非质量问题退货，运费由买家承担...</text>
+  <text x="1130" y="300" font-family="sans-serif" font-size="10" fill="#0369a1">匹配度: 89%</text>
+
+</svg>

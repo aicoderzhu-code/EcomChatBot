@@ -3,6 +3,7 @@ RAG 检索测试
 """
 import pytest
 from test_base import BaseAPITest, TenantTestMixin, KnowledgeTestMixin
+from config import settings
 
 
 @pytest.mark.rag

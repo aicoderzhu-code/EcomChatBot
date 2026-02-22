@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电商智能客服 - UI 设计图库</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #111827; color: white; margin: 0; padding: 0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; margin-bottom: 40px; }
+        .gallery-nav { display: flex; justify-content: center; gap: 20px; margin-bottom: 40px; flex-wrap: wrap; }
+        .nav-btn { background: #374151; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; transition: 0.2s; font-size: 1rem; }
+        .nav-btn:hover, .nav-btn.active { background: #2563eb; }
+        
+        .design-view { display: none; text-align: center; }
+        .design-view.active { display: block; }
+        .design-view img { max-width: 100%; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); border-radius: 8px; }
+        .design-title { font-size: 1.5rem; margin-bottom: 20px; color: #9ca3af; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎨 电商智能客服 SaaS 平台 - UI 设计图</h1>
+    
+    <div class="gallery-nav">
+        <button class="nav-btn active" onclick="showDesign('login')">登录页 (Login)</button>
+        <button class="nav-btn" onclick="showDesign('register')">注册页 (Register)</button>
+        <button class="nav-btn" onclick="showDesign('dashboard')">仪表盘 (Dashboard)</button>
+        <button class="nav-btn" onclick="showDesign('chat')">对话控制台 (Chat)</button>
+        <button class="nav-btn" onclick="showDesign('intents')">意图管理 (Intents)</button>
+        <button class="nav-btn" onclick="showDesign('knowledge')">知识库 (Knowledge)</button>
+        <button class="nav-btn" onclick="showDesign('billing')">订阅与账单 (Billing)</button>
+        <button class="nav-btn" onclick="showDesign('settings')">系统设置 (Settings)</button>
+    </div>
+
+    <div id="login" class="design-view active">
+        <div class="design-title">1. 登录页 / Login Page</div>
+        <img src="login_ui.svg" alt="Login UI">
+    </div>
+
+    <div id="register" class="design-view">
+        <div class="design-title">2. 注册页 / Register Page (新增)</div>
+        <img src="register_ui.svg" alt="Register UI">
+    </div>
+
+    <div id="dashboard" class="design-view">
+        <div class="design-title">3. 仪表盘 / Dashboard</div>
+        <img src="dashboard_ui.svg" alt="Dashboard UI">
+    </div>
+
+    <div id="chat" class="design-view">
+        <div class="design-title">4. 对话控制台 / Chat Console</div>
+        <img src="chat_console_ui.svg" alt="Chat UI">
+    </div>
+
+    <div id="intents" class="design-view">
+        <div class="design-title">5. 意图管理 / Intent Management (新增)</div>
+        <img src="intents_ui.svg" alt="Intents UI">
+    </div>
+
+    <div id="knowledge" class="design-view">
+        <div class="design-title">6. 知识库管理 / Knowledge Base</div>
+        <img src="knowledge_ui.svg" alt="Knowledge UI">
+    </div>
+
+    <div id="billing" class="design-view">
+        <div class="design-title">7. 订阅与账单 / Subscription & Billing (新增)</div>
+        <img src="billing_ui.svg" alt="Billing UI">
+    </div>
+
+    <div id="settings" class="design-view">
+        <div class="design-title">8. 系统设置 / Settings</div>
+        <img src="settings_ui.svg" alt="Settings UI">
+    </div>
+</div>
+
+<script>
+    function showDesign(id) {
+        // Hide all views
+        document.querySelectorAll('.design-view').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+        
+        // Show selected
+        document.getElementById(id).classList.add('active');
+        
+        // Update button state (simple index matching)
+        const buttons = document.querySelectorAll('.nav-btn');
+        const ids = ['login', 'register', 'dashboard', 'chat', 'intents', 'knowledge', 'billing', 'settings'];
+        const index = ids.indexOf(id);
+        if (index >= 0 && buttons[index]) {
+            buttons[index].classList.add('active');
+        }
+    }
+</script>
+
+</body>
+</html>

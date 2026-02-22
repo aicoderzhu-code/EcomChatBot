@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘 - 电商智能客服</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">🛒 电商智能客服</div>
+    <div class="menu">
+        <a href="dashboard.html" class="menu-item active">📊 仪表盘</a>
+        <a href="chat.html" class="menu-item">💬 对话管理</a>
+        <a href="knowledge.html" class="menu-item">📚 知识库</a>
+        <a href="settings.html" class="menu-item">⚙️ 系统设置</a>
+    </div>
+    <div class="user-profile">
+        <div style="width: 32px; height: 32px; background: #4b5563; border-radius: 50%;"></div>
+        <div>
+            <div style="font-size: 0.9rem; font-weight: bold;">Admin User</div>
+            <div style="font-size: 0.75rem; color: #9ca3af;">Tenant: TechCorp</div>
+        </div>
+        <a href="login.html" style="margin-left: auto; color: #9ca3af; text-decoration: none;">⏻</a>
+    </div>
+</div>
+
+<div class="main">
+    <div class="header">
+        <div class="breadcrumb">首页 / 仪表盘</div>
+        <div class="header-actions">
+            <span>🔔</span>
+            <span>API 配额: <span style="color: green;">充足</span></span>
+        </div>
+    </div>
+    
+    <div class="content">
+        <div class="grid-cols-3" style="margin-bottom: 20px;">
+            <div class="stat-card">
+                <div class="stat-label">今日对话总数</div>
+                <div class="stat-value">1,203</div>
+                <div style="color: green; font-size: 0.8rem; margin-top: 5px;">↑ 12% 较昨日</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">活跃用户数</div>
+                <div class="stat-value">450</div>
+                <div style="color: green; font-size: 0.8rem; margin-top: 5px;">↑ 5% 较昨日</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Token 消耗量</div>
+                <div class="stat-value">50,421</div>
+                <div style="color: #6b7280; font-size: 0.8rem; margin-top: 5px;">剩余额度: 1,000,000</div>
+            </div>
+        </div>
+        
+        <div class="grid-cols-3" style="grid-template-columns: 2fr 1fr; margin-bottom: 20px;">
+            <div class="card">
+                <div class="card-title">近7天对话趋势</div>
+                <div style="height: 200px; background: #f9fafb; display: flex; align-items: center; justify-content: center; border: 1px dashed #d1d5db; color: #9ca3af;">
+                    [此处渲染折线图]
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">热门意图分布</div>
+                <div style="height: 200px; background: #f9fafb; display: flex; align-items: center; justify-content: center; border: 1px dashed #d1d5db; color: #9ca3af;">
+                    [此处渲染饼图]
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">最近活跃会话</div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>会话ID</th>
+                        <th>用户</th>
+                        <th>开始时间</th>
+                        <th>消息数</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>#CONV-9921</td>
+                        <td>访客_8832</td>
+                        <td>10:42</td>
+                        <td>5</td>
+                        <td><span class="badge badge-green">进行中</span></td>
+                        <td><a href="chat.html" style="color: #2563eb;">查看</a></td>
+                    </tr>
+                    <tr>
+                        <td>#CONV-9920</td>
+                        <td>访客_8831</td>
+                        <td>10:30</td>
+                        <td>12</td>
+                        <td><span class="badge badge-red">待人工</span></td>
+                        <td><a href="chat.html" style="color: #2563eb;">接管</a></td>
+                    </tr>
+                    <tr>
+                        <td>#CONV-9918</td>
+                        <td>VIP_Zhang</td>
+                        <td>09:15</td>
+                        <td>8</td>
+                        <td><span class="badge" style="background: #e5e7eb;">已结束</span></td>
+                        <td><a href="chat.html" style="color: #2563eb;">详情</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

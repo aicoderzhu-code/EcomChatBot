@@ -23,14 +23,14 @@ class TestQuotaLimit(BaseAPITest, TenantTestMixin, ConversationTestMixin):
         quota_data = self.assert_success(response)
 
         print(f"\n初始配额:")
-        print(f"  并发会话: {quota_data.get('concurrent_sessions', {})}")
-        print(f"  每日对话: {quota_data.get('conversations_per_day', {})}")
-        print(f"  每日API调用: {quota_data.get('api_calls_per_day', {})}")
+        print(f"  并发会话: {quota_data.get('concurrent', {})}")
+        print(f"  每日对话: {quota_data.get('conversation', {})}")
+        print(f"  每日API调用: {quota_data.get('api_call', {})}")
 
-        # 验证配额数据结构
-        assert "concurrent_sessions" in quota_data
-        assert "conversations_per_day" in quota_data
-        assert "api_calls_per_day" in quota_data
+        # 验证配额数据结构（字段名与 QuotaUsageResponse 一致）
+        assert "concurrent" in quota_data
+        assert "conversation" in quota_data
+        assert "api_call" in quota_data
 
     @pytest.mark.asyncio
     async def test_concurrent_session_limit(self):
@@ -43,7 +43,7 @@ class TestQuotaLimit(BaseAPITest, TenantTestMixin, ConversationTestMixin):
         quota_resp = await self.client.get("/tenant/quota")
         quota_data = self.assert_success(quota_resp)
 
-        concurrent_limit = quota_data.get("concurrent_sessions", {}).get("limit", 10)
+        concurrent_limit = quota_data.get("concurrent", {}).get("limit", 10)
 
         print(f"\n并发会话限制: {concurrent_limit}")
 
@@ -98,5 +98,5 @@ class TestQuotaLimit(BaseAPITest, TenantTestMixin, ConversationTestMixin):
         quota_resp = await self.client.get("/tenant/quota")
         quota_data = self.assert_success(quota_resp)
         
-        conv_quota = quota_data.get("conversations_per_day", {})
+        conv_quota = quota_data.get("conversation", {})
         print(f"  每日对话配额: {conv_quota.get('used', 0)}/{conv_quota.get('limit', 0)}")

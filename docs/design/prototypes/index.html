@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电商智能客服 - 原型导航</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            background-color: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #111827;
+            font-size: 2.25rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        p {
+            color: #6b7280;
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            display: block;
+            text-decoration: none;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 24px;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-color: #2563eb;
+        }
+        .icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        .title {
+            font-weight: 600;
+            color: #111827;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        .desc {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>电商智能客服 SaaS 平台</h1>
+    <p>高保真 HTML 原型演示 (v1.0)</p>
+    
+    <div class="grid">
+        <a href="login.html" class="card">
+            <span class="icon">🔐</span>
+            <span class="title">登录页面</span>
+            <span class="desc">租户认证与入口</span>
+        </a>
+        
+        <a href="dashboard.html" class="card">
+            <span class="icon">📊</span>
+            <span class="title">仪表盘</span>
+            <span class="desc">数据统计与概览</span>
+        </a>
+        
+        <a href="chat.html" class="card">
+            <span class="icon">💬</span>
+            <span class="title">对话控制台</span>
+            <span class="desc">核心对话交互界面</span>
+        </a>
+        
+        <a href="knowledge.html" class="card">
+            <span class="icon">📚</span>
+            <span class="title">知识库管理</span>
+            <span class="desc">文档上传与检索测试</span>
+        </a>
+        
+        <a href="settings.html" class="card">
+            <span class="icon">⚙️</span>
+            <span class="title">系统设置</span>
+            <span class="desc">模型配置与密钥管理</span>
+        </a>
+    </div>
+</div>
+
+</body>
+</html>

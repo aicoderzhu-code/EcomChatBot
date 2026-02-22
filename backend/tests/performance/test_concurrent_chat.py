@@ -71,19 +71,11 @@ class TestConcurrentChat(
         """测试并发AI对话"""
         # 创建租户和模型配置
         tenant_info = await self.create_test_tenant()
-        
-        # 登录并创建模型配置
-        jwt_token = await self.login_tenant(
-            tenant_info["email"],
-            tenant_info["password"]
-        )
-        self.client.set_jwt_token(jwt_token)
-        
-        await self.create_test_model_config(provider=settings.llm_provider)
-        
-        # 切回API Key
-        self.client.clear_auth()
+
+        # 使用 API Key 创建模型配置（/models 端点需要 API Key 认证）
         self.client.set_api_key(tenant_info["api_key"])
+
+        await self.create_test_model_config(provider=settings.llm_provider)
 
         # 创建对话
         conversation_id = await self.create_test_conversation()

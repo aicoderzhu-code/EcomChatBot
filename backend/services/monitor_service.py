@@ -83,20 +83,20 @@ class MonitorService:
         )
         closed_conversations = closed_result.scalar() or 0
 
-        # 已解决对话数
+        # 已解决对话数（resolved 是 INTEGER 类型，1 表示已解决）
         resolved_result = await self.db.execute(
             select(func.count(Conversation.id)).where(
                 *conditions,
-                Conversation.resolved == True
+                Conversation.resolved == 1
             )
         )
         resolved_conversations = resolved_result.scalar() or 0
 
-        # 转人工对话数
+        # 转人工对话数（transferred_to_human 是 INTEGER 类型，1 表示已转人工）
         transferred_result = await self.db.execute(
             select(func.count(Conversation.id)).where(
                 *conditions,
-                Conversation.transferred_to_human == True
+                Conversation.transferred_to_human == 1
             )
         )
         transferred_conversations = transferred_result.scalar() or 0
@@ -515,7 +515,7 @@ class MonitorService:
         for row in by_type_result.fetchall():
             by_type[row[0]] = row[1]
 
-        # 转人工原因统计
+        # 转人工原因统计（transferred_to_human 是 INTEGER 类型）
         transfer_reasons_result = await self.db.execute(
             select(
                 Conversation.transfer_reason,
@@ -523,7 +523,7 @@ class MonitorService:
             )
             .where(
                 *conditions,
-                Conversation.transferred_to_human == True,
+                Conversation.transferred_to_human == 1,
                 Conversation.transfer_reason.isnot(None)
             )
             .group_by(Conversation.transfer_reason)

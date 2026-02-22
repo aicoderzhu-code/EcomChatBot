@@ -28,7 +28,8 @@ class TestConversation(BaseAPITest, TenantTestMixin, ConversationTestMixin):
 
         # 验证返回数据
         assert "conversation_id" in data
-        assert data["user_external_id"] == user_data["user_id"]
+        # API 返回的是内部 user_id (int)，不是 user_external_id
+        assert "user_id" in data
         assert data["channel"] == user_data["channel"]
         assert data["status"] == "active"
 

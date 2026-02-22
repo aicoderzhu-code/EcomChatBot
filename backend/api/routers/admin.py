@@ -790,7 +790,158 @@ async def reset_tenant_api_key(
     )
 
 
-# ============ 账单审核 ============
+# ============ 订阅管理 ============
+@router.get("/subscriptions")
+async def list_subscriptions(
+    admin: AdminDep,
+    db: DBDep,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+    plan_type: str | None = None,
+    tenant_id: str | None = None,
+):
+    """
+    获取订阅列表
+
+    权限：所有管理员
+    """
+    # 构建查询条件
+    conditions = []
+
+    if status:
+        conditions.append(Subscription.status == status)
+
+    if plan_type:
+        conditions.append(Subscription.plan_type == plan_type)
+
+    if tenant_id:
+        conditions.append(Subscription.tenant_id == tenant_id)
+
+    # 查询总数
+    count_query = select(func.count(Subscription.id))
+    if conditions:
+        count_query = count_query.where(and_(*conditions))
+    total = await db.scalar(count_query) or 0
+
+    # 查询数据
+    query = (
+        select(Subscription, Tenant)
+        .join(Tenant, Subscription.tenant_id == Tenant.tenant_id)
+    )
+    if conditions:
+        query = query.where(and_(*conditions))
+
+    query = query.order_by(Subscription.created_at.desc())
+    query = query.offset((page - 1) * size).limit(size)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    items = []
+    for subscription, tenant in rows:
+        items.append({
+            "id": subscription.id,
+            "tenant_id": subscription.tenant_id,
+            "company_name": tenant.company_name,
+            "plan_type": subscription.plan_type,
+            "status": subscription.status,
+            "start_date": subscription.start_date.isoformat() if subscription.start_date else None,
+            "expire_at": subscription.expire_at.isoformat() if subscription.expire_at else None,
+            "auto_renew": subscription.auto_renew,
+            "is_trial": subscription.is_trial,
+            "conversation_quota": subscription.conversation_quota,
+            "api_quota": subscription.api_quota,
+            "storage_quota": subscription.storage_quota,
+            "concurrent_quota": subscription.concurrent_quota,
+            "created_at": subscription.created_at.isoformat() if subscription.created_at else None,
+            "updated_at": subscription.updated_at.isoformat() if subscription.updated_at else None,
+        })
+
+    return ApiResponse(data={
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size,
+    })
+
+
+# ============ 账单管理 ============
+@router.get("/bills")
+async def list_bills(
+    admin: AdminDep,
+    db: DBDep,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    status: str | None = None,
+    tenant_id: str | None = None,
+):
+    """
+    获取账单列表
+
+    权限：所有管理员
+    """
+    from models.tenant import Bill
+
+    # 构建查询条件
+    conditions = []
+
+    if status:
+        conditions.append(Bill.status == status)
+
+    if tenant_id:
+        conditions.append(Bill.tenant_id == tenant_id)
+
+    # 查询总数
+    count_query = select(func.count(Bill.id))
+    if conditions:
+        count_query = count_query.where(and_(*conditions))
+    total = await db.scalar(count_query) or 0
+
+    # 查询数据
+    query = (
+        select(Bill, Tenant)
+        .join(Tenant, Bill.tenant_id == Tenant.tenant_id)
+    )
+    if conditions:
+        query = query.where(and_(*conditions))
+
+    query = query.order_by(Bill.created_at.desc())
+    query = query.offset((page - 1) * size).limit(size)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    items = []
+    for bill, tenant in rows:
+        items.append({
+            "id": bill.id,
+            "bill_id": bill.bill_id,
+            "tenant_id": bill.tenant_id,
+            "company_name": tenant.company_name,
+            "billing_period": bill.billing_period,
+            "base_fee": float(bill.base_fee) if bill.base_fee else 0,
+            "overage_fee": float(bill.overage_fee) if bill.overage_fee else 0,
+            "discount": float(bill.discount) if bill.discount else 0,
+            "total_amount": float(bill.total_amount),
+            "status": bill.status,
+            "payment_method": bill.payment_method,
+            "payment_time": bill.payment_time.isoformat() if bill.payment_time else None,
+            "due_date": bill.due_date.isoformat() if bill.due_date else None,
+            "invoice_issued": bill.invoice_issued,
+            "created_at": bill.created_at.isoformat() if bill.created_at else None,
+        })
+
+    return ApiResponse(data={
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size,
+    })
+
+
 @router.get("/bills/pending")
 async def get_pending_bills(
     admin: AdminDep,

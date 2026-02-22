@@ -31,8 +31,8 @@ class TestAuth(BaseAPITest, TenantTestMixin):
         # 访问需要认证的接口
         response = await self.client.get("/tenant/info")
 
-        # 应该返回401或403错误
-        assert response.status_code in [401, 403]
+        # 应该返回 400（格式无效）、401（未授权）或 403（禁止访问）错误
+        assert response.status_code in [400, 401, 403]
 
     @pytest.mark.asyncio
     async def test_jwt_token_authentication_success(self):

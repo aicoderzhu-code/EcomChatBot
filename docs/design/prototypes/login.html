@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 电商智能客服</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { display: flex; align-items: center; justify-content: center; background: #f3f4f6; }
+        .login-card { width: 400px; padding: 40px; background: white; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .login-header { text-align: center; margin-bottom: 30px; }
+        .login-logo { font-size: 2rem; margin-bottom: 10px; }
+        .login-title { font-weight: bold; font-size: 1.5rem; color: #111827; }
+        .login-btn { width: 100%; padding: 10px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; margin-top: 10px; }
+        .login-footer { margin-top: 20px; text-align: center; font-size: 0.9rem; color: #6b7280; }
+        .login-link { color: #2563eb; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <div class="login-header">
+        <div class="login-logo">🛒</div>
+        <div class="login-title">电商智能客服平台</div>
+        <p style="color: #6b7280;">SaaS 租户管理系统</p>
+    </div>
+    
+    <div class="form-group">
+        <label class="form-label">电子邮箱</label>
+        <input type="email" class="form-input" placeholder="admin@example.com" value="admin@example.com">
+    </div>
+    
+    <div class="form-group">
+        <label class="form-label">密码</label>
+        <input type="password" class="form-input" placeholder="••••••••" value="password">
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; font-size: 0.9rem;">
+        <label><input type="checkbox"> 记住我</label>
+        <a href="#" class="login-link">忘记密码?</a>
+    </div>
+    
+    <a href="dashboard.html" class="login-btn" style="display: block; text-align: center; text-decoration: none;">登录</a>
+    
+    <div class="login-footer">
+        还没有账号? <a href="#" class="login-link">立即注册试用</a>
+    </div>
+</div>
+
+</body>
+</html>

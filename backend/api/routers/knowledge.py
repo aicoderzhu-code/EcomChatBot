@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, Body, Query
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantDep, TenantFlexDep
 from api.middleware import StorageQuotaDep, ApiQuotaDep
 from schemas import (
     ApiResponse,
@@ -49,7 +49,7 @@ async def create_knowledge(
 
 @router.get("/list", response_model=ApiResponse[PaginatedResponse[KnowledgeBaseResponse]])
 async def list_knowledge(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
     knowledge_type: str | None = None,
     category: str | None = None,
@@ -80,7 +80,7 @@ async def list_knowledge(
 @router.get("/{knowledge_id}", response_model=ApiResponse[KnowledgeBaseResponse])
 async def get_knowledge(
     knowledge_id: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """获取知识详情"""
@@ -116,7 +116,7 @@ async def update_knowledge(
 @router.delete("/{knowledge_id}", response_model=ApiResponse[dict])
 async def delete_knowledge(
     knowledge_id: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """删除知识条目"""

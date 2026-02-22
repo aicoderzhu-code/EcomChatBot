@@ -15,6 +15,9 @@ class TestDataCleaner:
         self.conversation_ids: List[str] = []
         self.knowledge_ids: List[str] = []
         self.model_config_ids: List[str] = []
+        self.webhook_ids: List[int] = []
+        self.sensitive_word_ids: List[int] = []
+        self.payment_order_numbers: List[str] = []
 
     def register_tenant(self, tenant_id: str):
         """注册需要清理的租户"""
@@ -40,9 +43,43 @@ class TestDataCleaner:
             self.model_config_ids.append(config_id)
             console.print(f"[yellow]📝 注册清理: 模型配置 {config_id}[/yellow]")
 
+    def register_webhook(self, webhook_id: int):
+        """注册需要清理的 Webhook"""
+        if webhook_id not in self.webhook_ids:
+            self.webhook_ids.append(webhook_id)
+            console.print(f"[yellow]📝 注册清理: Webhook {webhook_id}[/yellow]")
+
+    def register_sensitive_word(self, word_id: int):
+        """注册需要清理的敏感词"""
+        if word_id not in self.sensitive_word_ids:
+            self.sensitive_word_ids.append(word_id)
+            console.print(f"[yellow]📝 注册清理: 敏感词 {word_id}[/yellow]")
+
+    def register_payment_order(self, order_number: str):
+        """注册需要清理的支付订单"""
+        if order_number not in self.payment_order_numbers:
+            self.payment_order_numbers.append(order_number)
+            console.print(f"[yellow]📝 注册清理: 支付订单 {order_number}[/yellow]")
+
     async def cleanup_all(self, client):
         """清理所有注册的测试数据"""
         console.print("\n[cyan]🧹 开始清理测试数据...[/cyan]")
+
+        # 清理敏感词（需要管理员权限，可能需要先登录）
+        for word_id in self.sensitive_word_ids:
+            try:
+                await client.delete(f"/sensitive-words/{word_id}")
+                console.print(f"[green]✓ 已删除敏感词: {word_id}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ 删除敏感词失败: {str(e)}[/red]")
+
+        # 清理 Webhook
+        for webhook_id in self.webhook_ids:
+            try:
+                await client.delete(f"/webhooks/{webhook_id}")
+                console.print(f"[green]✓ 已删除Webhook: {webhook_id}[/green]")
+            except Exception as e:
+                console.print(f"[red]✗ 删除Webhook失败: {str(e)}[/red]")
 
         # 清理模型配置
         for config_id in self.model_config_ids:
@@ -63,8 +100,6 @@ class TestDataCleaner:
         # 清理对话
         for conversation_id in self.conversation_ids:
             try:
-                # 对话可能需要先关闭再删除
-                # 这里假设关闭即可
                 await client.put(
                     f"/conversation/{conversation_id}",
                     json={"status": "closed"}
@@ -73,12 +108,16 @@ class TestDataCleaner:
             except Exception as e:
                 console.print(f"[red]✗ 关闭对话失败: {str(e)}[/red]")
 
-        # 注意：租户数据通常不建议在测试中删除，因为可能有外键约束
-        # 可以通过管理员接口禁用租户
-        if self.tenant_ids:
-            console.print(
-                f"[yellow]⚠ 需要手动清理 {len(self.tenant_ids)} 个测试租户[/yellow]"
-            )
+        # 通过管理员接口禁用测试租户
+        for tenant_id in self.tenant_ids:
+            try:
+                await client.put(
+                    f"/admin/tenants/{tenant_id}/status",
+                    json={"status": "disabled"}
+                )
+                console.print(f"[green]✓ 已禁用租户: {tenant_id}[/green]")
+            except Exception as e:
+                console.print(f"[yellow]⚠ 禁用租户失败(可能无管理员权限): {str(e)}[/yellow]")
 
         console.print("[cyan]✓ 清理完成[/cyan]\n")
 
@@ -88,6 +127,21 @@ class TestDataCleaner:
         self.conversation_ids.clear()
         self.knowledge_ids.clear()
         self.model_config_ids.clear()
+        self.webhook_ids.clear()
+        self.sensitive_word_ids.clear()
+        self.payment_order_numbers.clear()
+
+    def get_summary(self) -> dict:
+        """获取清理摘要"""
+        return {
+            "tenants": len(self.tenant_ids),
+            "conversations": len(self.conversation_ids),
+            "knowledge": len(self.knowledge_ids),
+            "model_configs": len(self.model_config_ids),
+            "webhooks": len(self.webhook_ids),
+            "sensitive_words": len(self.sensitive_word_ids),
+            "payment_orders": len(self.payment_order_numbers),
+        }
 
 
 # 全局清理器实例

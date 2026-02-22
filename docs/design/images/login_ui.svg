@@ -1,0 +1,42 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f3f4f6" />
+
+  <!-- Login Card -->
+  <rect x="400" y="200" width="400" height="400" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1" filter="url(#shadow)" />
+  
+  <!-- Logo Area -->
+  <text x="600" y="260" text-anchor="middle" font-family="sans-serif" font-size="40">🛒</text>
+  <text x="600" y="300" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#111827" font-weight="bold">电商智能客服平台</text>
+  <text x="600" y="330" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#6b7280">SaaS 租户管理系统</text>
+
+  <!-- Form Fields -->
+  <!-- Email -->
+  <text x="440" y="370" font-family="sans-serif" font-size="14" fill="#374151" font-weight="500">电子邮箱</text>
+  <rect x="440" y="380" width="320" height="40" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="455" y="405" font-family="sans-serif" font-size="14" fill="#9ca3af">admin@example.com</text>
+
+  <!-- Password -->
+  <text x="440" y="450" font-family="sans-serif" font-size="14" fill="#374151" font-weight="500">密码</text>
+  <rect x="440" y="460" width="320" height="40" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="455" y="485" font-family="sans-serif" font-size="14" fill="#374151">••••••••</text>
+
+  <!-- Options -->
+  <rect x="440" y="520" width="16" height="16" rx="2" fill="white" stroke="#d1d5db" />
+  <text x="465" y="533" font-family="sans-serif" font-size="12" fill="#374151">记住我</text>
+  <text x="760" y="533" text-anchor="end" font-family="sans-serif" font-size="12" fill="#2563eb">忘记密码?</text>
+
+  <!-- Login Button -->
+  <rect x="440" y="560" width="320" height="40" rx="4" fill="#2563eb" />
+  <text x="600" y="585" text-anchor="middle" font-family="sans-serif" font-size="14" fill="white" font-weight="bold">登录</text>
+
+  <!-- Footer -->
+  <text x="600" y="630" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#6b7280">还没有账号? <tspan fill="#2563eb" font-weight="bold">立即注册试用</tspan></text>
+
+  <!-- Shadow Definition -->
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+</svg>

@@ -1,0 +1,84 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f3f4f6" />
+
+  <!-- Sidebar -->
+  <rect width="240" height="800" fill="#1f2937" />
+  <!-- Logo Area -->
+  <rect width="240" height="60" fill="#111827" />
+  <text x="20" y="40" font-family="sans-serif" font-size="18" fill="white" font-weight="bold">🛒 Ecom Chatbot</text>
+  
+  <!-- Menu Items -->
+  <text x="20" y="105" font-family="sans-serif" font-size="14" fill="#9ca3af">📊 仪表盘 (Dashboard)</text>
+  <text x="20" y="145" font-family="sans-serif" font-size="14" fill="#9ca3af">💬 对话管理 (Chat)</text>
+  <text x="20" y="185" font-family="sans-serif" font-size="14" fill="#9ca3af">📚 知识库 (Knowledge)</text>
+  <rect x="0" y="200" width="240" height="40" fill="#374151" /> <!-- Active item -->
+  <text x="20" y="225" font-family="sans-serif" font-size="14" fill="white">⚙️ 系统设置 (Settings)</text>
+
+  <!-- User Profile at bottom -->
+  <rect x="0" y="740" width="240" height="60" fill="#111827" />
+  <circle cx="30" cy="770" r="16" fill="#4b5563" />
+  <text x="55" y="775" font-family="sans-serif" font-size="12" fill="white">Admin User</text>
+
+  <!-- Main Content Area -->
+  <!-- Header -->
+  <rect x="240" y="0" width="960" height="60" fill="white" stroke="#e5e7eb" />
+  <text x="260" y="35" font-family="sans-serif" font-size="14" fill="#6b7280">首页 / 系统设置</text>
+
+  <!-- Settings Layout -->
+  <g transform="translate(260, 80)">
+    <!-- Settings Menu -->
+    <rect width="200" height="240" rx="8" fill="white" stroke="#e5e7eb" />
+    <rect x="0" y="0" width="200" height="40" rx="8" fill="#f9fafb" /> <!-- Header bg -->
+    <text x="15" y="25" font-family="sans-serif" font-size="14" fill="#111827" font-weight="bold">设置菜单</text>
+    <line x1="0" y1="40" x2="200" y2="40" stroke="#e5e7eb" />
+    
+    <rect x="10" y="50" width="180" height="36" rx="4" fill="#eff6ff" />
+    <text x="20" y="73" font-family="sans-serif" font-size="13" fill="#2563eb">🤖 模型配置</text>
+    <text x="20" y="110" font-family="sans-serif" font-size="13" fill="#4b5563">🔑 API 密钥</text>
+    <text x="20" y="145" font-family="sans-serif" font-size="13" fill="#4b5563">🏢 租户信息</text>
+    <text x="20" y="180" font-family="sans-serif" font-size="13" fill="#4b5563">🔔 通知设置</text>
+
+    <!-- Content Area -->
+    <rect x="220" y="0" width="660" height="600" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="240" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">LLM 模型配置</text>
+    <text x="240" y="55" font-family="sans-serif" font-size="12" fill="#6b7280">配置用于智能回复的底层大语言模型参数。</text>
+    <line x1="220" y1="70" x2="880" y2="70" stroke="#f3f4f6" />
+
+    <!-- Form -->
+    <g transform="translate(240, 90)">
+      <!-- Provider -->
+      <text x="0" y="0" font-family="sans-serif" font-size="13" fill="#374151" font-weight="500">模型提供商 (Provider)</text>
+      <rect x="0" y="10" width="400" height="36" rx="4" fill="white" stroke="#d1d5db" />
+      <text x="10" y="33" font-family="sans-serif" font-size="13" fill="#111827">OpenAI (GPT-4/3.5)</text>
+      <path d="M380,25 L385,30 L390,25" fill="none" stroke="#6b7280" stroke-width="2" />
+
+      <!-- API Key -->
+      <text x="0" y="70" font-family="sans-serif" font-size="13" fill="#374151" font-weight="500">API Key</text>
+      <rect x="0" y="80" width="400" height="36" rx="4" fill="white" stroke="#d1d5db" />
+      <text x="10" y="103" font-family="sans-serif" font-size="13" fill="#111827">sk-xxxxxxxxxxxxxxxxxxxxxxxx</text>
+      <text x="0" y="130" font-family="sans-serif" font-size="11" fill="#6b7280">密钥将加密存储，不会明文显示。</text>
+
+      <!-- Temperature -->
+      <text x="0" y="160" font-family="sans-serif" font-size="13" fill="#374151" font-weight="500">温度 (Temperature): 0.7</text>
+      <line x1="0" y1="180" x2="400" y2="180" stroke="#e5e7eb" stroke-width="4" stroke-linecap="round" />
+      <circle cx="280" cy="180" r="8" fill="#2563eb" />
+      <text x="0" y="200" font-family="sans-serif" font-size="11" fill="#6b7280">精确 (0.0)</text>
+      <text x="360" y="200" font-family="sans-serif" font-size="11" fill="#6b7280">创造性 (1.0)</text>
+
+      <!-- System Prompt -->
+      <text x="0" y="230" font-family="sans-serif" font-size="13" fill="#374151" font-weight="500">系统提示词 (System Prompt)</text>
+      <rect x="0" y="240" width="580" height="120" rx="4" fill="white" stroke="#d1d5db" />
+      <text x="10" y="260" font-family="sans-serif" font-size="13" fill="#111827">你是一个专业的电商客服助手。</text>
+      <text x="10" y="280" font-family="sans-serif" font-size="13" fill="#111827">请始终保持礼貌、专业。</text>
+      <text x="10" y="300" font-family="sans-serif" font-size="13" fill="#111827">回答要简洁明了。</text>
+
+      <!-- Buttons -->
+      <rect x="0" y="390" width="100" height="36" rx="4" fill="#2563eb" />
+      <text x="50" y="413" text-anchor="middle" font-family="sans-serif" font-size="13" fill="white" font-weight="bold">保存配置</text>
+      
+      <rect x="110" y="390" width="100" height="36" rx="4" fill="white" stroke="#d1d5db" />
+      <text x="160" y="413" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#374151">重置默认</text>
+    </g>
+  </g>
+</svg>

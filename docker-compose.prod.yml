@@ -1,0 +1,36 @@
+version: '3.8'
+
+# 生产环境配置
+# 使用方式: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  # 前端应用 - 生产环境配置
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # 生产环境使用实际域名
+        - NEXT_PUBLIC_API_BASE_URL=${PUBLIC_API_URL:-/api/v1}
+        - NEXT_PUBLIC_WS_BASE_URL=${PUBLIC_WS_URL:-ws://localhost/api/v1/ws}
+    restart: always
+
+  # Nginx - 生产环境配置
+  nginx:
+    restart: always
+
+  # API - 生产环境配置
+  api:
+    environment:
+      DEBUG: "false"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "WARNING"
+    restart: always
+
+  # Celery - 生产环境配置
+  celery-worker:
+    environment:
+      DEBUG: "false"
+      ENVIRONMENT: "production"
+      LOG_LEVEL: "WARNING"
+    restart: always

@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from schemas.base import ApiResponse
 from schemas.monitor import (
     ConversationStatsResponse,
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/monitor", tags=["监控"])
 async def get_conversation_stats(
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """
@@ -43,7 +43,7 @@ async def get_conversation_stats(
 async def get_response_time_stats(
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """
@@ -62,7 +62,7 @@ async def get_response_time_stats(
 async def get_satisfaction_stats(
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """
@@ -80,7 +80,7 @@ async def get_satisfaction_stats(
 @router.get("/dashboard", response_model=ApiResponse[DashboardSummaryResponse])
 async def get_dashboard_summary(
     time_range: str = Query("24h", description="时间范围: 24h, 7d, 30d"),
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """
@@ -97,7 +97,7 @@ async def get_dashboard_summary(
 @router.get("/trend/hourly", response_model=ApiResponse[list[HourlyTrendResponse]])
 async def get_hourly_trend(
     hours: int = Query(24, ge=1, le=168, description="统计最近多少小时（最多7天）"),
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """

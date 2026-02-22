@@ -153,7 +153,7 @@ class TestDataGenerator:
                 "provider": "deepseek",
                 "model_name": "deepseek-chat",
                 "api_key": api_key,
-                "api_base": "https://api.deepseek.com",
+                "api_base": "https://api.deepseek.com/v1",
                 "temperature": 0.7,
                 "max_tokens": 2000,
                 "use_case": "chat",

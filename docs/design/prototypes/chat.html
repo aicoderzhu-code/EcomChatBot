@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对话管理 - 电商智能客服</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Chat Specific Styles */
+        .chat-container { display: flex; height: calc(100vh - 60px); }
+        .chat-list { width: 300px; background: white; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden; }
+        .chat-window { flex: 1; display: flex; flex-direction: column; background: #f9fafb; position: relative; }
+        .right-panel { width: 300px; background: white; border-left: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow-y: auto; padding: 20px; }
+        
+        .search-bar { padding: 15px; border-bottom: 1px solid #e5e7eb; }
+        .search-input { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; box-sizing: border-box; }
+        
+        .list-items { flex: 1; overflow-y: auto; }
+        .list-item { padding: 15px; border-bottom: 1px solid #f3f4f6; cursor: pointer; transition: background 0.2s; }
+        .list-item:hover { background: #f3f4f6; }
+        .list-item.active { background: #eff6ff; border-left: 3px solid #2563eb; }
+        .list-item-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; font-weight: 600; }
+        .list-item-msg { font-size: 0.85rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        .chat-header { padding: 15px 20px; background: white; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; }
+        .chat-title { font-weight: bold; }
+        
+        .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .message { max-width: 70%; padding: 10px 15px; border-radius: 8px; font-size: 0.9rem; line-height: 1.5; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .message.user { align-self: flex-start; background: white; border: 1px solid #e5e7eb; border-bottom-left-radius: 0; }
+        .message.ai { align-self: flex-end; background: #eff6ff; border: 1px solid #bfdbfe; border-bottom-right-radius: 0; }
+        .message-meta { font-size: 0.7rem; color: #9ca3af; margin-top: 5px; text-align: right; }
+        
+        .input-area { padding: 20px; background: white; border-top: 1px solid #e5e7eb; }
+        .input-box { width: 100%; height: 80px; padding: 10px; border: 1px solid #d1d5db; border-radius: 4px; resize: none; margin-bottom: 10px; box-sizing: border-box; font-family: inherit; }
+        .input-actions { display: flex; justify-content: space-between; align-items: center; }
+        
+        .rag-card { background: #f0f9ff; border: 1px solid #bae6fd; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.85rem; }
+        .rag-title { color: #0369a1; font-weight: 600; margin-bottom: 4px; }
+        .rag-text { color: #334155; font-size: 0.8rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <div class="logo">🛒 电商智能客服</div>
+    <div class="menu">
+        <a href="dashboard.html" class="menu-item">📊 仪表盘</a>
+        <a href="chat.html" class="menu-item active">💬 对话管理</a>
+        <a href="knowledge.html" class="menu-item">📚 知识库</a>
+        <a href="settings.html" class="menu-item">⚙️ 系统设置</a>
+    </div>
+    <div class="user-profile">
+        <div style="width: 32px; height: 32px; background: #4b5563; border-radius: 50%;"></div>
+        <div>
+            <div style="font-size: 0.9rem; font-weight: bold;">Admin User</div>
+            <div style="font-size: 0.75rem; color: #9ca3af;">Tenant: TechCorp</div>
+        </div>
+        <a href="login.html" style="margin-left: auto; color: #9ca3af; text-decoration: none;">⏻</a>
+    </div>
+</div>
+
+<div class="main" style="flex-direction: row; height: 100vh;"> <!-- Override for chat layout -->
+    
+    <div class="chat-list">
+        <div class="search-bar">
+            <input type="text" class="search-input" placeholder="搜索会话ID或用户...">
+        </div>
+        <div class="list-items">
+            <div class="list-item active">
+                <div class="list-item-header">
+                    <span>访客 #8832</span>
+                    <span style="color: #9ca3af; font-size: 0.8rem;">10:42</span>
+                </div>
+                <div class="list-item-msg">运费谁出？</div>
+                <span class="badge badge-green" style="margin-top: 5px;">AI 处理中</span>
+            </div>
+            <div class="list-item">
+                <div class="list-item-header">
+                    <span>访客 #8831</span>
+                    <span style="color: #9ca3af; font-size: 0.8rem;">10:30</span>
+                </div>
+                <div class="list-item-msg">我要转人工客服</div>
+                <span class="badge badge-red" style="margin-top: 5px;">待人工接入</span>
+            </div>
+            <div class="list-item">
+                <div class="list-item-header">
+                    <span>VIP_Zhang</span>
+                    <span style="color: #9ca3af; font-size: 0.8rem;">09:15</span>
+                </div>
+                <div class="list-item-msg">好的，谢谢。</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-window">
+        <div class="chat-header">
+            <div class="chat-title">
+                访客 #8832 <span class="badge badge-green">在线</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-danger">结束会话</button>
+                <button class="btn btn-primary">人工接管</button>
+            </div>
+        </div>
+        
+        <div class="messages">
+            <div class="message user">
+                你好，我想问一下你们的退货流程是怎样的？
+                <div class="message-meta">10:42:05</div>
+            </div>
+            <div class="message ai">
+                您好！我是智能客服助手。关于退货流程，通常是这样的：<br><br>
+                1. 在订单详情页点击"申请售后"<br>
+                2. 选择"退货退款"并填写原因<br>
+                3. 等待商家审核（通常24小时内）<br>
+                4. 审核通过后寄回商品<br><br>
+                请问您是遇到了什么商品质量问题吗？
+                <div class="message-meta">10:42:08</div>
+            </div>
+            <div class="message user">
+                不是质量问题，是尺码不合适。运费谁出？
+                <div class="message-meta">10:43:12</div>
+            </div>
+            <div class="message ai">
+                明白了。如果是由于尺码不合适（非质量问题）导致的退货：<br><br>
+                根据我们的《7天无理由退换货政策》，<strong>运费需要由您（买家）承担</strong>。<br>
+                不过，如果您购买时赠送了运费险，保险公司会理赔首重运费。
+                <div class="message-meta">10:43:15</div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <textarea class="input-box" placeholder="输入回复内容..."></textarea>
+            <div class="input-actions">
+                <div style="color: #6b7280; font-size: 0.9rem;">
+                    快捷键: <span class="badge">Shift+Enter</span> 换行
+                </div>
+                <button class="btn btn-primary">发送</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div style="margin-bottom: 25px;">
+            <div style="font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #f3f4f6; padding-bottom: 5px;">👤 用户画像</div>
+            <div style="font-size: 0.9rem; line-height: 1.8;">
+                <div><span style="color: #6b7280;">ID:</span> 8832</div>
+                <div><span style="color: #6b7280;">等级:</span> 普通会员</div>
+                <div><span style="color: #6b7280;">地区:</span> 上海</div>
+                <div><span style="color: #6b7280;">最近订单:</span> #ORD-20240101</div>
+            </div>
+        </div>
+
+        <div>
+            <div style="font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #f3f4f6; padding-bottom: 5px;">🧠 知识库引用 (RAG)</div>
+            
+            <div class="rag-card">
+                <div class="rag-title">📄 退换货政策 v2.0.pdf</div>
+                <div class="rag-text">...非质量问题退货（如不喜欢、尺码不合），运费由买家承担。若商品有质量问题，运费由商家承担...</div>
+                <div style="text-align: right; margin-top: 5px; font-size: 0.75rem; color: #0369a1;">匹配度: 89%</div>
+            </div>
+            
+            <div class="rag-card">
+                <div class="rag-title">📄 运费险理赔说明.docx</div>
+                <div class="rag-text">...运费险理赔金额根据发货地和收货地距离计算，通常覆盖首重费用...</div>
+                <div style="text-align: right; margin-top: 5px; font-size: 0.75rem; color: #0369a1;">匹配度: 75%</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

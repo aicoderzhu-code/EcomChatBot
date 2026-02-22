@@ -1,0 +1,367 @@
+pipeline {
+    agent any
+    
+    // ============================================
+    // 环境变量配置
+    // ============================================
+    environment {
+        PROJECT_NAME = 'ecom-chat-bot'
+        TEST_IMAGE = 'ecom-chat-bot-test'
+    }
+    
+    // ============================================
+    // 构建参数
+    // ============================================
+    parameters {
+        string(
+            name: 'BUILD_NUMBER',
+            defaultValue: 'latest',
+            description: '要测试的构建版本号'
+        )
+        string(
+            name: 'TEST_URL',
+            defaultValue: 'http://115.190.75.88:8000',
+            description: '测试环境URL'
+        )
+        choice(
+            name: 'TEST_SUITE',
+            choices: ['quick', 'full', 'api', 'integration', 'smoke'],
+            description: '''测试套件选择:
+- quick: 快速测试（排除慢速测试，约10-15分钟）
+- full: 完整测试（包含所有测试+覆盖率，约30-60分钟）
+- api: 仅API测试
+- integration: 仅集成测试
+- smoke: 冒烟测试（仅核心功能）'''
+        )
+        booleanParam(
+            name: 'CLEANUP_DATA',
+            defaultValue: true,
+            description: '测试后是否清理测试数据'
+        )
+    }
+    
+    // ============================================
+    // 构建选项
+    // ============================================
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        timeout(time: 90, unit: 'MINUTES')
+        timestamps()
+    }
+    
+    // ============================================
+    // 构建阶段
+    // ============================================
+    stages {
+        stage('准备测试环境') {
+            steps {
+                script {
+                    echo """
+╔════════════════════════════════════════════════════════╗
+║           🧪 手动测试 - ${env.PROJECT_NAME}              ║
+╚════════════════════════════════════════════════════════╝
+                    """
+                    echo "📌 测试构建: ${params.BUILD_NUMBER}"
+                    echo "📌 测试URL: ${params.TEST_URL}"
+                    echo "📌 测试套件: ${params.TEST_SUITE}"
+                    echo "📌 触发人: ${currentBuild.getBuildCauses()[0].userId ?: 'System'}"
+                    echo "📌 触发时间: ${new Date().format('yyyy-MM-dd HH:mm:ss')}"
+                    echo ""
+                    
+                    currentBuild.description = "${params.TEST_SUITE} - Build #${params.BUILD_NUMBER}"
+                }
+                
+                // 检出代码
+                checkout scm
+                
+                // 准备报告目录
+                sh '''
+                    mkdir -p ${WORKSPACE}/backend/tests/reports/html
+                    mkdir -p ${WORKSPACE}/backend/tests/reports/coverage
+                '''
+            }
+        }
+        
+        stage('环境检查') {
+            steps {
+                echo "🔍 检查测试环境..."
+                sh '''
+                    echo "=========================================="
+                    echo "测试环境检查"
+                    echo "=========================================="
+                    
+                    # 检查测试服务器可访问性
+                    echo "检查测试服务器: ${TEST_URL}"
+                    if curl -s -f -m 10 ${TEST_URL}/health > /dev/null 2>&1; then
+                        echo "✓ 测试服务器可访问"
+                        
+                        # 显示服务健康信息
+                        echo ""
+                        echo "服务健康信息:"
+                        curl -s ${TEST_URL}/health | python3 -m json.tool || true
+                    else
+                        echo "❌ 测试服务器不可访问"
+                        exit 1
+                    fi
+                    
+                    # 检查Docker
+                    echo ""
+                    echo "检查 Docker..."
+                    docker --version || exit 1
+                    
+                    echo ""
+                    echo "✓ 环境检查通过"
+                    echo "=========================================="
+                '''
+            }
+        }
+        
+        stage('构建测试镜像') {
+            steps {
+                echo "🐳 构建测试镜像..."
+                sh '''
+                    # 使用最新的应用代码构建测试镜像
+                    docker build -t ${TEST_IMAGE}:${BUILD_NUMBER} -f backend/Dockerfile backend/
+                    
+                    echo "✓ 测试镜像构建完成"
+                    docker images ${TEST_IMAGE}:${BUILD_NUMBER}
+                '''
+            }
+        }
+        
+        stage('执行测试') {
+            steps {
+                script {
+                    echo "🧪 执行${params.TEST_SUITE}测试..."
+                    
+                    // 根据测试套件选择pytest命令
+                    def testCommand = ''
+                    switch(params.TEST_SUITE) {
+                        case 'quick':
+                            testCommand = 'pytest -m "not slow and not performance and not security" --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 4 --timeout=120'
+                            break
+                        case 'full':
+                            testCommand = 'pytest --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml --cov=. --cov-report=html:reports/coverage --cov-report=term-missing -n 4 --timeout=180'
+                            break
+                        case 'api':
+                            testCommand = 'pytest api/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 4'
+                            break
+                        case 'integration':
+                            testCommand = 'pytest integration/ --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml -n 0'
+                            break
+                        case 'smoke':
+                            testCommand = 'pytest -m smoke --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml'
+                            break
+                        default:
+                            testCommand = 'pytest --html=reports/html/report.html --self-contained-html --junitxml=reports/junit.xml'
+                    }
+                    
+                    sh """
+                        echo "=========================================="
+                        echo "执行测试: ${params.TEST_SUITE}"
+                        echo "=========================================="
+                        
+                        # 在Docker容器中运行测试
+                        docker run --rm \\
+                            --network host \\
+                            -v \${WORKSPACE}:/workspace \\
+                            -w /workspace/backend/tests \\
+                            -e TEST_BASE_URL=${params.TEST_URL} \\
+                            -e TEST_API_PREFIX=/api/v1 \\
+                            -e TEST_REQUEST_TIMEOUT=60 \\
+                            -e TEST_LLM_REQUEST_TIMEOUT=120 \\
+                            -e TEST_CLEANUP_AFTER_TEST=${params.CLEANUP_DATA} \\
+                            -e TEST_LOG_LEVEL=INFO \\
+                            -e TEST_TENANT_PREFIX=manual_test_ \\
+                            -e TEST_MAX_CONCURRENT=10 \\
+                            -e LLM_PROVIDER=deepseek \\
+                            -e DEEPSEEK_API_KEY=your-deepseek-api-key-here \\
+                            -e DEEPSEEK_MODEL=deepseek-chat \\
+                            -e DEEPSEEK_BASE_URL=https://api.deepseek.com \\
+                            ${TEST_IMAGE}:${params.BUILD_NUMBER} \\
+                            /bin/bash -c "
+                                # 安装测试依赖
+                                pip install -q pytest pytest-asyncio pytest-html pytest-cov pytest-xdist pytest-timeout httpx python-dotenv faker rich
+                                
+                                echo '开始执行测试...'
+                                echo 'TEST_URL: ${params.TEST_URL}'
+                                echo 'TEST_SUITE: ${params.TEST_SUITE}'
+                                echo ''
+                                
+                                # 执行测试（允许部分失败）
+                                ${testCommand} || exit 0
+                                
+                                echo ''
+                                echo '✓ 测试执行完成'
+                            "
+                        
+                        echo "=========================================="
+                    """
+                }
+            }
+        }
+        
+        stage('收集测试报告') {
+            steps {
+                echo "📊 收集测试报告..."
+                
+                // 发布JUnit测试报告
+                junit allowEmptyResults: true, testResults: 'backend/tests/reports/junit.xml'
+                
+                // 发布HTML报告
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'backend/tests/reports/html',
+                    reportFiles: 'report.html',
+                    reportName: "手动测试报告-${params.TEST_SUITE}",
+                    reportTitles: "手动测试 - Build ${params.BUILD_NUMBER}"
+                ])
+                
+                // 发布覆盖率报告（full测试才有）
+                script {
+                    if (params.TEST_SUITE == 'full') {
+                        publishHTML([
+                            allowMissing: true,
+                            alwaysLinkToLastBuild: true,
+                            keepAll: true,
+                            reportDir: 'backend/tests/reports/coverage',
+                            reportFiles: 'index.html',
+                            reportName: '覆盖率报告',
+                            reportTitles: '代码覆盖率'
+                        ])
+                    }
+                }
+                
+                // 归档报告
+                archiveArtifacts artifacts: 'backend/tests/reports/**/*', allowEmptyArchive: true
+            }
+        }
+        
+        stage('分析测试结果') {
+            steps {
+                script {
+                    echo "📈 分析测试结果..."
+                    
+                    try {
+                        def testResults = junit 'backend/tests/reports/junit.xml'
+                        
+                        def totalTests = testResults.totalCount
+                        def passedTests = testResults.passCount
+                        def failedTests = testResults.failCount
+                        def skippedTests = testResults.skipCount
+                        
+                        def passRate = 0.0
+                        if (totalTests > 0) {
+                            passRate = Math.round((passedTests.toDouble() / totalTests.toDouble()) * 10000.0) / 100.0
+                        }
+                        
+                        echo """
+╔════════════════════════════════════════════════════════╗
+║                  测试结果汇总                           ║
+╚════════════════════════════════════════════════════════╝
+
+📊 测试统计:
+   总测试数: ${totalTests}
+   通过数: ${passedTests} ✅
+   失败数: ${failedTests} ❌
+   跳过数: ${skippedTests} ⏭
+   通过率: ${passRate}%
+
+🔗 查看报告:
+   ${env.BUILD_URL}手动测试报告-${params.TEST_SUITE}
+                        """
+                        
+                        env.TOTAL_TESTS = totalTests.toString()
+                        env.PASSED_TESTS = passedTests.toString()
+                        env.FAILED_TESTS = failedTests.toString()
+                        env.PASS_RATE = passRate.toString()
+                        
+                        // 判断测试结果
+                        if (failedTests > 0) {
+                            currentBuild.result = 'UNSTABLE'
+                            echo "⚠️  有测试失败"
+                        } else {
+                            echo "✅ 所有测试通过！"
+                        }
+                        
+                    } catch (Exception e) {
+                        echo "⚠️  无法读取测试结果: ${e.message}"
+                        currentBuild.result = 'FAILURE'
+                    }
+                }
+            }
+        }
+    }
+    
+    // ============================================
+    // 构建后操作
+    // ============================================
+    post {
+        always {
+            script {
+                echo "🧹 清理测试环境..."
+                sh '''
+                    # 清理Python缓存
+                    find backend/tests -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+                    
+                    # 清理测试镜像
+                    docker rmi ${TEST_IMAGE}:${params.BUILD_NUMBER} 2>/dev/null || true
+                    
+                    echo "✓ 清理完成"
+                '''
+            }
+        }
+        
+        success {
+            script {
+                def duration = currentBuild.durationString.replace(' and counting', '')
+                
+                echo """
+╔════════════════════════════════════════════════════════╗
+║               ✅ 测试完成！                             ║
+╚════════════════════════════════════════════════════════╝
+
+📋 测试套件: ${params.TEST_SUITE}
+🔢 构建版本: ${params.BUILD_NUMBER}
+⏱️  耗时: ${duration}
+
+📊 测试结果:
+   通过率: ${env.PASS_RATE}%
+   总数: ${env.TOTAL_TESTS}
+   通过: ${env.PASSED_TESTS}
+   失败: ${env.FAILED_TESTS}
+
+🔗 查看报告:
+   ${env.BUILD_URL}手动测试报告-${params.TEST_SUITE}/
+                """
+            }
+        }
+        
+        failure {
+            script {
+                echo """
+╔════════════════════════════════════════════════════════╗
+║               ❌ 测试失败！                             ║
+╚════════════════════════════════════════════════════════╝
+
+请查看构建日志和测试报告了解详情
+                """
+            }
+        }
+        
+        unstable {
+            script {
+                echo """
+╔════════════════════════════════════════════════════════╗
+║            ⚠️  测试不稳定！                             ║
+╚════════════════════════════════════════════════════════╝
+
+失败测试数: ${env.FAILED_TESTS}
+请查看测试报告了解详情
+                """
+            }
+        }
+    }
+}

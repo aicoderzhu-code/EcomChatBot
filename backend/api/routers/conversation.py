@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, Query
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantDep, TenantFlexDep
 from api.middleware import ConcurrentQuotaDep, ConversationQuotaDep
 from schemas import (
     ApiResponse,
@@ -45,7 +45,7 @@ async def create_conversation(
 
 @router.get("/list", response_model=ApiResponse[PaginatedResponse[ConversationResponse]])
 async def list_conversations(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
     user_id: str | None = None,
     status: str | None = None,
@@ -77,7 +77,7 @@ async def list_conversations(
 )
 async def get_conversation(
     conversation_id: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """获取会话详情"""
@@ -150,7 +150,7 @@ async def send_message(
 async def update_conversation(
     conversation_id: str,
     conversation_data: ConversationUpdate,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """更新会话（关闭会话、评价等）"""
@@ -174,7 +174,7 @@ async def update_conversation(
 )
 async def get_messages(
     conversation_id: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
     limit: int = Query(50, ge=1, le=200),
 ):

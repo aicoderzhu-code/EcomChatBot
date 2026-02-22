@@ -40,10 +40,8 @@ class TenantTestMixin:
 
     async def create_test_tenant(self) -> Dict[str, Any]:
         """创建测试租户并返回租户信息"""
-        # 生成租户数据
         tenant_data = self.data_gen.generate_tenant(settings.tenant_prefix)
 
-        # 注册租户
         response = await self.client.post(
             "/tenant/register",
             json=tenant_data
@@ -51,7 +49,6 @@ class TenantTestMixin:
 
         data = self.assert_success(response)
 
-        # 注册清理
         self.cleaner.register_tenant(data["tenant_id"])
 
         return {
@@ -89,7 +86,6 @@ class ConversationTestMixin:
         data = self.assert_success(response)
         conversation_id = data["conversation_id"]
 
-        # 注册清理
         self.cleaner.register_conversation(conversation_id)
 
         return conversation_id
@@ -110,7 +106,6 @@ class KnowledgeTestMixin:
         data = self.assert_success(response)
         knowledge_id = data["knowledge_id"]
 
-        # 注册清理
         self.cleaner.register_knowledge(knowledge_id)
 
         return knowledge_id
@@ -126,7 +121,6 @@ class KnowledgeTestMixin:
 
         data = self.assert_success(response)
 
-        # 注册清理
         for item in data.get("created", []):
             self.cleaner.register_knowledge(item["knowledge_id"])
 
@@ -147,6 +141,8 @@ class ModelConfigTestMixin:
                 api_key = settings.zhipuai_api_key
             elif provider == "openai":
                 api_key = settings.openai_api_key
+            elif provider == "deepseek":
+                api_key = settings.deepseek_api_key
 
         config_data = self.data_gen.generate_model_config(provider, api_key)
 
@@ -158,7 +154,77 @@ class ModelConfigTestMixin:
         data = self.assert_success(response)
         config_id = data["id"]
 
-        # 注册清理
         self.cleaner.register_model_config(config_id)
 
         return config_id
+
+
+class AdminTestMixin:
+    """管理员测试混入类"""
+
+    async def admin_login(self) -> str:
+        """管理员登录并返回 JWT Token"""
+        creds = self.data_gen.generate_admin_credentials()
+        response = await self.client.post(
+            "/admin/login",
+            json=creds
+        )
+        data = self.assert_success(response)
+        token = data["access_token"]
+        self.client.set_jwt_token(token)
+        return token
+
+
+class WebhookTestMixin:
+    """Webhook 测试混入类"""
+
+    async def create_test_webhook(
+        self,
+        name: str = "测试Webhook",
+        url: str = "https://httpbin.org/post",
+        events: Optional[list] = None,
+    ) -> int:
+        """创建测试 Webhook 并返回 webhook_id"""
+        if events is None:
+            events = ["conversation.started", "conversation.ended"]
+
+        response = await self.client.post(
+            "/webhooks",
+            json={
+                "name": name,
+                "endpoint_url": url,
+                "events": events,
+                "secret": "test_secret_key_12345",
+            }
+        )
+
+        data = self.assert_success(response)
+        webhook_id = data["id"]
+        self.cleaner.register_webhook(webhook_id)
+        return webhook_id
+
+
+class PaymentTestMixin:
+    """支付测试混入类"""
+
+    async def create_test_payment_order(
+        self,
+        plan_type: str = "professional",
+        duration_months: int = 1,
+    ) -> Dict[str, Any]:
+        """创建测试支付订单"""
+        response = await self.client.post(
+            "/payment/orders/create",
+            json={
+                "plan_type": plan_type,
+                "duration_months": duration_months,
+                "payment_type": "pc",
+                "subscription_type": "new",
+                "description": "自动化测试订单",
+            }
+        )
+
+        data = self.assert_success(response)
+        if data.get("order_number"):
+            self.cleaner.register_payment_order(data["order_number"])
+        return data

@@ -15,9 +15,10 @@ class TestHealth(BaseAPITest):
         # 根路径不在api/v1下，需要直接访问
         from config import settings
         base_url = settings.base_url
-        
+
         import httpx
-        async with httpx.AsyncClient() as client:
+        # 设置 NO_PROXY 避免代理干扰
+        async with httpx.AsyncClient(proxies={"all://": None}) as client:
             response = await client.get(f"{base_url}/")
             
         # 验证返回数据

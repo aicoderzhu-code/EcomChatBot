@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from schemas.base import ApiResponse
 from schemas.model_config import (
     ModelConfigCreateRequest,
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/models", tags=["模型配置"])
 @router.post("", response_model=ApiResponse[ModelConfigResponse])
 async def create_model_config(
     config_data: ModelConfigCreateRequest,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """创建模型配置"""
@@ -47,7 +47,7 @@ async def list_model_configs(
     provider: str | None = None,
     use_case: str | None = None,
     is_active: bool | None = None,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """列出模型配置"""
@@ -63,7 +63,7 @@ async def list_model_configs(
 @router.get("/default", response_model=ApiResponse[ModelConfigResponse | None])
 async def get_default_model(
     use_case: str | None = None,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """获取默认模型配置"""
@@ -77,7 +77,7 @@ async def get_default_model(
 @router.get("/{config_id}", response_model=ApiResponse[ModelConfigResponse])
 async def get_model_config(
     config_id: int,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """获取模型配置详情"""
@@ -90,7 +90,7 @@ async def get_model_config(
 async def update_model_config(
     config_id: int,
     config_data: ModelConfigUpdateRequest,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """更新模型配置"""
@@ -105,7 +105,7 @@ async def update_model_config(
 @router.delete("/{config_id}", response_model=ApiResponse[dict])
 async def delete_model_config(
     config_id: int,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """删除模型配置"""
@@ -117,7 +117,7 @@ async def delete_model_config(
 @router.post("/{config_id}/set-default", response_model=ApiResponse[ModelConfigResponse])
 async def set_default_model(
     config_id: int,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """设置默认模型"""

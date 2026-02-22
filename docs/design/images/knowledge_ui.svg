@@ -1,0 +1,104 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f3f4f6" />
+
+  <!-- Sidebar -->
+  <rect width="240" height="800" fill="#1f2937" />
+  <!-- Logo Area -->
+  <rect width="240" height="60" fill="#111827" />
+  <text x="20" y="40" font-family="sans-serif" font-size="18" fill="white" font-weight="bold">🛒 Ecom Chatbot</text>
+  
+  <!-- Menu Items -->
+  <text x="20" y="105" font-family="sans-serif" font-size="14" fill="#9ca3af">📊 仪表盘 (Dashboard)</text>
+  <text x="20" y="145" font-family="sans-serif" font-size="14" fill="#9ca3af">💬 对话管理 (Chat)</text>
+  <rect x="0" y="160" width="240" height="40" fill="#374151" /> <!-- Active item -->
+  <text x="20" y="185" font-family="sans-serif" font-size="14" fill="white">📚 知识库 (Knowledge)</text>
+  <text x="20" y="225" font-family="sans-serif" font-size="14" fill="#9ca3af">⚙️ 系统设置 (Settings)</text>
+
+  <!-- User Profile at bottom -->
+  <rect x="0" y="740" width="240" height="60" fill="#111827" />
+  <circle cx="30" cy="770" r="16" fill="#4b5563" />
+  <text x="55" y="775" font-family="sans-serif" font-size="12" fill="white">Admin User</text>
+
+  <!-- Main Content Area -->
+  <!-- Header -->
+  <rect x="240" y="0" width="960" height="60" fill="white" stroke="#e5e7eb" />
+  <text x="260" y="35" font-family="sans-serif" font-size="14" fill="#6b7280">首页 / 知识库管理</text>
+  <rect x="1050" y="15" width="130" height="30" rx="4" fill="#2563eb" />
+  <text x="1115" y="35" text-anchor="middle" font-family="sans-serif" font-size="12" fill="white" font-weight="bold">+ 上传新文档</text>
+
+  <!-- Stats Row -->
+  <g transform="translate(260, 80)">
+    <!-- Card 1 -->
+    <rect width="280" height="100" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="14" fill="#6b7280">总文档数</text>
+    <text x="20" y="70" font-family="sans-serif" font-size="28" fill="#111827" font-weight="bold">12</text>
+    
+    <!-- Card 2 -->
+    <rect x="300" width="280" height="100" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="320" y="30" font-family="sans-serif" font-size="14" fill="#6b7280">向量切片总数</text>
+    <text x="320" y="70" font-family="sans-serif" font-size="28" fill="#111827" font-weight="bold">1,450</text>
+
+    <!-- Card 3 -->
+    <rect x="600" width="280" height="100" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="620" y="30" font-family="sans-serif" font-size="14" fill="#6b7280">存储占用</text>
+    <text x="620" y="70" font-family="sans-serif" font-size="28" fill="#111827" font-weight="bold">45 MB</text>
+  </g>
+
+  <!-- Document List -->
+  <g transform="translate(260, 200)">
+    <rect width="880" height="300" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">文档列表</text>
+    
+    <!-- Search Filter -->
+    <rect x="20" y="50" width="300" height="30" rx="4" fill="white" stroke="#d1d5db" />
+    <text x="30" y="70" font-family="sans-serif" font-size="12" fill="#9ca3af">🔍 搜索文档名称...</text>
+    
+    <!-- Table Header -->
+    <rect x="20" y="90" width="840" height="40" fill="#f9fafb" />
+    <text x="30" y="115" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">文档名称</text>
+    <text x="250" y="115" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">类型</text>
+    <text x="350" y="115" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">切片数</text>
+    <text x="450" y="115" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">上传时间</text>
+    <text x="600" y="115" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">状态</text>
+    <text x="700" y="115" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">操作</text>
+
+    <!-- Row 1 -->
+    <text x="30" y="155" font-family="sans-serif" font-size="12" fill="#374151">退换货政策 v2.0.pdf</text>
+    <text x="250" y="155" font-family="sans-serif" font-size="12" fill="#374151">PDF</text>
+    <text x="350" y="155" font-family="sans-serif" font-size="12" fill="#374151">124</text>
+    <text x="450" y="155" font-family="sans-serif" font-size="12" fill="#374151">2024-05-20</text>
+    <rect x="600" y="142" width="60" height="20" rx="10" fill="#dcfce7" />
+    <text x="610" y="156" font-family="sans-serif" font-size="10" fill="#166534">已完成</text>
+    <text x="700" y="155" font-family="sans-serif" font-size="12" fill="#2563eb">预览</text>
+    <text x="740" y="155" font-family="sans-serif" font-size="12" fill="#ef4444">删除</text>
+    <line x1="20" y1="170" x2="860" y2="170" stroke="#f3f4f6" />
+
+    <!-- Row 2 -->
+    <text x="30" y="195" font-family="sans-serif" font-size="12" fill="#374151">促销活动规则.md</text>
+    <text x="250" y="195" font-family="sans-serif" font-size="12" fill="#374151">MD</text>
+    <text x="350" y="195" font-family="sans-serif" font-size="12" fill="#374151">--</text>
+    <text x="450" y="195" font-family="sans-serif" font-size="12" fill="#374151">2024-05-21</text>
+    <rect x="600" y="182" width="60" height="20" rx="10" fill="#e0f2fe" />
+    <text x="610" y="196" font-family="sans-serif" font-size="10" fill="#075985">处理中</text>
+    <text x="700" y="195" font-family="sans-serif" font-size="12" fill="#9ca3af">等待</text>
+  </g>
+
+  <!-- Test Retrieval Area -->
+  <g transform="translate(260, 520)">
+    <rect width="880" height="250" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">检索效果测试</text>
+    
+    <text x="20" y="60" font-family="sans-serif" font-size="12" fill="#374151">测试问题</text>
+    <rect x="20" y="70" width="700" height="35" rx="4" fill="white" stroke="#d1d5db" />
+    <text x="30" y="92" font-family="sans-serif" font-size="12" fill="#111827">运费谁出？</text>
+    <rect x="740" y="70" width="100" height="35" rx="4" fill="#2563eb" />
+    <text x="790" y="92" text-anchor="middle" font-family="sans-serif" font-size="12" fill="white" font-weight="bold">测试检索</text>
+
+    <!-- Results -->
+    <rect x="20" y="120" width="840" height="110" rx="4" fill="#f9fafb" stroke="#e5e7eb" />
+    <text x="30" y="140" font-family="sans-serif" font-size="12" fill="#111827" font-weight="bold">Top 1 匹配结果 (Score: 0.89)</text>
+    <text x="30" y="160" font-family="sans-serif" font-size="12" fill="#2563eb">📄 退换货政策 v2.0.pdf</text>
+    <text x="30" y="180" font-family="sans-serif" font-size="12" fill="#4b5563">...非质量问题退货（如不喜欢、尺码不合），运费由买家承担。若商品有质量问题，运费由商家承担...</text>
+  </g>
+</svg>

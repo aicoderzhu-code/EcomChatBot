@@ -1,0 +1,96 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f3f4f6" />
+
+  <!-- Sidebar -->
+  <rect width="240" height="800" fill="#1f2937" />
+  <!-- Logo Area -->
+  <rect width="240" height="60" fill="#111827" />
+  <text x="20" y="40" font-family="sans-serif" font-size="18" fill="white" font-weight="bold">🛒 Ecom Chatbot</text>
+  
+  <!-- Menu Items -->
+  <rect x="0" y="80" width="240" height="40" fill="#374151" /> <!-- Active item -->
+  <text x="20" y="105" font-family="sans-serif" font-size="14" fill="white">📊 仪表盘 (Dashboard)</text>
+  <text x="20" y="145" font-family="sans-serif" font-size="14" fill="#9ca3af">💬 对话管理 (Chat)</text>
+  <text x="20" y="185" font-family="sans-serif" font-size="14" fill="#9ca3af">📚 知识库 (Knowledge)</text>
+  <text x="20" y="225" font-family="sans-serif" font-size="14" fill="#9ca3af">⚙️ 系统设置 (Settings)</text>
+
+  <!-- User Profile at bottom -->
+  <rect x="0" y="740" width="240" height="60" fill="#111827" />
+  <circle cx="30" cy="770" r="16" fill="#4b5563" />
+  <text x="55" y="775" font-family="sans-serif" font-size="12" fill="white">Admin User</text>
+
+  <!-- Main Content Area -->
+  <!-- Header -->
+  <rect x="240" y="0" width="960" height="60" fill="white" stroke="#e5e7eb" />
+  <text x="260" y="35" font-family="sans-serif" font-size="14" fill="#6b7280">首页 / 仪表盘</text>
+  <text x="1100" y="35" font-family="sans-serif" font-size="14" fill="#10b981">API配额: 充足</text>
+
+  <!-- Dashboard Content -->
+  <!-- Stats Cards Row -->
+  <g transform="translate(260, 80)">
+    <!-- Card 1 -->
+    <rect width="280" height="120" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="14" fill="#6b7280">今日对话总数</text>
+    <text x="20" y="70" font-family="sans-serif" font-size="32" fill="#111827" font-weight="bold">1,203</text>
+    <text x="20" y="100" font-family="sans-serif" font-size="12" fill="#10b981">↑ 12% 较昨日</text>
+    
+    <!-- Card 2 -->
+    <rect x="300" width="280" height="120" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="320" y="30" font-family="sans-serif" font-size="14" fill="#6b7280">活跃用户数</text>
+    <text x="320" y="70" font-family="sans-serif" font-size="32" fill="#111827" font-weight="bold">450</text>
+    <text x="320" y="100" font-family="sans-serif" font-size="12" fill="#10b981">↑ 5% 较昨日</text>
+
+    <!-- Card 3 -->
+    <rect x="600" width="280" height="120" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="620" y="30" font-family="sans-serif" font-size="14" fill="#6b7280">Token 消耗量</text>
+    <text x="620" y="70" font-family="sans-serif" font-size="32" fill="#111827" font-weight="bold">50,421</text>
+    <text x="620" y="100" font-family="sans-serif" font-size="12" fill="#6b7280">剩余额度: 1M</text>
+  </g>
+
+  <!-- Charts Row -->
+  <g transform="translate(260, 220)">
+    <!-- Main Chart -->
+    <rect width="580" height="300" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">近7天对话趋势</text>
+    <!-- Simple Chart Visualization -->
+    <line x1="40" y1="250" x2="540" y2="250" stroke="#e5e7eb" stroke-width="2" />
+    <line x1="40" y1="250" x2="40" y2="50" stroke="#e5e7eb" stroke-width="2" />
+    <polyline points="40,200 120,180 200,150 280,160 360,100 440,80 520,60" fill="none" stroke="#3b82f6" stroke-width="3" />
+    
+    <!-- Pie Chart -->
+    <rect x="600" width="280" height="300" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="620" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">热门意图分布</text>
+    <circle cx="740" cy="170" r="80" fill="#3b82f6" />
+    <path d="M740,170 L740,90 A80,80 0 0,1 820,170 z" fill="#10b981" />
+    <path d="M740,170 L820,170 A80,80 0 0,1 740,250 z" fill="#f59e0b" />
+  </g>
+
+  <!-- Table Row -->
+  <g transform="translate(260, 540)">
+    <rect width="880" height="200" rx="8" fill="white" stroke="#e5e7eb" />
+    <text x="20" y="30" font-family="sans-serif" font-size="16" fill="#111827" font-weight="bold">最近活跃会话</text>
+    
+    <!-- Table Header -->
+    <text x="20" y="60" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">会话ID</text>
+    <text x="150" y="60" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">用户</text>
+    <text x="300" y="60" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">开始时间</text>
+    <text x="450" y="60" font-family="sans-serif" font-size="12" fill="#6b7280" font-weight="bold">状态</text>
+    <line x1="20" y1="70" x2="860" y2="70" stroke="#f3f4f6" stroke-width="1" />
+
+    <!-- Row 1 -->
+    <text x="20" y="95" font-family="sans-serif" font-size="12" fill="#374151">#CONV-9921</text>
+    <text x="150" y="95" font-family="sans-serif" font-size="12" fill="#374151">访客_8832</text>
+    <text x="300" y="95" font-family="sans-serif" font-size="12" fill="#374151">10:42</text>
+    <rect x="450" y="82" width="60" height="20" rx="10" fill="#dcfce7" />
+    <text x="460" y="96" font-family="sans-serif" font-size="10" fill="#166534">进行中</text>
+    <line x1="20" y1="110" x2="860" y2="110" stroke="#f3f4f6" stroke-width="1" />
+
+    <!-- Row 2 -->
+    <text x="20" y="135" font-family="sans-serif" font-size="12" fill="#374151">#CONV-9920</text>
+    <text x="150" y="135" font-family="sans-serif" font-size="12" fill="#374151">访客_8831</text>
+    <text x="300" y="135" font-family="sans-serif" font-size="12" fill="#374151">10:30</text>
+    <rect x="450" y="122" width="60" height="20" rx="10" fill="#fee2e2" />
+    <text x="460" y="136" font-family="sans-serif" font-size="10" fill="#991b1b">待人工</text>
+  </g>
+</svg>

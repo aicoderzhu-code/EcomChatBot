@@ -111,33 +111,32 @@ class TestUserJourney(
         print("\n[步骤5] 查看配额使用情况...")
         quota_resp = await self.client.get("/tenant/quota")
         quota_data = self.assert_success(quota_resp)
-        assert "concurrent_sessions" in quota_data
+        # 字段名与 QuotaUsageResponse 一致
+        assert "concurrent" in quota_data
         print(f"✓ 配额查询成功")
 
         # ========== 步骤6: 创建模型配置 ==========
         if settings.has_llm_config:
             print("\n[步骤6] 创建模型配置...")
-            self.client.set_jwt_token(jwt_token)
-            
+            # /models 端点需要 API Key 认证，确保使用 API Key
+            self.client.clear_auth()
+            self.client.set_api_key(api_key)
+
             config_data = self.data_gen.generate_model_config(
                 provider=settings.llm_provider,
                 api_key=(
-                    settings.zhipuai_api_key 
-                    if settings.llm_provider == "zhipuai" 
+                    settings.zhipuai_api_key
+                    if settings.llm_provider == "zhipuai"
                     else settings.openai_api_key
                 )
             )
-            
+
             model_resp = await self.client.post("/models", json=config_data)
             model_data = self.assert_success(model_resp)
-            
+
             config_id = model_data["id"]
             self.cleaner.register_model_config(config_id)
             print(f"✓ 模型配置创建成功: {config_id}")
-            
-            # 切回API Key
-            self.client.clear_auth()
-            self.client.set_api_key(api_key)
         else:
             print("\n[步骤6] 跳过（未配置LLM）")
 

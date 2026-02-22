@@ -1,0 +1,51 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="800" fill="#f3f4f6" />
+
+  <!-- Register Card -->
+  <rect x="350" y="100" width="500" height="600" rx="8" fill="white" stroke="#e5e7eb" stroke-width="1" filter="url(#shadow)" />
+  
+  <!-- Logo Area -->
+  <text x="600" y="160" text-anchor="middle" font-family="sans-serif" font-size="40">🛒</text>
+  <text x="600" y="200" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#111827" font-weight="bold">注册新租户</text>
+  <text x="600" y="230" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#6b7280">创建您的企业账号</text>
+
+  <!-- Form Fields -->
+  <!-- Company Name -->
+  <text x="400" y="260" font-family="sans-serif" font-size="14" fill="#374151" font-weight="500">企业名称</text>
+  <rect x="400" y="270" width="400" height="40" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="415" y="295" font-family="sans-serif" font-size="14" fill="#9ca3af">例如: 示例科技有限公司</text>
+
+  <!-- Contact Name -->
+  <text x="400" y="330" font-family="sans-serif" font-size="14" fill="#374151" font-weight="500">联系人姓名</text>
+  <rect x="400" y="340" width="400" height="40" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="415" y="365" font-family="sans-serif" font-size="14" fill="#9ca3af">您的称呼</text>
+
+  <!-- Email -->
+  <text x="400" y="400" font-family="sans-serif" font-size="14" fill="#374151" font-weight="500">工作邮箱</text>
+  <rect x="400" y="410" width="400" height="40" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="415" y="435" font-family="sans-serif" font-size="14" fill="#9ca3af">name@company.com</text>
+
+  <!-- Password -->
+  <text x="400" y="470" font-family="sans-serif" font-size="14" fill="#374151" font-weight="500">设置密码</text>
+  <rect x="400" y="480" width="400" height="40" rx="4" fill="white" stroke="#d1d5db" />
+  <text x="415" y="505" font-family="sans-serif" font-size="14" fill="#374151">••••••••••••</text>
+
+  <!-- Agreement -->
+  <rect x="400" y="540" width="16" height="16" rx="2" fill="white" stroke="#d1d5db" />
+  <text x="425" y="553" font-family="sans-serif" font-size="12" fill="#374151">我已阅读并同意 <tspan fill="#2563eb">服务条款</tspan> 和 <tspan fill="#2563eb">隐私政策</tspan></text>
+
+  <!-- Register Button -->
+  <rect x="400" y="580" width="400" height="40" rx="4" fill="#2563eb" />
+  <text x="600" y="605" text-anchor="middle" font-family="sans-serif" font-size="14" fill="white" font-weight="bold">立即注册</text>
+
+  <!-- Footer -->
+  <text x="600" y="650" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#6b7280">已有账号? <tspan fill="#2563eb" font-weight="bold">直接登录</tspan></text>
+
+  <!-- Shadow Definition -->
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.1"/>
+    </filter>
+  </defs>
+</svg>

@@ -20,8 +20,70 @@ from models import Admin
 from services import AdminService, TenantService
 from services.quota_service import QuotaService
 
-# HTTP Bearer Token
-security = HTTPBearer()
+# HTTP Bearer Token (auto_error=False to allow fallback to API Key)
+security = HTTPBearer(auto_error=False)
+
+
+async def get_current_tenant_flexible(
+    x_api_key: Annotated[str | None, Header()] = None,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)] = None,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+) -> str:
+    """
+    灵活的租户认证：同时支持 API Key 和 JWT Token
+
+    优先使用 API Key，如果没有则使用 JWT Token
+    适用于需要同时支持外部 API 调用和 Web Dashboard 的场景
+    """
+    # 优先检查 API Key
+    if x_api_key:
+        from db import get_cache
+
+        cache = await get_cache()
+        cache_key = f"api_key:{x_api_key}"
+        cached_tenant_id = await cache.get(cache_key)
+
+        if cached_tenant_id:
+            tenant_service = TenantService(db)
+            await tenant_service.check_tenant_access(cached_tenant_id)
+            return cached_tenant_id
+
+        tenant_service = TenantService(db)
+        tenant = await tenant_service.get_tenant_by_api_key(x_api_key)
+
+        if not tenant:
+            raise InvalidAPIKeyException("无效的 API Key")
+
+        await tenant_service.check_tenant_access(tenant.tenant_id)
+        await cache.set(cache_key, tenant.tenant_id, expire=300)
+        return tenant.tenant_id
+
+    # 其次检查 JWT Token
+    if credentials:
+        try:
+            token = credentials.credentials
+            payload = decode_token(token)
+            tenant_id = payload.get("tenant_id")
+
+            if not tenant_id:
+                raise InvalidTokenException("Token 中缺少租户信息")
+
+            tenant_service = TenantService(db)
+            await tenant_service.check_tenant_access(tenant_id)
+            return tenant_id
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=str(e),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # 两者都没有
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="需要 API Key 或 Bearer Token 认证",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 async def get_current_tenant_from_api_key(
@@ -188,6 +250,7 @@ async def get_quota_service(
 # 常用依赖注入类型定义
 TenantDep = Annotated[str, Depends(get_current_tenant_from_api_key)]
 TenantTokenDep = Annotated[str, Depends(get_current_tenant_from_token)]
+TenantFlexDep = Annotated[str, Depends(get_current_tenant_flexible)]  # 支持 API Key 和 JWT Token
 AdminDep = Annotated[Admin, Depends(get_current_admin)]
 DBDep = Annotated[AsyncSession, Depends(get_db)]
 QuotaServiceDep = Annotated[QuotaService, Depends(get_quota_service)]

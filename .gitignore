@@ -61,6 +61,8 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+backend/reports/
+reports/
 
 # MyPy
 .mypy_cache/

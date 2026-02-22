@@ -10,6 +10,16 @@ from config import settings
 class TestAIChat(BaseAPITest, TenantTestMixin, ConversationTestMixin, ModelConfigTestMixin):
     """AI 对话测试"""
 
+    def _get_llm_api_key(self):
+        """获取当前 LLM 提供商的 API Key"""
+        if settings.llm_provider == "zhipuai":
+            return settings.zhipuai_api_key
+        elif settings.llm_provider == "deepseek":
+            return settings.deepseek_api_key
+        elif settings.llm_provider == "openai":
+            return settings.openai_api_key
+        return settings.openai_api_key
+
     @pytest.mark.asyncio
     @pytest.mark.skipif(not settings.has_llm_config, reason="未配置LLM")
     async def test_ai_chat_basic(self):
@@ -17,11 +27,11 @@ class TestAIChat(BaseAPITest, TenantTestMixin, ConversationTestMixin, ModelConfi
         # 创建租户和对话
         tenant_info = await self.create_test_tenant()
         self.client.set_api_key(tenant_info["api_key"])
-        
-        # 创建模型配置
+
+        # 创建模型配置（使用正确的 API Key）
         await self.create_test_model_config(
             provider=settings.llm_provider,
-            api_key=settings.zhipuai_api_key if settings.llm_provider == "zhipuai" else settings.openai_api_key
+            api_key=self._get_llm_api_key()
         )
         
         conversation_id = await self.create_test_conversation()
@@ -56,10 +66,11 @@ class TestAIChat(BaseAPITest, TenantTestMixin, ConversationTestMixin, ModelConfi
         # 创建租户和对话
         tenant_info = await self.create_test_tenant()
         self.client.set_api_key(tenant_info["api_key"])
-        
+
         # 创建模型配置
         await self.create_test_model_config(
-            provider=settings.llm_provider
+            provider=settings.llm_provider,
+            api_key=self._get_llm_api_key()
         )
         
         conversation_id = await self.create_test_conversation()
@@ -90,9 +101,9 @@ class TestAIChat(BaseAPITest, TenantTestMixin, ConversationTestMixin, ModelConfi
         # 创建租户和对话
         tenant_info = await self.create_test_tenant()
         self.client.set_api_key(tenant_info["api_key"])
-        
+
         # 创建模型配置
-        await self.create_test_model_config(provider=settings.llm_provider)
+        await self.create_test_model_config(provider=settings.llm_provider, api_key=self._get_llm_api_key())
         
         conversation_id = await self.create_test_conversation()
 
@@ -119,9 +130,9 @@ class TestAIChat(BaseAPITest, TenantTestMixin, ConversationTestMixin, ModelConfi
         # 创建租户和对话
         tenant_info = await self.create_test_tenant()
         self.client.set_api_key(tenant_info["api_key"])
-        
+
         # 创建模型配置
-        await self.create_test_model_config(provider=settings.llm_provider)
+        await self.create_test_model_config(provider=settings.llm_provider, api_key=self._get_llm_api_key())
         
         conversation_id = await self.create_test_conversation()
 
@@ -148,9 +159,9 @@ class TestAIChat(BaseAPITest, TenantTestMixin, ConversationTestMixin, ModelConfi
         # 创建租户和对话
         tenant_info = await self.create_test_tenant()
         self.client.set_api_key(tenant_info["api_key"])
-        
+
         # 创建模型配置
-        await self.create_test_model_config(provider=settings.llm_provider)
+        await self.create_test_model_config(provider=settings.llm_provider, api_key=self._get_llm_api_key())
         
         conversation_id = await self.create_test_conversation()
 
@@ -203,9 +214,9 @@ class TestAIChat(BaseAPITest, TenantTestMixin, ConversationTestMixin, ModelConfi
         # 创建租户和对话
         tenant_info = await self.create_test_tenant()
         self.client.set_api_key(tenant_info["api_key"])
-        
+
         # 创建模型配置
-        await self.create_test_model_config(provider=settings.llm_provider)
+        await self.create_test_model_config(provider=settings.llm_provider, api_key=self._get_llm_api_key())
         
         conversation_id = await self.create_test_conversation()
 

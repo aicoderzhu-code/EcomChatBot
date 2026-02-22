@@ -18,6 +18,7 @@ class Tenant(BaseModel):
         Index("idx_tenant_email", "contact_email"),
         Index("idx_tenants_status", "status"),
         Index("idx_tenant_plan", "current_plan"),
+        Index("idx_tenant_api_key_prefix", "api_key_prefix"),  # API Key前缀索引，用于快速查找
         {"comment": "租户表"},
     )
 
@@ -38,6 +39,9 @@ class Tenant(BaseModel):
     )
     api_key_hash: Mapped[str] = mapped_column(
         String(255), nullable=False, comment="API密钥(加密存储)"
+    )
+    api_key_prefix: Mapped[str | None] = mapped_column(
+        String(16), comment="API密钥前缀(用于快速查找)"
     )
     api_key_salt: Mapped[str | None] = mapped_column(String(64), comment="API密钥盐值")
 
