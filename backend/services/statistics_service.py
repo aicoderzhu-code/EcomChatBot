@@ -43,10 +43,10 @@ class StatisticsService:
         trial_stmt = (
             select(func.count(Tenant.id))
             .select_from(Tenant)
-            .join(Subscription, Tenant.id == Subscription.tenant_id)
+            .join(Subscription, Tenant.tenant_id == Subscription.tenant_id)
             .where(
                 and_(
-                    Subscription.plan == "free",
+                    Subscription.plan_type == "free",
                     Tenant.status == "active",
                 )
             )
@@ -57,10 +57,10 @@ class StatisticsService:
         paid_stmt = (
             select(func.count(Tenant.id))
             .select_from(Tenant)
-            .join(Subscription, Tenant.id == Subscription.tenant_id)
+            .join(Subscription, Tenant.tenant_id == Subscription.tenant_id)
             .where(
                 and_(
-                    Subscription.plan != "free",
+                    Subscription.plan_type != "free",
                     Subscription.status == "active",
                 )
             )
@@ -80,7 +80,7 @@ class StatisticsService:
         churned_stmt = select(func.count(Subscription.id)).where(
             and_(
                 Subscription.status == "expired",
-                Subscription.expired_at >= month_start,
+                Subscription.expire_at >= month_start,
             )
         )
         churned = await self.db.scalar(churned_stmt) or 0
@@ -105,6 +105,14 @@ class StatisticsService:
         Returns:
             收入统计数据
         """
+        # 套餐月度价格
+        plan_prices = {
+            "free": 0,
+            "basic": 99,
+            "professional": 299,
+            "enterprise": 999,
+        }
+
         now = datetime.utcnow()
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         last_month_start = (month_start - timedelta(days=1)).replace(day=1)
@@ -113,7 +121,7 @@ class StatisticsService:
         this_month_stmt = select(func.sum(Bill.total_amount)).where(
             and_(
                 Bill.status == "paid",
-                Bill.paid_at >= month_start,
+                Bill.payment_time >= month_start,
             )
         )
         this_month_revenue = await self.db.scalar(this_month_stmt) or 0
@@ -122,17 +130,22 @@ class StatisticsService:
         last_month_stmt = select(func.sum(Bill.total_amount)).where(
             and_(
                 Bill.status == "paid",
-                Bill.paid_at >= last_month_start,
-                Bill.paid_at < month_start,
+                Bill.payment_time >= last_month_start,
+                Bill.payment_time < month_start,
             )
         )
         last_month_revenue = await self.db.scalar(last_month_stmt) or 0
 
-        # MRR (月经常性收入) - 所有活跃订阅的月度价格总和
-        mrr_stmt = select(func.sum(Subscription.monthly_price)).where(
-            Subscription.status == "active"
+        # MRR (月经常性收入) - 根据活跃订阅的套餐类型计算
+        mrr = 0
+        mrr_stmt = (
+            select(Subscription.plan_type, func.count(Subscription.id))
+            .where(Subscription.status == "active")
+            .group_by(Subscription.plan_type)
         )
-        mrr = await self.db.scalar(mrr_stmt) or 0
+        result = await self.db.execute(mrr_stmt)
+        for plan_type, count in result.all():
+            mrr += plan_prices.get(plan_type, 0) * count
 
         # ARR = MRR * 12
         arr = mrr * 12
@@ -222,9 +235,9 @@ class StatisticsService:
             套餐分布 {plan: count}
         """
         stmt = (
-            select(Subscription.plan, func.count(Subscription.id))
+            select(Subscription.plan_type, func.count(Subscription.id))
             .where(Subscription.status == "active")
-            .group_by(Subscription.plan)
+            .group_by(Subscription.plan_type)
         )
 
         result = await self.db.execute(stmt)
@@ -293,17 +306,17 @@ class StatisticsService:
         # 每日收入
         daily_revenue_stmt = (
             select(
-                func.date(Bill.paid_at).label("date"),
+                func.date(Bill.payment_time).label("date"),
                 func.sum(Bill.total_amount).label("amount"),
             )
             .where(
                 and_(
-                    Bill.paid_at >= start_date,
+                    Bill.payment_time >= start_date,
                     Bill.status == "paid",
                 )
             )
-            .group_by(func.date(Bill.paid_at))
-            .order_by(func.date(Bill.paid_at))
+            .group_by(func.date(Bill.payment_time))
+            .order_by(func.date(Bill.payment_time))
         )
 
         result = await self.db.execute(daily_revenue_stmt)

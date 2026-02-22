@@ -33,6 +33,97 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/payment", tags=["支付管理"])
 
 
+@router.get("/orders", summary="获取支付订单列表")
+async def list_payment_orders(
+    db: DBDep,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    status: str | None = Query(None, description="订单状态筛选"),
+    tenant_id: str | None = Query(None, description="租户ID筛选"),
+):
+    """
+    获取支付订单列表（管理员接口）
+
+    **查询参数**：
+    - page: 页码
+    - size: 每页数量
+    - status: 订单状态筛选
+    - tenant_id: 租户ID筛选
+
+    **响应**：
+    - items: 订单列表
+    - total: 总数
+    - page: 当前页
+    - size: 每页数量
+    """
+    from sqlalchemy import and_, func, select
+    from models.payment import PaymentOrder
+    from models import Tenant
+    from schemas.base import ApiResponse
+
+    # 构建查询条件 (for PaymentOrder)
+    order_conditions = []
+    # 构建查询条件 (for Tenant, applied after join)
+    tenant_conditions = []
+
+    if status:
+        order_conditions.append(PaymentOrder.status == status)
+
+    if tenant_id:
+        tenant_conditions.append(Tenant.tenant_id == tenant_id)
+
+    # 查询总数 (需要join来支持tenant_id筛选)
+    count_query = (
+        select(func.count(PaymentOrder.id))
+        .select_from(PaymentOrder)
+        .join(Tenant, PaymentOrder.tenant_id == Tenant.id)
+    )
+    all_conditions = order_conditions + tenant_conditions
+    if all_conditions:
+        count_query = count_query.where(and_(*all_conditions))
+    total = await db.scalar(count_query) or 0
+
+    # 查询数据 (PaymentOrder.tenant_id is FK to Tenant.id)
+    query = (
+        select(PaymentOrder, Tenant)
+        .join(Tenant, PaymentOrder.tenant_id == Tenant.id)
+    )
+    if all_conditions:
+        query = query.where(and_(*all_conditions))
+
+    query = query.order_by(PaymentOrder.created_at.desc())
+    query = query.offset((page - 1) * size).limit(size)
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    items = []
+    for order, tenant in rows:
+        items.append({
+            "id": order.id,
+            "order_number": order.order_number,
+            "tenant_id": order.tenant_id,
+            "company_name": tenant.company_name,
+            "amount": float(order.amount),
+            "currency": order.currency,
+            "status": order.status,
+            "plan_type": order.plan_type,
+            "duration_months": order.duration_months,
+            "payment_method": order.payment_method,
+            "paid_at": order.paid_at.isoformat() if order.paid_at else None,
+            "expired_at": order.expired_at.isoformat() if order.expired_at else None,
+            "created_at": order.created_at.isoformat() if order.created_at else None,
+        })
+
+    return ApiResponse(data={
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size,
+    })
+
+
 @router.post("/orders/create", response_model=CreatePaymentResponse, summary="创建支付订单")
 async def create_payment_order(
     payment_data: PaymentOrderCreate,

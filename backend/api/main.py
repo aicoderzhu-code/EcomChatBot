@@ -12,6 +12,7 @@ from api.routers import (
     admin,
     ai_chat,
     analytics,
+    audit,
     auth,
     conversation,
     health,
@@ -262,6 +263,7 @@ app.include_router(model_config.router, prefix=settings.api_v1_prefix)
 app.include_router(statistics.router, prefix=settings.api_v1_prefix)
 app.include_router(analytics.router, prefix=settings.api_v1_prefix)
 app.include_router(sensitive_word.router, prefix=settings.api_v1_prefix)
+app.include_router(audit.router, prefix=settings.api_v1_prefix)
 
 
 if __name__ == "__main__":
