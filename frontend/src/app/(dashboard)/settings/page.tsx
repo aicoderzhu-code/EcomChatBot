@@ -1,10 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Row, Col, Card, Typography, message, Alert, Form, Input, Button, Spin } from 'antd';
+import { useState } from 'react';
+import { Row, Col, Card, Typography, message, Alert, Form, Input, Button } from 'antd';
 import { SettingsMenu, ModelConfigForm } from '@/components/settings';
-import { LLMConfig } from '@/types';
-import { settingsApi } from '@/lib/api/settings';
 import { CopyOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/store';
 
@@ -12,83 +10,12 @@ const { Title, Text } = Typography;
 
 export default function SettingsPage() {
   const [selectedMenu, setSelectedMenu] = useState('model');
-  const [config, setConfig] = useState<LLMConfig | undefined>(undefined);
-  const [loading, setLoading] = useState(true);
   const { tenantId } = useAuthStore();
-
-  useEffect(() => {
-    const loadConfig = async () => {
-      try {
-        setLoading(true);
-        const response = await settingsApi.getLLMConfig();
-        if (response.success && response.data) {
-          setConfig(response.data);
-        } else {
-          // No config exists, set default empty config
-          setConfig({
-            provider: 'openai',
-            api_key: '',
-            model_name: 'gpt-4o',
-            temperature: 0.7,
-            system_prompt: `你是一个专业的电商客服助手。
-请始终保持礼貌、专业。
-回答要简洁明了。
-如果遇到无法回答的问题，请引导用户转接人工客服。
-不要编造事实，严格基于提供的上下文回答。`,
-          });
-        }
-      } catch (err) {
-        console.error('Failed to load config:', err);
-        // Set default config on error
-        setConfig({
-          provider: 'openai',
-          api_key: '',
-          model_name: 'gpt-4o',
-          temperature: 0.7,
-          system_prompt: '',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadConfig();
-  }, []);
-
-  const handleSaveConfig = async (newConfig: LLMConfig) => {
-    try {
-      const response = await settingsApi.updateLLMConfig(newConfig);
-      if (response.success && response.data) {
-        setConfig(response.data);
-        message.success('配置保存成功');
-      } else {
-        message.error(response.error?.message || '保存失败');
-      }
-    } catch (err) {
-      console.error('Failed to save config:', err);
-      message.error('保存配置失败');
-    }
-  };
 
   const renderContent = () => {
     switch (selectedMenu) {
       case 'model':
-        if (loading) {
-          return (
-            <Card>
-              <div className="flex justify-center py-12">
-                <Spin size="large" />
-              </div>
-            </Card>
-          );
-        }
-        return (
-          <ModelConfigForm
-            initialConfig={config}
-            loading={false}
-            onSave={handleSaveConfig}
-          />
-        );
+        return <ModelConfigForm />;
       case 'api':
         return (
           <Card>

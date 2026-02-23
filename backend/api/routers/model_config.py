@@ -10,7 +10,9 @@ from schemas.base import ApiResponse
 from schemas.model_config import (
     ModelConfigCreateRequest,
     ModelConfigUpdateRequest,
-    ModelConfigResponse
+    ModelConfigResponse,
+    ValidateApiKeyRequest,
+    ValidateApiKeyResponse,
 )
 from services.model_config_service import ModelConfigService
 
@@ -29,6 +31,7 @@ async def create_model_config(
     config = await service.create_model_config(
         provider=config_data.provider,
         model_name=config_data.model_name,
+        model_type=config_data.model_type,
         api_key=config_data.api_key,
         api_base=config_data.api_base,
         temperature=config_data.temperature,
@@ -72,6 +75,21 @@ async def get_default_model(
     if config:
         return ApiResponse(data=ModelConfigResponse.model_validate(config))
     return ApiResponse(data=None)
+
+
+@router.post("/validate-api-key", response_model=ApiResponse[ValidateApiKeyResponse])
+async def validate_api_key(
+    request: ValidateApiKeyRequest,
+    tenant_id: TenantFlexDep = None,
+    db: DBDep = None,
+):
+    """验证 API Key 有效性（向提供商发起最小化请求测试）"""
+    result = await ModelConfigService.validate_api_key(
+        provider=request.provider,
+        api_key=request.api_key,
+        api_base=request.api_base,
+    )
+    return ApiResponse(data=ValidateApiKeyResponse(**result))
 
 
 @router.get("/{config_id}", response_model=ApiResponse[ModelConfigResponse])

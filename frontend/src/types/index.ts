@@ -135,8 +135,11 @@ export interface KnowledgeSearchResult {
 }
 
 // Settings Types
+export type ModelProvider = 'openai' | 'anthropic' | 'azure_openai' | 'deepseek' | 'zhipuai' | 'moonshot' | 'qwen' | 'cohere' | 'jina' | 'local_llm';
+export type ModelType = 'llm' | 'embedding' | 'rerank';
+
 export interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'zhipu' | 'deepseek';
+  provider: ModelProvider;
   api_key: string;
   model_name: string;
   temperature: number;

@@ -16,8 +16,18 @@ class LLMProvider(str, Enum):
     AZURE_OPENAI = "azure_openai"
     ZHIPUAI = "zhipuai"  # 智谱AI
     DEEPSEEK = "deepseek"  # DeepSeek
+    MOONSHOT = "moonshot"  # Moonshot (Kimi)
+    QWEN = "qwen"          # 通义千问
+    COHERE = "cohere"      # Cohere
+    JINA = "jina"          # Jina AI
     LOCAL_LLM = "local_llm"
-    # 可以继续扩展其他提供商
+
+
+class ModelType(str, Enum):
+    """模型类型"""
+    LLM = "llm"            # 大语言模型
+    EMBEDDING = "embedding" # 嵌入模型
+    RERANK = "rerank"       # 重排模型
 
 
 class ModelConfig(TenantBaseModel):
@@ -26,6 +36,7 @@ class ModelConfig(TenantBaseModel):
     __table_args__ = (
         Index("idx_model_config_tenant", "tenant_id"),
         Index("idx_model_config_provider", "provider"),
+        Index("idx_model_config_model_type", "model_type"),
         Index("idx_model_config_is_default", "is_default"),
         {"comment": "LLM模型配置表"},
     )
@@ -36,6 +47,9 @@ class ModelConfig(TenantBaseModel):
     )
     model_name: Mapped[str] = mapped_column(
         String(128), nullable=False, comment="模型名称"
+    )
+    model_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="llm", comment="模型类型(llm/embedding/rerank)"
     )
 
     # API配置
