@@ -135,21 +135,12 @@ export default function KnowledgePage() {
   const handleUpload = async (files: File[]) => {
     setUploading(true);
     try {
-      // For now, create knowledge entries with file content
-      // In a real implementation, you would upload files to a file storage service first
       for (const file of files) {
-        const content = await file.text().catch(() => `File: ${file.name}`);
-        await knowledgeApi.create({
-          knowledge_type: 'doc',
-          title: file.name,
-          content: content.substring(0, 10000), // Limit content size
-          source: 'upload',
-        });
+        await knowledgeApi.uploadFile(file);
       }
-
       message.success(`成功上传 ${files.length} 个文件`);
       setUploadModalOpen(false);
-      loadDocuments(pagination.current, pagination.pageSize, searchValue); // Reload list
+      loadDocuments(pagination.current, pagination.pageSize, searchValue);
     } catch (err) {
       console.error('Failed to upload:', err);
       message.error('上传失败');

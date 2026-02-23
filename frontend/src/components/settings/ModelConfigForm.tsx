@@ -23,8 +23,10 @@ import {
   CloseCircleOutlined,
   LoadingOutlined,
   SettingOutlined,
+  SearchOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
-import { settingsApi } from '@/lib/api/settings';
+import { settingsApi, DiscoveredModel } from '@/lib/api/settings';
 import { ModelProvider, ModelType } from '@/types';
 
 const { Title, Text, Paragraph } = Typography;
@@ -108,6 +110,9 @@ const MODEL_TYPE_LABELS: Record<ModelType, string> = {
   rerank: '重排模型',
 };
 
+// 支持自动发现模型的提供商
+const DISCOVER_CAPABLE_PROVIDERS = new Set(['qwen']);
+
 // 每个平台的配置状态
 interface PlatformConfig {
   api_key: string;
@@ -130,6 +135,11 @@ export default function ModelConfigForm() {
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle');
   const [validationMsg, setValidationMsg] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // 模型发现相关状态
+  const [discoveredModels, setDiscoveredModels] = useState<DiscoveredModel[]>([]);
+  const [discovering, setDiscovering] = useState(false);
+  const [batchSaving, setBatchSaving] = useState(false);
 
   // 初始化：从后端加载已有配置
   useEffect(() => {
@@ -203,6 +213,61 @@ export default function ModelConfigForm() {
     setSelectedProvider(prev => prev === provider ? null : provider);
     setValidationStatus('idle');
     setValidationMsg('');
+    setDiscoveredModels([]);
+  };
+
+  // 自动发现可用模型
+  const handleDiscover = async () => {
+    if (!selectedProvider) return;
+    const cfg = getConfig(selectedProvider);
+    setDiscovering(true);
+    setDiscoveredModels([]);
+    try {
+      const resp = await settingsApi.discoverModels(
+        selectedProvider,
+        cfg.api_key,
+        cfg.api_base || undefined
+      );
+      if (resp.success && resp.data) {
+        setDiscoveredModels(resp.data.models);
+        if (resp.data.models.length === 0) {
+          message.warning('未发现可用模型，请检查 API Key 权限');
+        }
+      } else {
+        message.error('模型发现失败');
+      }
+    } catch {
+      message.error('网络请求失败，请检查连接');
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  // 批量保存已发现的模型
+  const handleBatchSave = async () => {
+    if (!selectedProvider || discoveredModels.length === 0) return;
+    const cfg = getConfig(selectedProvider);
+    setBatchSaving(true);
+    try {
+      const items = discoveredModels.map(m => ({
+        provider: selectedProvider,
+        model_name: m.name,
+        model_type: m.model_type,
+        api_key: cfg.api_key,
+        api_base: cfg.api_base || null,
+      }));
+      const resp = await settingsApi.batchSaveModels(items);
+      if (resp.success) {
+        message.success(`已保存 ${discoveredModels.length} 个模型配置`);
+        setDiscoveredModels([]);
+      } else {
+        message.error('批量保存失败，请重试');
+      }
+    } catch {
+      message.error('批量保存失败，请重试');
+    } finally {
+      setBatchSaving(false);
+    }
   };
 
   // 验证 API Key
@@ -290,10 +355,11 @@ export default function ModelConfigForm() {
       }
 
       // 保存 Embedding 模型配置
-      if (catalog.embedding.length > 0 && cfg.embedding_model) {
+      const embModel = cfg.embedding_model || catalog.embedding[0] || '';
+      if (catalog.embedding.length > 0 && embModel) {
         const embPayload = {
           ...basePayload,
-          model_name: cfg.embedding_model,
+          model_name: embModel,
           model_type: 'embedding' as ModelType,
           use_case: 'embedding',
           temperature: 0,
@@ -310,10 +376,11 @@ export default function ModelConfigForm() {
       }
 
       // 保存 Rerank 模型配置
-      if (catalog.rerank.length > 0 && cfg.rerank_model) {
+      const rerankModel = cfg.rerank_model || catalog.rerank[0] || '';
+      if (catalog.rerank.length > 0 && rerankModel) {
         const rerankPayload = {
           ...basePayload,
-          model_name: cfg.rerank_model,
+          model_name: rerankModel,
           model_type: 'rerank' as ModelType,
           use_case: 'rerank',
           temperature: 0,
@@ -479,7 +546,73 @@ export default function ModelConfigForm() {
                 banner
               />
             )}
+
+            {/* 自动发现模型（仅支持特定 provider） */}
+            {validationStatus === 'valid' && selectedProvider && DISCOVER_CAPABLE_PROVIDERS.has(selectedProvider) && (
+              <div className="mt-3">
+                <Button
+                  icon={<SearchOutlined />}
+                  loading={discovering}
+                  onClick={handleDiscover}
+                >
+                  {discovering ? '检测中...' : '检测可用模型'}
+                </Button>
+              </div>
+            )}
           </div>
+
+          {/* 已发现的模型列表 */}
+          {discoveredModels.length > 0 && (() => {
+            const llmModels = discoveredModels.filter(m => m.model_type === 'llm');
+            const embModels = discoveredModels.filter(m => m.model_type === 'embedding');
+            const rerankModels = discoveredModels.filter(m => m.model_type === 'rerank');
+            return (
+              <div className="mb-4 p-3 rounded" style={{ background: '#f8f9fa', border: '1px solid #e8e8e8' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <Text strong>检测到以下可用模型</Text>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<ThunderboltOutlined />}
+                    loading={batchSaving}
+                    onClick={handleBatchSave}
+                  >
+                    一键保存全部模型
+                  </Button>
+                </div>
+                {llmModels.length > 0 && (
+                  <div className="mb-2">
+                    <Tag color="blue">大语言模型</Tag>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {llmModels.map(m => (
+                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {embModels.length > 0 && (
+                  <div className="mb-2">
+                    <Tag color="green">嵌入模型</Tag>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {embModels.map(m => (
+                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {rerankModels.length > 0 && (
+                  <div className="mb-2">
+                    <Tag color="orange">重排模型</Tag>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {rerankModels.map(m => (
+                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* 自定义 API Base（可折叠） */}
           {currentCatalog.needsApiBase && (

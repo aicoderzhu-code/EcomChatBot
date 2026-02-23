@@ -10,7 +10,7 @@ import time
 from fastapi import Depends, Request, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from api.content_filter import ContentFilter
 from core.exceptions import QuotaExceededException, ValidationException
 from services import QuotaService
@@ -22,7 +22,7 @@ CSRF_SECRET_KEY = secrets.token_urlsafe(32)
 
 
 async def check_conversation_quota(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -36,7 +36,7 @@ async def check_conversation_quota(
 
 
 async def check_concurrent_quota(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -57,7 +57,7 @@ async def check_concurrent_quota(
 
 
 async def check_storage_quota(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
     file_size: float = 0.0,
 ):
@@ -77,7 +77,7 @@ async def check_storage_quota(
 
 
 async def check_api_quota(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """

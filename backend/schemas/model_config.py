@@ -75,3 +75,35 @@ class ValidateApiKeyResponse(BaseModel):
     """验证 API Key 响应"""
     valid: bool
     message: str
+
+
+class DiscoverModelsRequest(BaseModel):
+    """发现可用模型请求"""
+    provider: str = Field(..., description="提供商名称")
+    api_key: str = Field(..., description="API密钥")
+    api_base: str | None = Field(None, description="自定义API基础URL")
+
+
+class DiscoveredModel(BaseModel):
+    """已发现的模型"""
+    name: str = Field(..., description="模型 ID")
+    model_type: str = Field(..., description="模型类型(llm/embedding/rerank)")
+
+
+class DiscoverModelsResponse(BaseModel):
+    """发现可用模型响应"""
+    models: list[DiscoveredModel]
+
+
+class BatchSaveModelItem(BaseModel):
+    """批量保存中的单个模型项"""
+    provider: str = Field(..., description="提供商名称")
+    model_name: str = Field(..., description="模型名称")
+    model_type: str = Field(..., description="模型类型(llm/embedding/rerank)")
+    api_key: str = Field(..., description="API密钥")
+    api_base: str | None = Field(None, description="自定义API基础URL")
+
+
+class BatchSaveRequest(BaseModel):
+    """批量保存模型配置请求"""
+    models: list[BatchSaveModelItem]

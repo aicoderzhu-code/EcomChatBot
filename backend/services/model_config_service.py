@@ -444,6 +444,121 @@ class ModelConfigService:
         except Exception as e:
             return {"valid": False, "message": f"验证异常: {str(e)}"}
 
+    # 已知的 Qwen Rerank 模型白名单（可能不在 /models 列表中）
+    _QWEN_KNOWN_RERANK_MODELS = ["qwen3-rerank", "gte-rerank-v2", "qwen3-vl-rerank"]
+
+    @staticmethod
+    async def discover_models(
+        provider: str,
+        api_key: str,
+        api_base: str | None = None
+    ) -> list[dict]:
+        """
+        通过 DashScope 兼容端点获取可用模型列表并按类型分类。
+        目前仅支持 qwen（阿里云百炼）。
+
+        Returns:
+            [{"name": model_id, "model_type": "llm"|"embedding"|"rerank"}, ...]
+        """
+        if provider != "qwen":
+            return []
+
+        base = (api_base or "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
+        timeout = httpx.Timeout(15.0)
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.get(
+                    f"{base}/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                if resp.status_code != 200:
+                    return []
+
+                data = resp.json()
+                raw_models = data.get("data", [])
+                result = []
+                seen_ids: set[str] = set()
+
+                for m in raw_models:
+                    mid = m.get("id", "")
+                    if not mid:
+                        continue
+                    if "embedding" in mid:
+                        mtype = "embedding"
+                    elif "rerank" in mid:
+                        mtype = "rerank"
+                    else:
+                        mtype = "llm"
+                    result.append({"name": mid, "model_type": mtype})
+                    seen_ids.add(mid)
+
+                # 补充已知 rerank 白名单中不在列表里的模型
+                for rerank_name in ModelConfigService._QWEN_KNOWN_RERANK_MODELS:
+                    if rerank_name not in seen_ids:
+                        result.append({"name": rerank_name, "model_type": "rerank"})
+
+                return result
+        except Exception:
+            return []
+
+    async def batch_save_models(self, items: list[dict]) -> list[ModelConfig]:
+        """
+        批量创建或更新模型配置（upsert by tenant_id + provider + model_name）。
+
+        Args:
+            items: [{"provider", "model_name", "model_type", "api_key", "api_base"}, ...]
+
+        Returns:
+            list[ModelConfig]
+        """
+        results = []
+        for item in items:
+            provider = item["provider"]
+            model_name = item["model_name"]
+            model_type = item["model_type"]
+            api_key = item.get("api_key")
+            api_base = item.get("api_base")
+
+            # 查找已有记录（upsert by provider + model_name）
+            stmt = select(ModelConfig).where(
+                and_(
+                    ModelConfig.tenant_id == self.tenant_id,
+                    ModelConfig.provider == provider,
+                    ModelConfig.model_name == model_name,
+                )
+            )
+            result = await self.db.execute(stmt)
+            existing = result.scalar_one_or_none()
+
+            if existing:
+                existing.model_type = model_type
+                if api_key:
+                    existing.api_key = api_key
+                if api_base is not None:
+                    existing.api_base = api_base
+                await self.db.commit()
+                await self.db.refresh(existing)
+                results.append(existing)
+            else:
+                # 根据模型类型设置合理默认值
+                temperature = 0.7 if model_type == "llm" else 0.0
+                max_tokens = 2000 if model_type == "llm" else 8192 if model_type == "embedding" else 512
+                use_case = "chat" if model_type == "llm" else model_type
+
+                config = await self.create_model_config(
+                    provider=provider,
+                    model_name=model_name,
+                    model_type=model_type,
+                    api_key=api_key,
+                    api_base=api_base,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    use_case=use_case,
+                )
+                results.append(config)
+
+        return results
+
     async def record_model_usage(
         self,
         config_id: int,

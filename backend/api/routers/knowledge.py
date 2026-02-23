@@ -1,10 +1,10 @@
 """
 知识库管理 API 路由
 """
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Query, UploadFile, File, Form
 from sqlalchemy import select
 
-from api.dependencies import DBDep, TenantDep, TenantFlexDep
+from api.dependencies import DBDep, TenantFlexDep
 from api.middleware import StorageQuotaDep, ApiQuotaDep
 from models.model_config import ModelConfig
 from schemas import (
@@ -21,6 +21,7 @@ from schemas import (
     RAGQueryResponse,
 )
 from schemas.knowledge import KnowledgeSearchRequest
+from services.document_parser import parse_and_split
 from services.knowledge_service import KnowledgeService
 from services.rag_service import RAGService
 
@@ -145,10 +146,42 @@ async def search_knowledge(
     return ApiResponse(data=knowledge_list)
 
 
+@router.post("/upload", response_model=ApiResponse[KnowledgeBaseResponse])
+async def upload_document(
+    file: UploadFile = File(...),
+    category: str | None = Form(None),
+    tags: str | None = Form(None),  # 逗号分隔的字符串
+    tenant_id: StorageQuotaDep = None,
+    db: DBDep = None,
+):
+    """上传文件并使用 LangChain 解析、切片后存入知识库"""
+    file_bytes = await file.read()
+    filename = file.filename or "unknown"
+
+    content, chunk_count = await parse_and_split(filename, file_bytes)
+
+    service = KnowledgeService(db, tenant_id)
+    tag_list = [t.strip() for t in tags.split(",")] if tags else None
+
+    item = await service.create_knowledge(
+        knowledge_type="doc",
+        title=filename,
+        content=content,
+        category=category,
+        tags=tag_list,
+        source="upload",
+    )
+    item.chunk_count = chunk_count
+    await db.commit()
+    await db.refresh(item)
+
+    return ApiResponse(data=KnowledgeBaseResponse.model_validate(item))
+
+
 # ============ 知识库设置 - 固定路径必须在 /{knowledge_id} 之前 ============
 
 @router.get("/settings", response_model=ApiResponse[KnowledgeSettingsResponse])
-async def get_knowledge_settings(tenant_id: TenantDep, db: DBDep):
+async def get_knowledge_settings(tenant_id: TenantFlexDep, db: DBDep):
     """获取知识库设置"""
     svc = KnowledgeService(db, tenant_id)
     s = await svc.get_settings()
@@ -163,7 +196,7 @@ async def get_knowledge_settings(tenant_id: TenantDep, db: DBDep):
 @router.put("/settings", response_model=ApiResponse[KnowledgeSettingsResponse])
 async def update_knowledge_settings(
     settings_data: KnowledgeSettingsUpdate,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """更新知识库设置（有向量化文档时不允许换 embedding 模型）"""

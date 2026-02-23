@@ -13,6 +13,10 @@ from schemas.model_config import (
     ModelConfigResponse,
     ValidateApiKeyRequest,
     ValidateApiKeyResponse,
+    DiscoverModelsRequest,
+    DiscoverModelsResponse,
+    DiscoveredModel,
+    BatchSaveRequest,
 )
 from services.model_config_service import ModelConfigService
 
@@ -90,6 +94,35 @@ async def validate_api_key(
         api_base=request.api_base,
     )
     return ApiResponse(data=ValidateApiKeyResponse(**result))
+
+
+@router.post("/discover", response_model=ApiResponse[DiscoverModelsResponse])
+async def discover_models(
+    request: DiscoverModelsRequest,
+    tenant_id: TenantFlexDep = None,
+    db: DBDep = None,
+):
+    """通过 API Key 自动发现可用模型并分类（目前支持 qwen/百炼）"""
+    models = await ModelConfigService.discover_models(
+        provider=request.provider,
+        api_key=request.api_key,
+        api_base=request.api_base,
+    )
+    return ApiResponse(data=DiscoverModelsResponse(
+        models=[DiscoveredModel(**m) for m in models]
+    ))
+
+
+@router.post("/batch-save", response_model=ApiResponse[list[ModelConfigResponse]])
+async def batch_save_models(
+    request: BatchSaveRequest,
+    tenant_id: TenantFlexDep = None,
+    db: DBDep = None,
+):
+    """批量创建或更新模型配置（upsert by provider+model_name）"""
+    service = ModelConfigService(db, tenant_id)
+    configs = await service.batch_save_models([item.model_dump() for item in request.models])
+    return ApiResponse(data=[ModelConfigResponse.model_validate(c) for c in configs])
 
 
 @router.get("/{config_id}", response_model=ApiResponse[ModelConfigResponse])

@@ -1,6 +1,7 @@
 """
 知识库管理服务
 """
+import asyncio
 from datetime import datetime
 
 from sqlalchemy import and_, func, or_, select
@@ -10,6 +11,24 @@ from core.exceptions import AppException, ResourceNotFoundException
 from core.security import generate_tenant_id
 from models import KnowledgeBase
 from models.knowledge_settings import KnowledgeSettings
+
+
+async def _embed_in_background(knowledge_id: str, tenant_id: str, embedding_model_id: int) -> None:
+    """后台向量化任务，使用独立的 DB session，不阻塞 HTTP 响应"""
+    from db.session import AsyncSessionLocal
+    from models.model_config import ModelConfig
+    from services.rag_service import RAGService
+
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = select(ModelConfig).where(ModelConfig.id == embedding_model_id)
+            result = await db.execute(stmt)
+            model_config = result.scalar_one_or_none()
+            if model_config:
+                rag = RAGService(db, tenant_id, embedding_model_config=model_config)
+                await rag.index_knowledge(knowledge_id)
+    except Exception as e:
+        print(f"[Background Embedding] 向量化失败 knowledge_id={knowledge_id}: {e}")
 
 
 class KnowledgeService:
@@ -52,13 +71,12 @@ class KnowledgeService:
         await self.db.commit()
         await self.db.refresh(knowledge)
 
-        # 触发向量化（如已配置 embedding 模型）
+        # 触发向量化（如已配置 embedding 模型）—— 后台异步执行，不阻塞 HTTP 响应
         ks = await self.get_settings()
         if ks.embedding_model_id:
-            try:
-                await self._trigger_embedding(knowledge, ks.embedding_model_id)
-            except Exception as e:
-                print(f"[KnowledgeService] 向量化失败（不阻断上传）: {e}")
+            asyncio.create_task(
+                _embed_in_background(knowledge.knowledge_id, self.tenant_id, ks.embedding_model_id)
+            )
 
         return knowledge
 
