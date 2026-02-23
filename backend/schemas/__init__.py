@@ -34,6 +34,8 @@ from schemas.knowledge import (
     KnowledgeBaseUpdate,
     KnowledgeBatchImportRequest,
     KnowledgeBatchImportResponse,
+    KnowledgeSettingsUpdate,
+    KnowledgeSettingsResponse,
     RAGQueryRequest,
     RAGQueryResponse,
 )
@@ -148,6 +150,8 @@ __all__ = [
     "RAGQueryResponse",
     "KnowledgeBatchImportRequest",
     "KnowledgeBatchImportResponse",
+    "KnowledgeSettingsUpdate",
+    "KnowledgeSettingsResponse",
     # Payment
     "PaymentOrderCreate",
     "PaymentOrderResponse",

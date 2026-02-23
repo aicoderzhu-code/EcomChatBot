@@ -1,21 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, Input, Button, Typography, Spin, Empty } from 'antd';
+import { Card, Input, Button, Typography, Spin, Empty, Select, Form } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { KnowledgeSearchResult } from '@/types';
 
 const { Title, Text } = Typography;
 
-interface RetrievalTestProps {
-  onSearch: (query: string) => Promise<KnowledgeSearchResult[]>;
+interface RerankModel {
+  id: number;
+  model_name: string;
+  provider: string;
 }
 
-export default function RetrievalTest({ onSearch }: RetrievalTestProps) {
+interface RetrievalTestProps {
+  onSearch: (query: string, useRerank?: boolean) => Promise<KnowledgeSearchResult[]>;
+  rerankModels?: RerankModel[];
+}
+
+export default function RetrievalTest({ onSearch, rerankModels }: RetrievalTestProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<KnowledgeSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [useRerank, setUseRerank] = useState<boolean>(false);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -23,7 +31,7 @@ export default function RetrievalTest({ onSearch }: RetrievalTestProps) {
     setLoading(true);
     setSearched(true);
     try {
-      const data = await onSearch(query);
+      const data = await onSearch(query, useRerank);
       setResults(data);
     } catch (error) {
       console.error('Search failed:', error);
@@ -37,6 +45,8 @@ export default function RetrievalTest({ onSearch }: RetrievalTestProps) {
       handleSearch();
     }
   };
+
+  const hasRerankModels = rerankModels && rerankModels.length > 0;
 
   return (
     <Card>
@@ -67,6 +77,21 @@ export default function RetrievalTest({ onSearch }: RetrievalTestProps) {
         </div>
       </div>
 
+      {hasRerankModels && (
+        <Form layout="inline" className="mb-4">
+          <Form.Item label="重排模型（可选）">
+            <Select
+              style={{ width: 240 }}
+              placeholder="不使用重排序"
+              allowClear
+              value={useRerank ? true : undefined}
+              onChange={(val) => setUseRerank(!!val)}
+              options={[{ value: true, label: `使用重排（已配置 ${rerankModels!.length} 个模型）` }]}
+            />
+          </Form.Item>
+        </Form>
+      )}
+
       {loading && (
         <div className="flex items-center justify-center py-8">
           <Spin tip="检索中..." />
@@ -80,7 +105,7 @@ export default function RetrievalTest({ onSearch }: RetrievalTestProps) {
       {!loading && results.length > 0 && (
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
           <Text strong className="block mb-3">
-            Top {results.length} 匹配结果:
+            Top {results.length} 匹配结果{useRerank ? '（已重排序）' : ''}:
           </Text>
           <div className="space-y-3">
             {results.map((result, index) => (

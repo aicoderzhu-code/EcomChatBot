@@ -2,9 +2,11 @@
 知识库管理 API 路由
 """
 from fastapi import APIRouter, Body, Query
+from sqlalchemy import select
 
 from api.dependencies import DBDep, TenantDep, TenantFlexDep
 from api.middleware import StorageQuotaDep, ApiQuotaDep
+from models.model_config import ModelConfig
 from schemas import (
     ApiResponse,
     KnowledgeBaseCreate,
@@ -12,6 +14,8 @@ from schemas import (
     KnowledgeBaseUpdate,
     KnowledgeBatchImportRequest,
     KnowledgeBatchImportResponse,
+    KnowledgeSettingsResponse,
+    KnowledgeSettingsUpdate,
     PaginatedResponse,
     RAGQueryRequest,
     RAGQueryResponse,
@@ -75,54 +79,6 @@ async def list_knowledge(
     )
 
     return ApiResponse(data=paginated)
-
-
-@router.get("/{knowledge_id}", response_model=ApiResponse[KnowledgeBaseResponse])
-async def get_knowledge(
-    knowledge_id: str,
-    tenant_id: TenantFlexDep,
-    db: DBDep,
-):
-    """获取知识详情"""
-    service = KnowledgeService(db, tenant_id)
-    knowledge = await service.get_knowledge(knowledge_id)
-    return ApiResponse(data=knowledge)
-
-
-@router.put("/{knowledge_id}", response_model=ApiResponse[KnowledgeBaseResponse])
-async def update_knowledge(
-    knowledge_id: str,
-    knowledge_data: KnowledgeBaseUpdate,
-    tenant_id: StorageQuotaDep,  # 检查存储配额
-    db: DBDep,
-):
-    """
-    更新知识条目
-
-    ⚠️ 会检查存储空间配额
-    """
-    service = KnowledgeService(db, tenant_id)
-    knowledge = await service.update_knowledge(
-        knowledge_id=knowledge_id,
-        title=knowledge_data.title,
-        content=knowledge_data.content,
-        category=knowledge_data.category,
-        tags=knowledge_data.tags,
-        priority=knowledge_data.priority,
-    )
-    return ApiResponse(data=knowledge)
-
-
-@router.delete("/{knowledge_id}", response_model=ApiResponse[dict])
-async def delete_knowledge(
-    knowledge_id: str,
-    tenant_id: TenantFlexDep,
-    db: DBDep,
-):
-    """删除知识条目"""
-    service = KnowledgeService(db, tenant_id)
-    await service.delete_knowledge(knowledge_id)
-    return ApiResponse(data={"message": "删除成功"})
 
 
 @router.post("/batch-import", response_model=ApiResponse[KnowledgeBatchImportResponse])
@@ -189,6 +145,41 @@ async def search_knowledge(
     return ApiResponse(data=knowledge_list)
 
 
+# ============ 知识库设置 - 固定路径必须在 /{knowledge_id} 之前 ============
+
+@router.get("/settings", response_model=ApiResponse[KnowledgeSettingsResponse])
+async def get_knowledge_settings(tenant_id: TenantDep, db: DBDep):
+    """获取知识库设置"""
+    svc = KnowledgeService(db, tenant_id)
+    s = await svc.get_settings()
+    has_indexed = await svc.has_indexed_documents()
+    return ApiResponse(data=KnowledgeSettingsResponse(
+        embedding_model_id=s.embedding_model_id,
+        rerank_model_id=s.rerank_model_id,
+        has_indexed_documents=has_indexed,
+    ))
+
+
+@router.put("/settings", response_model=ApiResponse[KnowledgeSettingsResponse])
+async def update_knowledge_settings(
+    settings_data: KnowledgeSettingsUpdate,
+    tenant_id: TenantDep,
+    db: DBDep,
+):
+    """更新知识库设置（有向量化文档时不允许换 embedding 模型）"""
+    svc = KnowledgeService(db, tenant_id)
+    s = await svc.update_settings(
+        embedding_model_id=settings_data.embedding_model_id,
+        rerank_model_id=settings_data.rerank_model_id,
+    )
+    has_indexed = await svc.has_indexed_documents()
+    return ApiResponse(data=KnowledgeSettingsResponse(
+        embedding_model_id=s.embedding_model_id,
+        rerank_model_id=s.rerank_model_id,
+        has_indexed_documents=has_indexed,
+    ))
+
+
 @router.post("/rag/query", response_model=ApiResponse[dict])
 async def rag_query(
     query_data: RAGQueryRequest,
@@ -198,11 +189,32 @@ async def rag_query(
     """
     RAG 查询（检索增强生成）
 
-    注：当前为简化实现，实际应集成 LangChain 和 Milvus
-
     ⚠️ 会检查API调用配额
     """
-    service = RAGService(db, tenant_id)
+    # 从 knowledge_settings 加载 embedding / rerank 配置
+    knowledge_svc = KnowledgeService(db, tenant_id)
+    ks = await knowledge_svc.get_settings()
+
+    # 加载 embedding model config（优先使用租户配置）
+    embedding_config = None
+    if ks.embedding_model_id:
+        mc_stmt = select(ModelConfig).where(ModelConfig.id == ks.embedding_model_id)
+        mc_result = await db.execute(mc_stmt)
+        embedding_config = mc_result.scalar_one_or_none()
+
+    # 加载 rerank model config（仅在请求时使用）
+    rerank_config = None
+    if query_data.use_rerank and ks.rerank_model_id:
+        mc_stmt = select(ModelConfig).where(ModelConfig.id == ks.rerank_model_id)
+        mc_result = await db.execute(mc_stmt)
+        rerank_config = mc_result.scalar_one_or_none()
+
+    service = RAGService(
+        db,
+        tenant_id,
+        embedding_model_config=embedding_config,
+        rerank_model_config=rerank_config,
+    )
     results = await service.retrieve(
         query=query_data.query,
         top_k=query_data.top_k,
@@ -214,3 +226,53 @@ async def rag_query(
             "query_time": 0.1,  # TODO: 实际查询时间
         }
     )
+
+
+# ============ 固定路径结束，参数路径在最后 ============
+
+@router.get("/{knowledge_id}", response_model=ApiResponse[KnowledgeBaseResponse])
+async def get_knowledge(
+    knowledge_id: str,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """获取知识详情"""
+    service = KnowledgeService(db, tenant_id)
+    knowledge = await service.get_knowledge(knowledge_id)
+    return ApiResponse(data=knowledge)
+
+
+@router.put("/{knowledge_id}", response_model=ApiResponse[KnowledgeBaseResponse])
+async def update_knowledge(
+    knowledge_id: str,
+    knowledge_data: KnowledgeBaseUpdate,
+    tenant_id: StorageQuotaDep,  # 检查存储配额
+    db: DBDep,
+):
+    """
+    更新知识条目
+
+    ⚠️ 会检查存储空间配额
+    """
+    service = KnowledgeService(db, tenant_id)
+    knowledge = await service.update_knowledge(
+        knowledge_id=knowledge_id,
+        title=knowledge_data.title,
+        content=knowledge_data.content,
+        category=knowledge_data.category,
+        tags=knowledge_data.tags,
+        priority=knowledge_data.priority,
+    )
+    return ApiResponse(data=knowledge)
+
+
+@router.delete("/{knowledge_id}", response_model=ApiResponse[dict])
+async def delete_knowledge(
+    knowledge_id: str,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """删除知识条目"""
+    service = KnowledgeService(db, tenant_id)
+    await service.delete_knowledge(knowledge_id)
+    return ApiResponse(data={"message": "删除成功"})

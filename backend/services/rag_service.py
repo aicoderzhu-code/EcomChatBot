@@ -4,8 +4,10 @@ RAG（检索增强生成）服务
 """
 from typing import Any
 
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from models import KnowledgeBase
 from services.embedding_service import EmbeddingService
 from services.knowledge_service import KnowledgeService
 from services.milvus_service import MilvusService
@@ -14,12 +16,13 @@ from services.milvus_service import MilvusService
 class RAGService:
     """RAG 检索服务"""
 
-    def __init__(self, db: AsyncSession, tenant_id: str):
+    def __init__(self, db: AsyncSession, tenant_id: str, embedding_model_config=None, rerank_model_config=None):
         self.db = db
         self.tenant_id = tenant_id
         self.knowledge_service = KnowledgeService(db, tenant_id)
-        self.embedding_service = EmbeddingService(tenant_id)
+        self.embedding_service = EmbeddingService(tenant_id, model_config=embedding_model_config)
         self.milvus_service = MilvusService(tenant_id)
+        self.rerank_model_config = rerank_model_config
 
     async def retrieve(
         self,
@@ -30,13 +33,13 @@ class RAGService:
     ) -> list[dict]:
         """
         检索相关知识
-        
+
         Args:
             query: 查询文本
             top_k: 返回结果数量
             knowledge_type: 知识类型过滤
             use_vector_search: 是否使用向量搜索（否则使用关键词）
-            
+
         Returns:
             检索结果列表
         """
@@ -87,6 +90,10 @@ class RAGService:
                             }
                         )
 
+                # 5. 可选重排
+                if self.rerank_model_config and results:
+                    results = await self._apply_rerank(query, results)
+
                 return results
 
             except Exception as e:
@@ -98,6 +105,70 @@ class RAGService:
             # 使用关键词搜索
             return await self._keyword_search(query, top_k, knowledge_type)
 
+    async def _apply_rerank(self, query: str, results: list[dict]) -> list[dict]:
+        """
+        使用重排模型对检索结果重新排序
+
+        支持 Cohere 和 Jina 的 rerank API。
+        """
+        import httpx
+
+        provider = self.rerank_model_config.provider
+        api_key = self.rerank_model_config.api_key
+        model_name = self.rerank_model_config.model_name
+        documents = [r.get("content", "")[:512] for r in results]
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                if provider == "cohere":
+                    resp = await client.post(
+                        "https://api.cohere.com/v2/rerank",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": model_name,
+                            "query": query,
+                            "documents": documents,
+                            "top_n": len(results),
+                        },
+                    )
+                    if resp.status_code == 200:
+                        reranked = sorted(
+                            resp.json()["results"],
+                            key=lambda x: x["relevance_score"],
+                            reverse=True,
+                        )
+                        return [results[r["index"]] for r in reranked]
+
+                elif provider == "jina":
+                    resp = await client.post(
+                        "https://api.jina.ai/v1/rerank",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": model_name,
+                            "query": query,
+                            "documents": documents,
+                            "top_n": len(results),
+                        },
+                    )
+                    if resp.status_code == 200:
+                        reranked = sorted(
+                            resp.json()["results"],
+                            key=lambda x: x["relevance_score"],
+                            reverse=True,
+                        )
+                        return [results[r["index"]] for r in reranked]
+
+        except Exception as e:
+            print(f"[RAGService] Rerank 失败，返回原始顺序: {e}")
+
+        return results
+
     async def _keyword_search(
         self,
         query: str,
@@ -106,12 +177,12 @@ class RAGService:
     ) -> list[dict]:
         """
         关键词搜索（回退方案）
-        
+
         Args:
             query: 查询文本
             top_k: 返回结果数量
             knowledge_type: 知识类型过滤
-            
+
         Returns:
             搜索结果列表
         """
@@ -145,12 +216,12 @@ class RAGService:
     ) -> dict:
         """
         检索并生成回复（RAG 完整流程）
-        
+
         Args:
             query: 查询文本
             conversation_history: 对话历史
             use_vector_search: 是否使用向量搜索
-            
+
         Returns:
             生成结果
         """
@@ -188,10 +259,10 @@ class RAGService:
     async def index_knowledge(self, knowledge_id: str) -> dict[str, Any]:
         """
         为知识库项创建向量索引
-        
+
         Args:
             knowledge_id: 知识库 ID
-            
+
         Returns:
             索引结果
         """
@@ -219,6 +290,17 @@ class RAGService:
             vectors=[vector],
         )
 
+        # 4. 更新 DB 记录的向量 ID 和模型名称
+        await self.db.execute(
+            sa_update(KnowledgeBase)
+            .where(KnowledgeBase.knowledge_id == knowledge_id)
+            .values(
+                embedding_vector_id=vector_id,
+                embedding_model=self.embedding_service.get_model_name(),
+            )
+        )
+        await self.db.commit()
+
         return {
             "knowledge_id": knowledge_id,
             "vector_id": vector_id,
@@ -231,10 +313,10 @@ class RAGService:
     ) -> dict[str, Any]:
         """
         批量索引知识库
-        
+
         Args:
             knowledge_ids: 知识库 ID 列表
-            
+
         Returns:
             批量索引结果
         """
@@ -260,10 +342,10 @@ class RAGService:
     async def delete_knowledge_vectors(self, knowledge_ids: list[str]) -> int:
         """
         删除知识库向量
-        
+
         Args:
             knowledge_ids: 知识库 ID 列表
-            
+
         Returns:
             删除数量
         """
@@ -273,7 +355,7 @@ class RAGService:
     def get_stats(self) -> dict[str, Any]:
         """
         获取 RAG 统计信息
-        
+
         Returns:
             统计信息
         """

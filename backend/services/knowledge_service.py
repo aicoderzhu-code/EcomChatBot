@@ -6,9 +6,10 @@ from datetime import datetime
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.exceptions import ResourceNotFoundException
+from core.exceptions import AppException, ResourceNotFoundException
 from core.security import generate_tenant_id
 from models import KnowledgeBase
+from models.knowledge_settings import KnowledgeSettings
 
 
 class KnowledgeService:
@@ -51,10 +52,66 @@ class KnowledgeService:
         await self.db.commit()
         await self.db.refresh(knowledge)
 
-        # TODO: 生成向量并存储到 Milvus
-        # await self.generate_and_store_embedding(knowledge)
+        # 触发向量化（如已配置 embedding 模型）
+        ks = await self.get_settings()
+        if ks.embedding_model_id:
+            try:
+                await self._trigger_embedding(knowledge, ks.embedding_model_id)
+            except Exception as e:
+                print(f"[KnowledgeService] 向量化失败（不阻断上传）: {e}")
 
         return knowledge
+
+    async def _trigger_embedding(self, knowledge: KnowledgeBase, embedding_model_id: int) -> None:
+        """触发单条知识的向量化"""
+        from models.model_config import ModelConfig
+        from services.rag_service import RAGService
+
+        model_stmt = select(ModelConfig).where(ModelConfig.id == embedding_model_id)
+        result = await self.db.execute(model_stmt)
+        model_config = result.scalar_one_or_none()
+        if model_config:
+            rag = RAGService(self.db, self.tenant_id, embedding_model_config=model_config)
+            await rag.index_knowledge(knowledge.knowledge_id)
+
+    async def get_settings(self) -> KnowledgeSettings:
+        """获取或自动创建租户知识库设置"""
+        stmt = select(KnowledgeSettings).where(KnowledgeSettings.tenant_id == self.tenant_id)
+        result = await self.db.execute(stmt)
+        s = result.scalar_one_or_none()
+        if not s:
+            s = KnowledgeSettings(tenant_id=self.tenant_id)
+            self.db.add(s)
+            await self.db.commit()
+            await self.db.refresh(s)
+        return s
+
+    async def update_settings(
+        self,
+        embedding_model_id: int | None,
+        rerank_model_id: int | None,
+    ) -> KnowledgeSettings:
+        """更新设置；若更改 embedding_model_id 则先检查是否有向量化文档"""
+        s = await self.get_settings()
+        if embedding_model_id != s.embedding_model_id:
+            if await self.has_indexed_documents():
+                raise AppException("知识库已有向量化文档，无法更换嵌入模型。请先清空知识库。")
+        s.embedding_model_id = embedding_model_id
+        s.rerank_model_id = rerank_model_id
+        s.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(s)
+        return s
+
+    async def has_indexed_documents(self) -> bool:
+        """是否有 embedding_vector_id 非空的文档"""
+        stmt = select(func.count(KnowledgeBase.id)).where(
+            KnowledgeBase.tenant_id == self.tenant_id,
+            KnowledgeBase.status == "active",
+            KnowledgeBase.embedding_vector_id.isnot(None),
+        )
+        count = await self.db.scalar(stmt)
+        return (count or 0) > 0
 
     async def get_knowledge_by_ids(
         self,
@@ -62,10 +119,10 @@ class KnowledgeService:
     ) -> list[KnowledgeBase]:
         """
         批量获取知识库项
-        
+
         Args:
             knowledge_ids: 知识库 ID 列表
-            
+
         Returns:
             知识库项列表
         """
@@ -188,7 +245,7 @@ class KnowledgeService:
     ) -> list[KnowledgeBase]:
         """
         搜索知识（简单关键词搜索）
-        
+
         TODO: 使用 RAG 向量搜索替代
         """
         conditions = [
