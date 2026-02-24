@@ -2,6 +2,7 @@
 租户表模型
 """
 from datetime import datetime
+import uuid
 
 from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -117,6 +118,11 @@ class Subscription(BaseModel):
         {"comment": "套餐订阅表"},
     )
 
+    # 订阅唯一标识
+    subscription_id: Mapped[str] = mapped_column(
+        String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()), comment="订阅唯一标识(UUID)"
+    )
+
     # 租户信息
     tenant_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("tenants.tenant_id"), nullable=False, comment="租户ID", index=True
@@ -183,6 +189,11 @@ class UsageRecord(BaseModel):
     __table_args__ = (
         Index("idx_usage_tenant_date", "tenant_id", "record_date"),
         {"comment": "用量记录表"},
+    )
+
+    # 订阅唯一标识
+    subscription_id: Mapped[str] = mapped_column(
+        String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()), comment="订阅唯一标识(UUID)"
     )
 
     # 租户信息
