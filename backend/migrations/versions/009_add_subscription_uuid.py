@@ -14,7 +14,6 @@ from sqlalchemy import text
 revision = "009"
 down_revision = "008"
 branch_labels = None
-branch_labels = None
 depends_on = None
 
 
