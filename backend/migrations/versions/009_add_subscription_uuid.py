@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from sqlalchemy import text
 
 
-revision = "009"
-down_revision = "008"
+revision = "009_add_subscription_uuid"
+down_revision = "008_subscription_plans"
 branch_labels = None
 depends_on = None
 
