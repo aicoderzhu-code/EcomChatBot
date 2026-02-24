@@ -1,3 +1,23 @@
+// Setup Types (System Initialization)
+export interface SetupStatus {
+  initialized: boolean;
+  admin_count: number;
+}
+
+export interface InitialAdminCreate {
+  username: string;
+  password: string;
+  confirm_password: string;
+  email: string;
+  phone?: string;
+}
+
+export interface InitialAdminResponse {
+  message: string;
+  admin_id: string;
+  username: string;
+}
+
 // Admin Authentication Types
 export interface AdminInfo {
   id: number;

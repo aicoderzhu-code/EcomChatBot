@@ -3,11 +3,14 @@ RAG（检索增强生成）API 路由
 """
 from fastapi import APIRouter
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from api.dependencies import DBDep, TenantDep
 from api.middleware import ApiQuotaDep, StorageQuotaDep
+from models.model_config import ModelConfig
 from schemas import ApiResponse
 from services import RAGService
+from services.knowledge_service import KnowledgeService
 
 router = APIRouter(prefix="/rag", tags=["RAG 检索增强"])
 
@@ -39,6 +42,18 @@ class BatchIndexRequest(BaseModel):
     knowledge_ids: list[str]
 
 
+async def _load_embedding_config(db, tenant_id):
+    """从 KnowledgeSettings 加载 embedding 模型配置"""
+    try:
+        ks = await KnowledgeService(db, tenant_id).get_settings()
+        if ks and ks.embedding_model_id:
+            result = await db.execute(select(ModelConfig).where(ModelConfig.id == ks.embedding_model_id))
+            return result.scalar_one_or_none()
+    except Exception:
+        pass
+    return None
+
+
 @router.post("/retrieve", response_model=ApiResponse[list[dict]])
 async def rag_retrieve(
     request: RAGQueryRequest,
@@ -52,7 +67,7 @@ async def rag_retrieve(
 
     ⚠️ 会检查API调用配额
     """
-    service = RAGService(db, tenant_id)
+    service = RAGService(db, tenant_id, embedding_model_config=await _load_embedding_config(db, tenant_id))
 
     results = await service.retrieve(
         query=request.query,
@@ -76,7 +91,7 @@ async def rag_generate(
 
     ⚠️ 会检查API调用配额
     """
-    service = RAGService(db, tenant_id)
+    service = RAGService(db, tenant_id, embedding_model_config=await _load_embedding_config(db, tenant_id))
 
     result = await service.retrieve_and_generate(
         query=request.query,
@@ -99,7 +114,7 @@ async def index_knowledge(
 
     ⚠️ 会检查存储空间配额
     """
-    service = RAGService(db, tenant_id)
+    service = RAGService(db, tenant_id, embedding_model_config=await _load_embedding_config(db, tenant_id))
 
     result = await service.index_knowledge(request.knowledge_id)
 
@@ -119,7 +134,7 @@ async def batch_index_knowledge(
 
     ⚠️ 会检查存储空间配额
     """
-    service = RAGService(db, tenant_id)
+    service = RAGService(db, tenant_id, embedding_model_config=await _load_embedding_config(db, tenant_id))
 
     result = await service.index_batch_knowledge(request.knowledge_ids)
 
@@ -136,7 +151,7 @@ async def get_rag_stats(
     
     包括向量库统计、Embedding 模型信息等
     """
-    service = RAGService(db, tenant_id)
+    service = RAGService(db, tenant_id, embedding_model_config=await _load_embedding_config(db, tenant_id))
 
     stats = service.get_stats()
 

@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Row, Col, Card, Button, Statistic, message, Typography, Spin } from 'antd';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Row, Col, Card, Button, Statistic, message, Typography, Spin, Form, Select, Alert } from 'antd';
 import { PlusOutlined, FileTextOutlined, AppstoreOutlined, CloudOutlined } from '@ant-design/icons';
 import {
   DocumentList,
   UploadModal,
   RetrievalTest,
 } from '@/components/knowledge';
-import { knowledgeApi, KnowledgeItem } from '@/lib/api/knowledge';
+import { knowledgeApi, KnowledgeItem, KnowledgeSettings } from '@/lib/api/knowledge';
+import { settingsApi, ModelConfig } from '@/lib/api/settings';
 import { KnowledgeDocument, KnowledgeSearchResult } from '@/types';
 
 const { Title } = Typography;
@@ -47,6 +48,62 @@ export default function KnowledgePage() {
     storageUsed: 0,
   });
 
+  // Knowledge settings
+  const [knowledgeSettings, setKnowledgeSettings] = useState<KnowledgeSettings | null>(null);
+  const [modelConfigs, setModelConfigs] = useState<ModelConfig[]>([]);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Load stats from dedicated endpoint
+  const loadStats = useCallback(async () => {
+    try {
+      const resp = await knowledgeApi.getStats();
+      if (resp.success && resp.data) {
+        setStats({
+          totalDocuments: resp.data.total_documents,
+          totalChunks: resp.data.total_chunks,
+          storageUsed: 0,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load stats:', err);
+    }
+  }, []);
+
+  // Polling ref
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  const startPolling = useCallback((pageSize: number) => {
+    stopPolling();
+    pollingRef.current = setInterval(async () => {
+      try {
+        const resp = await knowledgeApi.list({ page: 1, size: pageSize });
+        if (resp.success && resp.data) {
+          const items = resp.data.items || [];
+          setDocuments(items.map(transformToDocument));
+          const allDone = items.every(
+            (i) => i.embedding_status === 'completed' || i.embedding_status === 'failed'
+          );
+          if (allDone) {
+            stopPolling();
+          }
+          await loadStats();
+        }
+      } catch {
+        // 轮询失败静默处理，不中断轮询
+      }
+    }, 3000);
+  }, [stopPolling, loadStats]);
+
+  // Cleanup on unmount
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
   // Load documents
   const loadDocuments = useCallback(async (page: number, pageSize: number, keyword: string) => {
     try {
@@ -64,14 +121,6 @@ export default function KnowledgePage() {
           ...prev,
           total: response.data?.total || 0,
         }));
-
-        // Calculate stats from loaded data
-        const totalChunks = items.reduce((sum, item) => sum + item.chunk_count, 0);
-        setStats({
-          totalDocuments: response.data.total || 0,
-          totalChunks,
-          storageUsed: 0, // Not provided by API
-        });
       }
     } catch (err) {
       console.error('Failed to load documents:', err);
@@ -81,28 +130,63 @@ export default function KnowledgePage() {
     }
   }, []);
 
+  // Load settings and model configs
+  const loadSettings = useCallback(async () => {
+    try {
+      const [settingsResp, modelsResp] = await Promise.all([
+        knowledgeApi.getSettings(),
+        settingsApi.getModelConfigs(),
+      ]);
+      if (settingsResp.success && settingsResp.data) {
+        setKnowledgeSettings(settingsResp.data);
+      }
+      if (modelsResp.success && modelsResp.data) {
+        setModelConfigs(modelsResp.data);
+      }
+    } catch (err) {
+      console.error('Failed to load knowledge settings:', err);
+    }
+  }, []);
+
   useEffect(() => {
     loadDocuments(pagination.current, pagination.pageSize, searchValue);
-  }, [loadDocuments, pagination.current, pagination.pageSize, searchValue]);
+    loadStats();
+    loadSettings();
+  }, [loadDocuments, loadStats, loadSettings, pagination.current, pagination.pageSize, searchValue]);
+
+  const handleSaveSettings = async () => {
+    if (!knowledgeSettings) return;
+    setSavingSettings(true);
+    try {
+      const resp = await knowledgeApi.updateSettings({
+        embedding_model_id: knowledgeSettings.embedding_model_id,
+        rerank_model_id: knowledgeSettings.rerank_model_id,
+      });
+      if (resp.success && resp.data) {
+        setKnowledgeSettings(resp.data);
+        message.success('设置已保存');
+      } else {
+        message.error('保存失败');
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : '保存失败';
+      message.error(errMsg);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   const handleUpload = async (files: File[]) => {
     setUploading(true);
     try {
-      // For now, create knowledge entries with file content
-      // In a real implementation, you would upload files to a file storage service first
       for (const file of files) {
-        const content = await file.text().catch(() => `File: ${file.name}`);
-        await knowledgeApi.create({
-          knowledge_type: file.name.split('.').pop() || 'txt',
-          title: file.name,
-          content: content.substring(0, 10000), // Limit content size
-          source: 'upload',
-        });
+        await knowledgeApi.uploadFile(file);
       }
-
       message.success(`成功上传 ${files.length} 个文件`);
       setUploadModalOpen(false);
-      loadDocuments(pagination.current, pagination.pageSize, searchValue); // Reload list
+      await loadDocuments(pagination.current, pagination.pageSize, searchValue);
+      await loadStats();
+      startPolling(pagination.pageSize);
     } catch (err) {
       console.error('Failed to upload:', err);
       message.error('上传失败');
@@ -131,17 +215,22 @@ export default function KnowledgePage() {
     // TODO: Open preview modal
   };
 
-  const handleSearch = async (query: string): Promise<KnowledgeSearchResult[]> => {
+  const handleSearch = async (query: string, useRerank?: boolean): Promise<KnowledgeSearchResult[]> => {
     try {
-      const response = await knowledgeApi.search(query, 5);
+      const response = await knowledgeApi.ragQuery({
+        query,
+        top_k: 5,
+        use_rerank: useRerank || false,
+      });
       if (response.success && response.data) {
-        // Transform backend response to frontend format
-        return response.data.map((item) => ({
+        return response.data.results.map((item) => ({
           knowledge_id: item.knowledge_id,
           title: item.title,
-          content: item.content.substring(0, 200) + '...',
-          score: 0.9, // Backend doesn't provide score for simple search
-          source: item.knowledge_type,
+          content: typeof item.content === 'string'
+            ? item.content.substring(0, 200) + '...'
+            : String(item.content || ''),
+          score: item.score || 0.9,
+          source: item.source || '',
         }));
       }
       return [];
@@ -161,6 +250,9 @@ export default function KnowledgePage() {
     return matchesStatus;
   });
 
+  const embeddingModels = modelConfigs.filter((m) => m.model_type === 'embedding');
+  const rerankModels = modelConfigs.filter((m) => m.model_type === 'rerank');
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -174,6 +266,61 @@ export default function KnowledgePage() {
           上传新文档
         </Button>
       </div>
+
+      {/* Knowledge Settings */}
+      <Card title="知识库设置" className="mb-4">
+        <Form layout="inline">
+          <Form.Item label="嵌入模型">
+            <Select
+              style={{ width: 280 }}
+              placeholder="请选择嵌入模型"
+              value={knowledgeSettings?.embedding_model_id ?? undefined}
+              disabled={knowledgeSettings?.has_indexed_documents}
+              allowClear
+              options={embeddingModels.map((m) => ({
+                value: m.id,
+                label: `${m.model_name} (${m.provider})`,
+              }))}
+              onChange={(val) =>
+                setKnowledgeSettings((prev) =>
+                  prev ? { ...prev, embedding_model_id: val ?? null } : null
+                )
+              }
+            />
+          </Form.Item>
+          <Form.Item label="重排模型（检索用）">
+            <Select
+              style={{ width: 280 }}
+              placeholder="不使用重排序"
+              value={knowledgeSettings?.rerank_model_id ?? undefined}
+              allowClear
+              options={rerankModels.map((m) => ({
+                value: m.id,
+                label: `${m.model_name} (${m.provider})`,
+              }))}
+              onChange={(val) =>
+                setKnowledgeSettings((prev) =>
+                  prev ? { ...prev, rerank_model_id: val ?? null } : null
+                )
+              }
+            />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" loading={savingSettings} onClick={handleSaveSettings}>
+              保存设置
+            </Button>
+          </Form.Item>
+        </Form>
+        {knowledgeSettings?.has_indexed_documents && (
+          <Alert
+            className="mt-3"
+            message="嵌入模型已锁定"
+            description="知识库已有文档。若需更换嵌入模型，请先删除所有文档。"
+            type="warning"
+            showIcon
+          />
+        )}
+      </Card>
 
       {/* Stats */}
       <Row gutter={[16, 16]}>
@@ -235,7 +382,14 @@ export default function KnowledgePage() {
       </Card>
 
       {/* Retrieval Test */}
-      <RetrievalTest onSearch={handleSearch} />
+      <RetrievalTest
+        onSearch={handleSearch}
+        rerankModels={rerankModels.map((m) => ({
+          id: m.id,
+          model_name: m.model_name,
+          provider: m.provider,
+        }))}
+      />
 
       {/* Upload Modal */}
       <UploadModal

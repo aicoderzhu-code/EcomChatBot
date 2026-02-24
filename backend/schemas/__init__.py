@@ -34,6 +34,8 @@ from schemas.knowledge import (
     KnowledgeBaseUpdate,
     KnowledgeBatchImportRequest,
     KnowledgeBatchImportResponse,
+    KnowledgeSettingsUpdate,
+    KnowledgeSettingsResponse,
     RAGQueryRequest,
     RAGQueryResponse,
 )
@@ -84,6 +86,10 @@ from schemas.webhook import (
     WebhookUpdateRequest,
     WebhookResponse,
     WebhookLogResponse,
+)
+from schemas.setup import (
+    SetupStatus,
+    InitialAdminCreate,
 )
 
 __all__ = [
@@ -144,6 +150,8 @@ __all__ = [
     "RAGQueryResponse",
     "KnowledgeBatchImportRequest",
     "KnowledgeBatchImportResponse",
+    "KnowledgeSettingsUpdate",
+    "KnowledgeSettingsResponse",
     # Payment
     "PaymentOrderCreate",
     "PaymentOrderResponse",
@@ -168,4 +176,7 @@ __all__ = [
     "SubscriptionDetail",
     "ProratedPriceDetail",
     "SubscriptionOperationResponse",
+    # Setup
+    "SetupStatus",
+    "InitialAdminCreate",
 ]

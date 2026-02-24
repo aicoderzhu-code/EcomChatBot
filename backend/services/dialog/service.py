@@ -42,7 +42,7 @@ class DialogGraphService:
         self._graph: Optional[DialogGraph] = None
         self._builder: Optional[DialogGraphBuilder] = None
 
-    def _init_services(self):
+    async def _init_services(self):
         """初始化依赖服务"""
         # 导入避免循环依赖
         from services.llm_service import LLMService
@@ -51,8 +51,16 @@ class DialogGraphService:
         from services.prompt_service import PromptService
         from services.memory_service import MemoryService
 
-        # 创建服务实例
-        llm_service = LLMService(self.db, self.tenant_id)
+        # 从数据库加载默认 LLM 配置（优先于环境变量）
+        model_config = None
+        try:
+            from services.model_config_service import ModelConfigService
+            model_config = await ModelConfigService(self.db, self.tenant_id).get_default_model(use_case="dialogue")
+        except Exception:
+            pass
+
+        # 创建服务实例（修复：不再将 db 误传为 tenant_id）
+        llm_service = LLMService(self.tenant_id, model_config=model_config)
         intent_service = IntentService(self.db, self.tenant_id)
         rag_service = RAGService(self.db, self.tenant_id)
         prompt_service = PromptService()
@@ -92,10 +100,10 @@ class DialogGraphService:
             model_router=model_router,
         )
 
-    def _get_graph(self) -> DialogGraph:
+    async def _get_graph(self) -> DialogGraph:
         """获取或创建对话图"""
         if self._graph is None:
-            self._init_services()
+            await self._init_services()
 
             # 根据类型构建图
             if self.graph_type == "simple":
@@ -140,7 +148,7 @@ class DialogGraphService:
                 "provider_used": str
             }
         """
-        graph = self._get_graph()
+        graph = await self._get_graph()
 
         # 确定对话模式
         if mode is None:
@@ -195,7 +203,7 @@ class DialogGraphService:
                 "is_final": bool
             }
         """
-        graph = self._get_graph()
+        graph = await self._get_graph()
 
         # 确定对话模式
         if mode is None:

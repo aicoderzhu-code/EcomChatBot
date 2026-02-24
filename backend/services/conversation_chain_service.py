@@ -50,8 +50,17 @@ class ConversationChainService:
         )
 
     async def initialize(self) -> None:
-        """初始化：加载历史对话"""
+        """初始化：加载历史对话，并从 DB 加载默认 LLM 配置"""
         await self.memory.load_history_from_db(limit=20)
+
+        # 从数据库加载默认 LLM 配置（优先于环境变量）
+        try:
+            from services.model_config_service import ModelConfigService
+            model_config = await ModelConfigService(self.db, self.tenant_id).get_default_model(use_case="dialogue")
+            if model_config:
+                self.llm_service = LLMService(self.tenant_id, model_config=model_config)
+        except Exception:
+            pass  # 加载失败时保持使用环境变量配置
 
     async def chat(
         self,

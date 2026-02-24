@@ -66,6 +66,12 @@ class KnowledgeBase(TenantBaseModel):
     embedding_model: Mapped[str | None] = mapped_column(
         String(64), comment="使用的Embedding模型"
     )
+    embedding_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending", comment="向量化状态(pending/completed/failed)"
+    )
+    chunk_count: Mapped[int] = mapped_column(
+        Integer, default=1, comment="文本切片数量"
+    )
 
     # 优先级和状态
     priority: Mapped[int] = mapped_column(Integer, default=0, comment="优先级")

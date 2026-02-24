@@ -61,8 +61,12 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """初始化数据库（创建所有表）"""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception:
+        # Tables already exist (race condition with multiple workers on startup)
+        pass
 
 
 async def close_db() -> None:

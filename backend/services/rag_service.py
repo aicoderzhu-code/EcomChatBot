@@ -4,8 +4,10 @@ RAG（检索增强生成）服务
 """
 from typing import Any
 
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from models import KnowledgeBase
 from services.embedding_service import EmbeddingService
 from services.knowledge_service import KnowledgeService
 from services.milvus_service import MilvusService
@@ -14,12 +16,13 @@ from services.milvus_service import MilvusService
 class RAGService:
     """RAG 检索服务"""
 
-    def __init__(self, db: AsyncSession, tenant_id: str):
+    def __init__(self, db: AsyncSession, tenant_id: str, embedding_model_config=None, rerank_model_config=None):
         self.db = db
         self.tenant_id = tenant_id
         self.knowledge_service = KnowledgeService(db, tenant_id)
-        self.embedding_service = EmbeddingService(tenant_id)
+        self.embedding_service = EmbeddingService(tenant_id, model_config=embedding_model_config)
         self.milvus_service = MilvusService(tenant_id)
+        self.rerank_model_config = rerank_model_config
 
     async def retrieve(
         self,
@@ -30,13 +33,13 @@ class RAGService:
     ) -> list[dict]:
         """
         检索相关知识
-        
+
         Args:
             query: 查询文本
             top_k: 返回结果数量
             knowledge_type: 知识类型过滤
             use_vector_search: 是否使用向量搜索（否则使用关键词）
-            
+
         Returns:
             检索结果列表
         """
@@ -87,6 +90,10 @@ class RAGService:
                             }
                         )
 
+                # 5. 可选重排
+                if self.rerank_model_config and results:
+                    results = await self._apply_rerank(query, results)
+
                 return results
 
             except Exception as e:
@@ -98,6 +105,70 @@ class RAGService:
             # 使用关键词搜索
             return await self._keyword_search(query, top_k, knowledge_type)
 
+    async def _apply_rerank(self, query: str, results: list[dict]) -> list[dict]:
+        """
+        使用重排模型对检索结果重新排序
+
+        支持 Cohere 和 Jina 的 rerank API。
+        """
+        import httpx
+
+        provider = self.rerank_model_config.provider
+        api_key = self.rerank_model_config.api_key
+        model_name = self.rerank_model_config.model_name
+        documents = [r.get("content", "")[:512] for r in results]
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                if provider == "cohere":
+                    resp = await client.post(
+                        "https://api.cohere.com/v2/rerank",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": model_name,
+                            "query": query,
+                            "documents": documents,
+                            "top_n": len(results),
+                        },
+                    )
+                    if resp.status_code == 200:
+                        reranked = sorted(
+                            resp.json()["results"],
+                            key=lambda x: x["relevance_score"],
+                            reverse=True,
+                        )
+                        return [results[r["index"]] for r in reranked]
+
+                elif provider == "jina":
+                    resp = await client.post(
+                        "https://api.jina.ai/v1/rerank",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": model_name,
+                            "query": query,
+                            "documents": documents,
+                            "top_n": len(results),
+                        },
+                    )
+                    if resp.status_code == 200:
+                        reranked = sorted(
+                            resp.json()["results"],
+                            key=lambda x: x["relevance_score"],
+                            reverse=True,
+                        )
+                        return [results[r["index"]] for r in reranked]
+
+        except Exception as e:
+            print(f"[RAGService] Rerank 失败，返回原始顺序: {e}")
+
+        return results
+
     async def _keyword_search(
         self,
         query: str,
@@ -106,12 +177,12 @@ class RAGService:
     ) -> list[dict]:
         """
         关键词搜索（回退方案）
-        
+
         Args:
             query: 查询文本
             top_k: 返回结果数量
             knowledge_type: 知识类型过滤
-            
+
         Returns:
             搜索结果列表
         """
@@ -145,12 +216,12 @@ class RAGService:
     ) -> dict:
         """
         检索并生成回复（RAG 完整流程）
-        
+
         Args:
             query: 查询文本
             conversation_history: 对话历史
             use_vector_search: 是否使用向量搜索
-            
+
         Returns:
             生成结果
         """
@@ -187,41 +258,71 @@ class RAGService:
 
     async def index_knowledge(self, knowledge_id: str) -> dict[str, Any]:
         """
-        为知识库项创建向量索引
-        
+        为知识库项创建向量索引（按 chunk 逐片向量化，支持大文档）
+
         Args:
             knowledge_id: 知识库 ID
-            
+
         Returns:
             索引结果
         """
+        import uuid
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+
         # 1. 获取知识库内容
         knowledge = await self.knowledge_service.get_knowledge(knowledge_id)
 
-        # 2. 生成向量
-        # 使用标题 + 内容
-        text = f"{knowledge.title}\n{knowledge.content}"
-        vector = await self.embedding_service.embed_text(text)
+        # 2. 将内容重新切片（与 document_parser 保持一致的参数）
+        CHUNK_SIZE = 800
+        CHUNK_OVERLAP = 100
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
+        )
+        chunks = splitter.split_text(knowledge.content) if knowledge.content else []
+        if not chunks:
+            chunks = [knowledge.title or knowledge.content or knowledge_id]
 
-        # 3. 插入 Milvus
-        import uuid
+        # 3. 逐 chunk 生成向量，并准备 Milvus 插入数据
+        knowledge_items = []
+        vectors = []
+        first_vector_id = None
 
-        vector_id = str(uuid.uuid4())
-
-        await self.milvus_service.insert_vectors(
-            knowledge_items=[
+        for chunk in chunks:
+            text = f"{knowledge.title}\n{chunk}"
+            vector = await self.embedding_service.embed_text(text)
+            vector_id = str(uuid.uuid4())
+            if first_vector_id is None:
+                first_vector_id = vector_id
+            knowledge_items.append(
                 {
                     "id": vector_id,
                     "knowledge_id": knowledge.knowledge_id,
-                    "content": knowledge.content[:1000],  # 存储摘要
+                    "content": chunk,
                 }
-            ],
-            vectors=[vector],
+            )
+            vectors.append(vector)
+
+        # 4. 批量插入 Milvus
+        await self.milvus_service.insert_vectors(
+            knowledge_items=knowledge_items,
+            vectors=vectors,
         )
+
+        # 5. 更新 DB 记录的向量 ID 和模型名称
+        await self.db.execute(
+            sa_update(KnowledgeBase)
+            .where(KnowledgeBase.knowledge_id == knowledge_id)
+            .values(
+                embedding_vector_id=first_vector_id,
+                embedding_model=self.embedding_service.get_model_name(),
+            )
+        )
+        await self.db.commit()
 
         return {
             "knowledge_id": knowledge_id,
-            "vector_id": vector_id,
+            "vector_id": first_vector_id,
+            "chunk_count": len(chunks),
             "indexed": True,
         }
 
@@ -231,10 +332,10 @@ class RAGService:
     ) -> dict[str, Any]:
         """
         批量索引知识库
-        
+
         Args:
             knowledge_ids: 知识库 ID 列表
-            
+
         Returns:
             批量索引结果
         """
@@ -260,10 +361,10 @@ class RAGService:
     async def delete_knowledge_vectors(self, knowledge_ids: list[str]) -> int:
         """
         删除知识库向量
-        
+
         Args:
             knowledge_ids: 知识库 ID 列表
-            
+
         Returns:
             删除数量
         """
@@ -273,7 +374,7 @@ class RAGService:
     def get_stats(self) -> dict[str, Any]:
         """
         获取 RAG 统计信息
-        
+
         Returns:
             统计信息
         """

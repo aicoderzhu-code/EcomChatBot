@@ -2,6 +2,7 @@
 LLM模型配置管理服务
 """
 from typing import Any
+import httpx
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +21,7 @@ class ModelConfigService:
         self,
         provider: str,
         model_name: str,
+        model_type: str = "llm",
         api_key: str | None = None,
         api_base: str | None = None,
         temperature: float = 0.7,
@@ -36,6 +38,7 @@ class ModelConfigService:
         Args:
             provider: LLM提供商
             model_name: 模型名称
+            model_type: 模型类型(llm/embedding/rerank)
             api_key: API密钥
             api_base: API基础URL
             temperature: 温度参数
@@ -49,7 +52,7 @@ class ModelConfigService:
         Returns:
             ModelConfig
         """
-        # 验证提供商
+        # 验证提供商（允许扩展的提供商列表）
         try:
             LLMProvider(provider)
         except ValueError:
@@ -63,6 +66,7 @@ class ModelConfigService:
             tenant_id=self.tenant_id,
             provider=provider,
             model_name=model_name,
+            model_type=model_type,
             api_key=api_key,
             api_base=api_base,
             temperature=temperature,
@@ -291,6 +295,269 @@ class ModelConfigService:
         }
 
         return intent_mapping.get(intent)
+
+    @staticmethod
+    async def validate_api_key(
+        provider: str,
+        api_key: str,
+        api_base: str | None = None
+    ) -> dict:
+        """
+        验证 API Key 有效性，通过向各提供商发起最小化请求来测试。
+
+        Args:
+            provider: 提供商名称
+            api_key: API密钥
+            api_base: 自定义API基础URL（OpenAI兼容接口等）
+
+        Returns:
+            {"valid": bool, "message": str}
+        """
+        timeout = httpx.Timeout(15.0)
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                if provider == "openai" or provider == "azure_openai":
+                    base = (api_base or "https://api.openai.com/v1").rstrip("/")
+                    resp = await client.get(
+                        f"{base}/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    if resp.status_code == 200:
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "anthropic":
+                    resp = await client.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "x-api-key": api_key,
+                            "anthropic-version": "2023-06-01",
+                            "content-type": "application/json",
+                        },
+                        json={
+                            "model": "claude-3-haiku-20240307",
+                            "max_tokens": 1,
+                            "messages": [{"role": "user", "content": "hi"}],
+                        },
+                    )
+                    # 200 成功 / 400 bad_request 表示 key 有效但请求有误（此处不会出现）
+                    if resp.status_code in (200, 400):
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "deepseek":
+                    base = (api_base or "https://api.deepseek.com/v1").rstrip("/")
+                    resp = await client.get(
+                        f"{base}/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    if resp.status_code == 200:
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "zhipuai":
+                    resp = await client.get(
+                        "https://open.bigmodel.cn/api/paas/v4/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    if resp.status_code == 200:
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "moonshot":
+                    resp = await client.get(
+                        "https://api.moonshot.cn/v1/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    if resp.status_code == 200:
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "qwen":
+                    base = (api_base or "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
+                    resp = await client.get(
+                        f"{base}/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    if resp.status_code == 200:
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "cohere":
+                    resp = await client.get(
+                        "https://api.cohere.com/v1/models",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                    )
+                    if resp.status_code == 200:
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "jina":
+                    # Jina 通过发送最小嵌入请求验证
+                    resp = await client.post(
+                        "https://api.jina.ai/v1/embeddings",
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={"model": "jina-embeddings-v3", "input": ["test"]},
+                    )
+                    if resp.status_code == 200:
+                        return {"valid": True, "message": "API Key 有效"}
+                    elif resp.status_code == 401:
+                        return {"valid": False, "message": "API Key 无效或已过期"}
+                    else:
+                        return {"valid": False, "message": f"验证失败（HTTP {resp.status_code}）"}
+
+                elif provider == "local_llm":
+                    # 本地模型无需验证
+                    return {"valid": True, "message": "本地模型无需验证"}
+
+                else:
+                    return {"valid": False, "message": f"不支持的提供商: {provider}"}
+
+        except httpx.TimeoutException:
+            return {"valid": False, "message": "网络超时，请检查网络连接或 API Base URL"}
+        except httpx.ConnectError:
+            return {"valid": False, "message": "无法连接到服务器，请检查网络或 API Base URL"}
+        except Exception as e:
+            return {"valid": False, "message": f"验证异常: {str(e)}"}
+
+    # 已知的 Qwen Rerank 模型白名单（可能不在 /models 列表中）
+    _QWEN_KNOWN_RERANK_MODELS = ["qwen3-rerank", "gte-rerank-v2", "qwen3-vl-rerank"]
+
+    @staticmethod
+    async def discover_models(
+        provider: str,
+        api_key: str,
+        api_base: str | None = None
+    ) -> list[dict]:
+        """
+        通过 DashScope 兼容端点获取可用模型列表并按类型分类。
+        目前仅支持 qwen（阿里云百炼）。
+
+        Returns:
+            [{"name": model_id, "model_type": "llm"|"embedding"|"rerank"}, ...]
+        """
+        if provider != "qwen":
+            return []
+
+        base = (api_base or "https://dashscope.aliyuncs.com/compatible-mode/v1").rstrip("/")
+        timeout = httpx.Timeout(15.0)
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.get(
+                    f"{base}/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                if resp.status_code != 200:
+                    return []
+
+                data = resp.json()
+                raw_models = data.get("data", [])
+                result = []
+                seen_ids: set[str] = set()
+
+                for m in raw_models:
+                    mid = m.get("id", "")
+                    if not mid:
+                        continue
+                    if "embedding" in mid:
+                        mtype = "embedding"
+                    elif "rerank" in mid:
+                        mtype = "rerank"
+                    else:
+                        mtype = "llm"
+                    result.append({"name": mid, "model_type": mtype})
+                    seen_ids.add(mid)
+
+                # 补充已知 rerank 白名单中不在列表里的模型
+                for rerank_name in ModelConfigService._QWEN_KNOWN_RERANK_MODELS:
+                    if rerank_name not in seen_ids:
+                        result.append({"name": rerank_name, "model_type": "rerank"})
+
+                return result
+        except Exception:
+            return []
+
+    async def batch_save_models(self, items: list[dict]) -> list[ModelConfig]:
+        """
+        批量创建或更新模型配置（upsert by tenant_id + provider + model_name）。
+
+        Args:
+            items: [{"provider", "model_name", "model_type", "api_key", "api_base"}, ...]
+
+        Returns:
+            list[ModelConfig]
+        """
+        results = []
+        for item in items:
+            provider = item["provider"]
+            model_name = item["model_name"]
+            model_type = item["model_type"]
+            api_key = item.get("api_key")
+            api_base = item.get("api_base")
+
+            # 查找已有记录（upsert by provider + model_name）
+            stmt = select(ModelConfig).where(
+                and_(
+                    ModelConfig.tenant_id == self.tenant_id,
+                    ModelConfig.provider == provider,
+                    ModelConfig.model_name == model_name,
+                )
+            )
+            result = await self.db.execute(stmt)
+            existing = result.scalar_one_or_none()
+
+            if existing:
+                existing.model_type = model_type
+                if api_key:
+                    existing.api_key = api_key
+                if api_base is not None:
+                    existing.api_base = api_base
+                await self.db.commit()
+                await self.db.refresh(existing)
+                results.append(existing)
+            else:
+                # 根据模型类型设置合理默认值
+                temperature = 0.7 if model_type == "llm" else 0.0
+                max_tokens = 2000 if model_type == "llm" else 8192 if model_type == "embedding" else 512
+                use_case = "chat" if model_type == "llm" else model_type
+
+                config = await self.create_model_config(
+                    provider=provider,
+                    model_name=model_name,
+                    model_type=model_type,
+                    api_key=api_key,
+                    api_base=api_base,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    use_case=use_case,
+                )
+                results.append(config)
+
+        return results
 
     async def record_model_usage(
         self,

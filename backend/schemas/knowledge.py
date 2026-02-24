@@ -54,6 +54,9 @@ class KnowledgeBaseResponse(KnowledgeBaseBase, TimestampSchema):
     last_used_at: datetime | None
     quality_score: float | None
     reviewed: bool
+    embedding_model: str | None = None
+    embedding_status: str = "pending"
+    chunk_count: int = 1
 
 
 # ============ 知识库搜索 Schema ============
@@ -72,6 +75,7 @@ class RAGQueryRequest(BaseSchema):
     query: str = Field(..., min_length=1, max_length=1000, description="查询问题")
     top_k: int = Field(5, ge=1, le=20, description="返回结果数")
     filters: dict | None = Field(None, description="过滤条件")
+    use_rerank: bool = Field(False, description="是否使用重排序")
 
 
 class RAGQueryResponse(BaseSchema):
@@ -100,3 +104,26 @@ class KnowledgeBatchImportResponse(BaseSchema):
     failed_count: int
     failed_items: list[dict] | None = None
     created: list[dict] | None = None  # 成功创建的知识条目(含knowledge_id)
+
+
+# ============ 知识库设置 Schema ============
+class KnowledgeSettingsUpdate(BaseSchema):
+    """更新知识库设置"""
+
+    embedding_model_id: int | None = None
+    rerank_model_id: int | None = None
+
+
+class KnowledgeSettingsResponse(BaseSchema):
+    """知识库设置响应"""
+
+    embedding_model_id: int | None = None
+    rerank_model_id: int | None = None
+    has_indexed_documents: bool = False
+
+
+class KnowledgeStatsResponse(BaseSchema):
+    """知识库统计响应"""
+
+    total_documents: int
+    total_chunks: int

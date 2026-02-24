@@ -1,14 +1,64 @@
 """
 知识库管理服务
 """
+import asyncio
 from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.exceptions import ResourceNotFoundException
+from core.exceptions import AppException, ResourceNotFoundException
 from core.security import generate_tenant_id
 from models import KnowledgeBase
+from models.knowledge_settings import KnowledgeSettings
+
+
+async def _embed_in_background(knowledge_id: str, tenant_id: str, embedding_model_id: int) -> None:
+    """后台向量化任务，使用独立的 DB session，不阻塞 HTTP 响应"""
+    from db.session import AsyncSessionLocal
+    from models.model_config import ModelConfig
+    from services.rag_service import RAGService
+
+    # 先标记为"执行中"
+    try:
+        async with AsyncSessionLocal() as db:
+            await db.execute(
+                sa_update(KnowledgeBase)
+                .where(KnowledgeBase.knowledge_id == knowledge_id)
+                .values(embedding_status="processing")
+            )
+            await db.commit()
+    except Exception:
+        pass
+
+    try:
+        async with AsyncSessionLocal() as db:
+            stmt = select(ModelConfig).where(ModelConfig.id == embedding_model_id)
+            result = await db.execute(stmt)
+            model_config = result.scalar_one_or_none()
+            if model_config:
+                rag = RAGService(db, tenant_id, embedding_model_config=model_config)
+                await rag.index_knowledge(knowledge_id)
+            await db.execute(
+                sa_update(KnowledgeBase)
+                .where(KnowledgeBase.knowledge_id == knowledge_id)
+                .values(embedding_status="completed")
+            )
+            await db.commit()
+    except Exception as e:
+        import traceback
+        print(f"[Background Embedding] 向量化失败 knowledge_id={knowledge_id}: {e}")
+        print(f"[Background Embedding] 完整错误:\n{traceback.format_exc()}")
+        try:
+            async with AsyncSessionLocal() as db:
+                await db.execute(
+                    sa_update(KnowledgeBase)
+                    .where(KnowledgeBase.knowledge_id == knowledge_id)
+                    .values(embedding_status="failed")
+                )
+                await db.commit()
+        except Exception:
+            pass
 
 
 class KnowledgeService:
@@ -27,12 +77,17 @@ class KnowledgeService:
         tags: list[str] | None = None,
         source: str | None = None,
         priority: int = 0,
+        chunk_count: int = 1,
     ) -> KnowledgeBase:
         """创建知识条目"""
         import uuid
         timestamp = int(datetime.utcnow().timestamp())
         random_suffix = uuid.uuid4().hex[:8]
         knowledge_id = f"kb_{self.tenant_id}_{timestamp}_{random_suffix}"
+
+        # 提前查询 embedding 配置，决定初始状态
+        ks = await self.get_settings()
+        initial_embedding_status = "pending" if ks.embedding_model_id else "completed"
 
         knowledge = KnowledgeBase(
             tenant_id=self.tenant_id,
@@ -45,16 +100,84 @@ class KnowledgeService:
             source=source,
             priority=priority,
             status="active",
+            embedding_status=initial_embedding_status,
+            chunk_count=chunk_count,
         )
 
         self.db.add(knowledge)
         await self.db.commit()
         await self.db.refresh(knowledge)
 
-        # TODO: 生成向量并存储到 Milvus
-        # await self.generate_and_store_embedding(knowledge)
+        # 触发向量化（如已配置 embedding 模型）—— 后台异步执行，不阻塞 HTTP 响应
+        if ks.embedding_model_id:
+            asyncio.create_task(
+                _embed_in_background(knowledge.knowledge_id, self.tenant_id, ks.embedding_model_id)
+            )
 
         return knowledge
+
+    async def _trigger_embedding(self, knowledge: KnowledgeBase, embedding_model_id: int) -> None:
+        """触发单条知识的向量化"""
+        from models.model_config import ModelConfig
+        from services.rag_service import RAGService
+
+        model_stmt = select(ModelConfig).where(ModelConfig.id == embedding_model_id)
+        result = await self.db.execute(model_stmt)
+        model_config = result.scalar_one_or_none()
+        if model_config:
+            rag = RAGService(self.db, self.tenant_id, embedding_model_config=model_config)
+            await rag.index_knowledge(knowledge.knowledge_id)
+
+    async def get_settings(self) -> KnowledgeSettings:
+        """获取或自动创建租户知识库设置"""
+        stmt = select(KnowledgeSettings).where(KnowledgeSettings.tenant_id == self.tenant_id)
+        result = await self.db.execute(stmt)
+        s = result.scalar_one_or_none()
+        if not s:
+            s = KnowledgeSettings(tenant_id=self.tenant_id)
+            self.db.add(s)
+            await self.db.commit()
+            await self.db.refresh(s)
+        return s
+
+    async def update_settings(
+        self,
+        embedding_model_id: int | None,
+        rerank_model_id: int | None,
+    ) -> KnowledgeSettings:
+        """更新设置；若更改 embedding_model_id 则先检查是否有向量化文档"""
+        s = await self.get_settings()
+        if embedding_model_id != s.embedding_model_id:
+            if await self.has_indexed_documents():
+                raise AppException("知识库已有文档，无法更换嵌入模型。请先删除所有文档。")
+        s.embedding_model_id = embedding_model_id
+        s.rerank_model_id = rerank_model_id
+        s.updated_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(s)
+        return s
+
+    async def get_stats(self) -> tuple[int, int]:
+        """返回 (总文档数, 总切片数)"""
+        stmt = select(
+            func.count(KnowledgeBase.id),
+            func.coalesce(func.sum(KnowledgeBase.chunk_count), 0),
+        ).where(
+            KnowledgeBase.tenant_id == self.tenant_id,
+            KnowledgeBase.status == "active",
+        )
+        row = (await self.db.execute(stmt)).one()
+        return int(row[0]), int(row[1])
+
+    async def has_indexed_documents(self) -> bool:
+        """是否有已成功向量化的文档（仅完成向量化的文档才锁定嵌入模型切换）"""
+        stmt = select(func.count(KnowledgeBase.id)).where(
+            KnowledgeBase.tenant_id == self.tenant_id,
+            KnowledgeBase.status == "active",
+            KnowledgeBase.embedding_status == "completed",
+        )
+        count = await self.db.scalar(stmt)
+        return (count or 0) > 0
 
     async def get_knowledge_by_ids(
         self,
@@ -62,10 +185,10 @@ class KnowledgeService:
     ) -> list[KnowledgeBase]:
         """
         批量获取知识库项
-        
+
         Args:
             knowledge_ids: 知识库 ID 列表
-            
+
         Returns:
             知识库项列表
         """
@@ -188,7 +311,7 @@ class KnowledgeService:
     ) -> list[KnowledgeBase]:
         """
         搜索知识（简单关键词搜索）
-        
+
         TODO: 使用 RAG 向量搜索替代
         """
         conditions = [

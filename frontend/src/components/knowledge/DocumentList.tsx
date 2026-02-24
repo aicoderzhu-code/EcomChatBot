@@ -110,8 +110,8 @@ export default function DocumentList({
       key: 'action',
       width: 120,
       render: (_, record) => {
-        if (record.status === 'processing' || record.status === 'pending') {
-          return <span className="text-gray-400">等待</span>;
+        if (record.status === 'processing') {
+          return <span className="text-gray-400">处理中</span>;
         }
         return (
           <Space>

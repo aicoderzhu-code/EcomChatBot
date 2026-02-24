@@ -6,6 +6,7 @@ from models.audit_log import AuditLog, AuditEventType, AuditSeverity
 from models.base import BaseModel, TenantBaseModel
 from models.conversation import Conversation, Message, User
 from models.knowledge import KnowledgeBase, KnowledgeUsageLog
+from models.knowledge_settings import KnowledgeSettings
 from models.model_config import ModelConfig, LLMProvider
 from models.payment import (
     OrderStatus,
@@ -48,6 +49,7 @@ __all__ = [
     # Knowledge
     "KnowledgeBase",
     "KnowledgeUsageLog",
+    "KnowledgeSettings",
     # Model Config
     "ModelConfig",
     "LLMProvider",

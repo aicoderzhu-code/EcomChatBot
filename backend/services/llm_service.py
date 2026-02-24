@@ -1,6 +1,6 @@
 """
 LLM 服务 - 封装 LangChain LLM 调用
-支持多种 LLM 提供商（OpenAI、Azure OpenAI 等）
+支持多种 LLM 提供商（OpenAI、Anthropic、DeepSeek 等）
 """
 from typing import Any
 import logging
@@ -18,45 +18,82 @@ logger = logging.getLogger(__name__)
 class LLMService:
     """LLM 服务类"""
 
-    def __init__(self, tenant_id: str, model_name: str | None = None):
+    def __init__(self, tenant_id: str, model_name: str | None = None, model_config=None):
         """
         初始化 LLM 服务
-        
+
         Args:
             tenant_id: 租户 ID
-            model_name: 模型名称，如果为 None 则使用默认模型
+            model_name: 模型名称，如果为 None 则使用默认模型（当 model_config 存在时忽略）
+            model_config: ModelConfig 实例，优先于环境变量配置
         """
         self.tenant_id = tenant_id
-        self.model_name = model_name or settings.default_llm_model
+        self._model_config = model_config
+
+        if model_config is not None:
+            self.model_name = model_config.model_name
+            self._provider = model_config.provider
+            self._api_key = model_config.api_key or settings.openai_api_key
+            self._api_base = model_config.api_base or settings.openai_api_base
+            self._temperature = float(model_config.temperature) if model_config.temperature is not None else 0.7
+            self._max_tokens = model_config.max_tokens or 1000
+        else:
+            self.model_name = model_name or settings.default_llm_model
+            self._provider = "openai"
+            self._api_key = settings.openai_api_key
+            self._api_base = settings.openai_api_base
+            self._temperature = 0.7
+            self._max_tokens = 1000
 
         # 初始化 LLM
         self.llm = self._initialize_llm()
 
-    def _initialize_llm(self) -> ChatOpenAI:
+    def _initialize_llm(self):
         """
-        初始化 LLM 实例
+        初始化 LLM 实例，根据 provider 选择合适的实现
+        """
+        if self._provider == "anthropic":
+            try:
+                from langchain_anthropic import ChatAnthropic
+                return ChatAnthropic(
+                    model=self.model_name,
+                    temperature=self._temperature,
+                    max_tokens=self._max_tokens,
+                    anthropic_api_key=self._api_key,
+                )
+            except ImportError:
+                logger.warning("langchain_anthropic not installed, falling back to ChatOpenAI")
 
-        Returns:
-            ChatOpenAI 实例（兼容OpenAI API格式的提供商）
-        """
-        # 使用ChatOpenAI，兼容OpenAI API格式（包括智谱AI等）
         return ChatOpenAI(
             model=self.model_name,
-            temperature=0.7,
-            max_tokens=1000,
-            openai_api_key=settings.openai_api_key,
-            openai_api_base=settings.openai_api_base,
-            streaming=False,  # 默认不流式
+            temperature=self._temperature,
+            max_tokens=self._max_tokens,
+            openai_api_key=self._api_key,
+            openai_api_base=self._api_base,
+            streaming=False,
         )
 
-    def get_streaming_llm(self) -> ChatOpenAI:
+    def get_streaming_llm(self):
         """获取支持流式输出的 LLM 实例"""
+        if self._provider == "anthropic":
+            try:
+                from langchain_anthropic import ChatAnthropic
+                return ChatAnthropic(
+                    model=self.model_name,
+                    temperature=self._temperature,
+                    max_tokens=self._max_tokens,
+                    anthropic_api_key=self._api_key,
+                    streaming=True,
+                )
+            except ImportError:
+                pass
+
         return ChatOpenAI(
             model=self.model_name,
-            temperature=0.7,
-            max_tokens=1000,
-            openai_api_key=settings.openai_api_key,
-            openai_api_base=settings.openai_api_base,
+            temperature=self._temperature,
+            max_tokens=self._max_tokens,
+            openai_api_key=self._api_key,
+            openai_api_base=self._api_base,
             streaming=True,
             callbacks=[StreamingStdOutCallbackHandler()],
         )
@@ -202,7 +239,7 @@ class LLMService:
         return {
             "model_name": self.model_name,
             "tenant_id": self.tenant_id,
-            "provider": "openai",  # TODO: 根据实际配置返回
+            "provider": self._provider,
             "supports_streaming": True,
-            "supports_functions": True,
+            "supports_functions": self._provider != "anthropic",
         }

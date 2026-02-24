@@ -58,8 +58,8 @@ class DialogGraphService:
         self.db = db
         self.tenant_id = tenant_id
 
-        # 初始化各个服务（它们都需要tenant_id）
-        self.llm_service = LLMService(db, tenant_id)
+        # 初始化各个服务（修复：不再将 db 误传为 tenant_id）
+        self.llm_service = LLMService(tenant_id)
         self.intent_service = IntentService(db, tenant_id)
         self.rag_service = RAGService(db, tenant_id)
         self.prompt_service = PromptService()
@@ -252,6 +252,15 @@ class DialogGraphService:
                 "total_tokens": int
             }
         """
+        # 从数据库加载默认 LLM 配置（优先于环境变量）
+        try:
+            from services.model_config_service import ModelConfigService
+            model_config = await ModelConfigService(self.db, self.tenant_id).get_default_model(use_case="dialogue")
+            if model_config:
+                self.llm_service = LLMService(self.tenant_id, model_config=model_config)
+        except Exception:
+            pass
+
         # 初始化状态
         initial_state: DialogState = {
             "user_message": user_message,

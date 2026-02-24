@@ -44,6 +44,7 @@ from services.rerank_service import (
 from services.statistics_service import StatisticsService
 from services.analytics_service import AnalyticsService
 from services.metrics_service import MetricsService
+from services.setup_service import SetupService
 
 __all__ = [
     "AdminService",
@@ -100,4 +101,6 @@ __all__ = [
     "AnalyticsService",
     # Metrics
     "MetricsService",
+    # Setup
+    "SetupService",
 ]

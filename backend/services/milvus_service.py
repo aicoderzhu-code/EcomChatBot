@@ -55,6 +55,10 @@ class MilvusService:
         # 检查是否存在
         if utility.has_collection(self.COLLECTION_NAME):
             collection = Collection(self.COLLECTION_NAME)
+            # 确保当前租户的分区存在（新租户首次写入时可能还没有分区）
+            partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
+            if not collection.has_partition(partition_name):
+                collection.create_partition(partition_name)
             collection.load()
             return collection
 
