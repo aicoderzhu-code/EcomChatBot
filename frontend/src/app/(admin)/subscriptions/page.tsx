@@ -125,7 +125,7 @@ export default function SubscriptionsPage() {
         setModalOpen(false);
         fetchSubscriptions();
       } else {
-        message.error(response.message || '操作失败');
+        message.error(response.error?.message || '操作失败');
       }
     } catch {
       message.error('操作失败，请重试');
