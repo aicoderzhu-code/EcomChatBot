@@ -64,6 +64,9 @@ coverage.xml
 .hypothesis/
 backend/reports/
 reports/
+backend/tests/reports/
+test-reports/
+.benchmarks/
 
 # MyPy
 .mypy_cache/
