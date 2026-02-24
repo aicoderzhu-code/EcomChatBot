@@ -190,7 +190,6 @@ class UsageRecord(BaseModel):
         Index("idx_usage_tenant_date", "tenant_id", "record_date"),
         {"comment": "用量记录表"},
     )
-    )
 
     # 租户信息
     tenant_id: Mapped[str] = mapped_column(
