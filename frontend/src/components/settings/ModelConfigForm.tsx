@@ -46,23 +46,23 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
   openai: {
     name: 'OpenAI',
     description: 'GPT-4o / GPT-3.5 等',
-    llm: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-    embedding: ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-ada-002'],
+    llm: [],
+    embedding: [],
     rerank: [],
     needsApiBase: true,
   },
   qwen: {
     name: '通义千问',
     description: 'Qwen-Max / Plus / Turbo',
-    llm: ['qwen-max', 'qwen-plus', 'qwen-turbo'],
-    embedding: ['text-embedding-v3', 'text-embedding-v2'],
+    llm: [],
+    embedding: [],
     rerank: [],
     needsApiBase: true,
   },
   deepseek: {
     name: 'DeepSeek',
     description: 'DeepSeek-Chat / Reasoner',
-    llm: ['deepseek-chat', 'deepseek-reasoner'],
+    llm: [],
     embedding: [],
     rerank: [],
     needsApiBase: true,
@@ -70,21 +70,21 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
   zhipuai: {
     name: '智谱 AI',
     description: 'GLM-4 系列',
-    llm: ['glm-4-plus', 'glm-4', 'glm-4-flash', 'glm-3-turbo'],
-    embedding: ['embedding-3'],
+    llm: [],
+    embedding: [],
     rerank: [],
   },
   google: {
     name: 'Google Gemini',
     description: 'Gemini 2.0 / 1.5 系列',
-    llm: ['gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-1.5-flash'],
-    embedding: ['text-embedding-004'],
+    llm: [],
+    embedding: [],
     rerank: [],
   },
   meta: {
     name: 'Meta (自定义)',
     description: 'Llama 系列，自定义 base URL',
-    llm: ['llama-3.3-70b-instruct', 'llama-3.1-8b-instruct'],
+    llm: [],
     embedding: [],
     rerank: [],
     needsApiBase: true,
@@ -92,9 +92,9 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
   siliconflow: {
     name: '硅基流动',
     description: 'SiliconFlow 开源模型',
-    llm: ['Qwen/Qwen2.5-72B-Instruct', 'deepseek-ai/DeepSeek-V3'],
-    embedding: ['BAAI/bge-m3', 'BAAI/bge-large-zh-v1.5'],
-    rerank: ['BAAI/bge-reranker-v2-m3'],
+    llm: [],
+    embedding: [],
+    rerank: [],
     needsApiBase: true,
   },
   private: {
@@ -330,7 +330,6 @@ export default function ModelConfigForm() {
   const handleSave = async () => {
     if (!selectedProvider) return;
     const cfg = getConfig(selectedProvider);
-    const catalog = PLATFORM_CATALOG[selectedProvider];
 
     // 私有部署：API Key 可选，API Base 必填，无需验证
     if (selectedProvider === 'private') {
@@ -368,10 +367,12 @@ export default function ModelConfigForm() {
       };
 
       // 保存 LLM 模型配置
-      if (catalog.llm.length > 0 && cfg.llm_model) {
+      const llmOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'llm').map(m => m.name);
+      const llmModel = cfg.llm_model || llmOptions[0] || '';
+      if (llmModel) {
         const llmPayload = {
           ...basePayload,
-          model_name: cfg.llm_model,
+          model_name: llmModel,
           model_type: 'llm' as ModelType,
           use_case: 'chat',
           temperature: 0.7,
@@ -388,8 +389,9 @@ export default function ModelConfigForm() {
       }
 
       // 保存 Embedding 模型配置
-      const embModel = cfg.embedding_model || catalog.embedding[0] || '';
-      if (catalog.embedding.length > 0 && embModel) {
+      const embOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'embedding').map(m => m.name);
+      const embModel = cfg.embedding_model || embOptions[0] || '';
+      if (embModel) {
         const embPayload = {
           ...basePayload,
           model_name: embModel,
@@ -409,8 +411,9 @@ export default function ModelConfigForm() {
       }
 
       // 保存 Rerank 模型配置
-      const rerankModel = cfg.rerank_model || catalog.rerank[0] || '';
-      if (catalog.rerank.length > 0 && rerankModel) {
+      const rerankOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'rerank').map(m => m.name);
+      const rerankModel = cfg.rerank_model || rerankOptions[0] || '';
+      if (rerankModel) {
         const rerankPayload = {
           ...basePayload,
           model_name: rerankModel,
@@ -450,14 +453,12 @@ export default function ModelConfigForm() {
   const currentCatalog = selectedProvider ? PLATFORM_CATALOG[selectedProvider] : null;
   const currentConfig = selectedProvider ? getConfig(selectedProvider) : null;
 
-  // 合并静态目录与已发现模型，作为选择器选项
+  // 只从已发现模型中取选项（不使用静态目录）
   const getModelOptions = (type: 'llm' | 'embedding' | 'rerank'): string[] => {
     if (!selectedProvider) return [];
-    const catalogModels = PLATFORM_CATALOG[selectedProvider]?.[type] || [];
-    const discovered = (providerDiscoveredModels[selectedProvider] || [])
+    return (providerDiscoveredModels[selectedProvider] || [])
       .filter(m => m.model_type === type)
       .map(m => m.name);
-    return Array.from(new Set([...catalogModels, ...discovered]));
   };
 
   return (
@@ -474,9 +475,9 @@ export default function ModelConfigForm() {
             const hasConfig = !!configs[provider]?.api_key;
             const discovered = providerDiscoveredModels[provider] || [];
             const supportedTypes: ModelType[] = [];
-            if (info.llm.length > 0 || discovered.some(m => m.model_type === 'llm')) supportedTypes.push('llm');
-            if (info.embedding.length > 0 || discovered.some(m => m.model_type === 'embedding')) supportedTypes.push('embedding');
-            if (info.rerank.length > 0 || discovered.some(m => m.model_type === 'rerank')) supportedTypes.push('rerank');
+            if (discovered.some(m => m.model_type === 'llm')) supportedTypes.push('llm');
+            if (discovered.some(m => m.model_type === 'embedding')) supportedTypes.push('embedding');
+            if (discovered.some(m => m.model_type === 'rerank')) supportedTypes.push('rerank');
 
             return (
               <Col key={provider} xs={12} sm={8} md={6}>
