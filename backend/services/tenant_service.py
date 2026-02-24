@@ -3,6 +3,7 @@
 """
 from datetime import datetime, timedelta
 import json
+import uuid
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -81,6 +82,7 @@ class TenantService:
         # 创建免费订阅
         plan_config = PLAN_CONFIGS["free"]
         subscription = Subscription(
+            subscription_id=str(uuid.uuid4()),
             tenant_id=tenant_id,
             plan_type="free",
             status="active",
@@ -172,6 +174,7 @@ class TenantService:
         # 创建订阅
         plan_config = PLAN_CONFIGS.get(tenant_data.initial_plan, PLAN_CONFIGS["free"])
         subscription = Subscription(
+            subscription_id=str(uuid.uuid4()),
             tenant_id=tenant_id,
             plan_type=tenant_data.initial_plan,
             status="active",
@@ -573,6 +576,7 @@ class TenantService:
         trial_config = PLAN_CONFIGS.get("trial", PLAN_CONFIGS["free"])
         trial_days = SUBSCRIPTION_PLANS["trial"]["days"]
         subscription = Subscription(
+            subscription_id=str(uuid.uuid4()),
             tenant_id=tenant_id,
             plan_type="trial",
             status="active",
