@@ -506,8 +506,8 @@ class TenantService:
         if tenant.status == "deleted":
             raise TenantNotFoundException(tenant_id)
 
-        # 检查订阅是否过期
-        if tenant.plan_expire_at and tenant.plan_expire_at < datetime.utcnow():
+        # 检查订阅是否过期（含7天宽限期）
+        if tenant.plan_expire_at and tenant.plan_expire_at + timedelta(days=7) < datetime.utcnow():
             raise SubscriptionExpiredException("订阅已过期，请续费")
 
     async def update_last_active(self, tenant_id: str) -> None:
@@ -552,7 +552,7 @@ class TenantService:
         api_key_prefix = api_key[:12] if len(api_key) >= 12 else api_key  # 保存前缀用于快速查找
         password_hash_value = hash_password(register_data.password)
 
-        # 创建租户
+        # 创建租户（默认试用套餐）
         tenant = Tenant(
             tenant_id=tenant_id,
             company_name=register_data.company_name,
@@ -563,24 +563,26 @@ class TenantService:
             api_key_prefix=api_key_prefix,  # 保存API Key前缀用于快速认证
             password_hash=password_hash_value,
             status="active",
-            current_plan="free",
+            current_plan="trial",
             login_attempts=0,
         )
         self.db.add(tenant)
 
-        # 创建订阅
-        plan_config = PLAN_CONFIGS.get("free", PLAN_CONFIGS["free"])
+        # 创建试用订阅（3天）
+        from core.permissions import SUBSCRIPTION_PLANS
+        trial_config = PLAN_CONFIGS.get("trial", PLAN_CONFIGS["free"])
+        trial_days = SUBSCRIPTION_PLANS["trial"]["days"]
         subscription = Subscription(
             tenant_id=tenant_id,
-            plan_type="free",
+            plan_type="trial",
             status="active",
-            enabled_features=json.dumps([f.value for f in plan_config["features"]]),  # 转换为JSON字符串
-            conversation_quota=plan_config["conversation_quota"],
-            concurrent_quota=plan_config["concurrent_quota"],
-            storage_quota=plan_config["storage_quota"],
-            api_quota=plan_config["api_quota"],
+            enabled_features=json.dumps([f.value if hasattr(f, 'value') else f for f in trial_config["features"]]),
+            conversation_quota=trial_config["conversation_quota"],
+            concurrent_quota=trial_config["concurrent_quota"],
+            storage_quota=trial_config["storage_quota"],
+            api_quota=trial_config["api_quota"],
             start_date=datetime.utcnow(),
-            expire_at=datetime.utcnow() + timedelta(days=365),
+            expire_at=datetime.utcnow() + timedelta(days=trial_days),
             auto_renew=False,
             is_trial=True,
         )

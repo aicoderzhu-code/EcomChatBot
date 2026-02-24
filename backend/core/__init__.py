@@ -27,6 +27,7 @@ from core.exceptions import (
 )
 from core.permissions import (
     PLAN_CONFIGS,
+    SUBSCRIPTION_PLANS,
     ROLE_PERMISSIONS,
     AdminRole,
     FeatureModule,
@@ -68,6 +69,7 @@ __all__ = [
     "FeatureModule",
     "ROLE_PERMISSIONS",
     "PLAN_CONFIGS",
+    "SUBSCRIPTION_PLANS",
     "has_permission",
     # Exceptions
     "AppException",

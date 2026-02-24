@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
 from core.exceptions import ResourceNotFoundException
-from core.permissions import PLAN_CONFIGS
+from core.permissions import PLAN_CONFIGS, SUBSCRIPTION_PLANS
 from models import Subscription
 from models.tenant import Tenant, Bill
 from models.payment import PaymentOrder, OrderStatus
@@ -46,10 +46,18 @@ class SubscriptionService:
         tenant_id: str,
         plan_type: str,
         duration_months: int = 1,
+        days: int | None = None,
         auto_renew: bool = False,
     ) -> Subscription:
         """
         分配套餐
+
+        Args:
+            tenant_id: 租户ID
+            plan_type: 套餐类型
+            duration_months: 订阅时长（月），当 days 未指定且 plan_type 不在 SUBSCRIPTION_PLANS 时使用
+            days: 订阅天数（优先于 duration_months；若 plan_type 在 SUBSCRIPTION_PLANS 中则自动读取）
+            auto_renew: 是否自动续费
         """
         # 获取或创建订阅
         try:
@@ -58,18 +66,34 @@ class SubscriptionService:
             subscription = Subscription(tenant_id=tenant_id)
             self.db.add(subscription)
 
+        # 确定订阅天数
+        if plan_type in SUBSCRIPTION_PLANS:
+            effective_days = days if days is not None else SUBSCRIPTION_PLANS[plan_type]["days"]
+        elif days is not None:
+            effective_days = days
+        else:
+            effective_days = duration_months * 30
+
+        # 计算到期时间：若当前订阅未过期则叠加，否则从现在开始
+        now = datetime.utcnow()
+        if subscription.expire_at and subscription.expire_at > now:
+            new_expire_at = subscription.expire_at + timedelta(days=effective_days)
+        else:
+            new_expire_at = now + timedelta(days=effective_days)
+
         # 更新套餐信息
         plan_config = PLAN_CONFIGS.get(plan_type, PLAN_CONFIGS["free"])
 
         subscription.plan_type = plan_type
         subscription.status = "active"
-        subscription.start_date = datetime.utcnow()
-        subscription.expire_at = datetime.utcnow() + timedelta(days=duration_months * 30)
+        subscription.start_date = now
+        subscription.expire_at = new_expire_at
         subscription.auto_renew = auto_renew
-        subscription.is_trial = False
+        subscription.is_trial = plan_type == "trial"
 
         # 根据套餐设置配额
-        subscription.enabled_features = json.dumps([f.value for f in plan_config["features"]])  # 转换为JSON字符串
+        features = plan_config["features"]
+        subscription.enabled_features = json.dumps([f.value if hasattr(f, 'value') else f for f in features])
         subscription.conversation_quota = plan_config["conversation_quota"]
         subscription.concurrent_quota = plan_config["concurrent_quota"]
         subscription.storage_quota = plan_config["storage_quota"]
@@ -79,6 +103,38 @@ class SubscriptionService:
         await self.db.refresh(subscription)
 
         return subscription
+
+    async def get_subscription_with_grace(self, tenant_id: str) -> dict:
+        """返回订阅信息，包含宽限期状态"""
+        subscription = await self.get_subscription(tenant_id)
+        now = datetime.utcnow()
+        grace_period_end = subscription.expire_at + timedelta(days=7) if subscription.expire_at else None
+
+        if not subscription.expire_at:
+            status = "active"
+            is_in_grace = False
+        elif subscription.expire_at > now:
+            status = "active"
+            is_in_grace = False
+        elif grace_period_end and grace_period_end > now:
+            status = "grace"
+            is_in_grace = True
+        else:
+            status = "expired"
+            is_in_grace = False
+
+        plan_info = SUBSCRIPTION_PLANS.get(subscription.plan_type, {})
+
+        return {
+            "subscription_id": subscription.subscription_id,
+            "plan_type": subscription.plan_type,
+            "plan_name": plan_info.get("name", subscription.plan_type),
+            "status": status,
+            "expire_at": subscription.expire_at.isoformat() if subscription.expire_at else None,
+            "grace_period_end": grace_period_end.isoformat() if grace_period_end else None,
+            "is_in_grace": is_in_grace,
+            "is_trial": subscription.is_trial,
+        }
 
     async def change_plan(
         self,

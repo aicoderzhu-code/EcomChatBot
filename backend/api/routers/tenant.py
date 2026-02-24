@@ -138,6 +138,17 @@ async def get_subscription_token(
     return ApiResponse(data=subscription)
 
 
+@router.get("/subscription/status", response_model=ApiResponse[dict])
+async def get_subscription_status(
+    tenant_id: TenantTokenDep,
+    db: DBDep,
+):
+    """获取订阅状态（含宽限期信息，JWT Token认证）"""
+    service = SubscriptionService(db)
+    status_info = await service.get_subscription_with_grace(tenant_id)
+    return ApiResponse(data=status_info)
+
+
 @router.get("/usage", response_model=ApiResponse[dict])
 async def get_usage(
     tenant_id: TenantDep,

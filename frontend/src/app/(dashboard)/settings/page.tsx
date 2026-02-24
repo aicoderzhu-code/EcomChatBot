@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Row, Col, Card, Typography, message, Alert, Form, Input, Button, Slider, Spin, Tag } from 'antd';
-import { SettingsMenu, ModelConfigForm } from '@/components/settings';
+import { SettingsMenu, ModelConfigForm, SubscriptionPanel } from '@/components/settings';
 import { CopyOutlined, LinkOutlined, DisconnectOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/store';
 import { platformApi, PlatformConfig } from '@/lib/api/platform';
@@ -121,7 +121,6 @@ export default function SettingsPage() {
         );
       case 'platform':
         return (
-          <Card>
             <Title level={5} className="mb-4">平台对接 - 拼多多</Title>
             <Spin spinning={pddLoading}>
               <div className="mb-4 flex items-center gap-2">
@@ -191,6 +190,8 @@ export default function SettingsPage() {
         );
       default:
         return null;
+      case 'subscription':
+        return <SubscriptionPanel />;
     }
   };
 

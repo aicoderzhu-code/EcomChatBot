@@ -111,6 +111,15 @@ class FeatureModule(str, Enum):
     CUSTOM_INTEGRATION = "custom_integration"  # 自定义集成
 
 
+# 新订阅套餐价格和时长配置
+SUBSCRIPTION_PLANS = {
+    "trial":       {"name": "试用版", "price": 0,    "days": 3},
+    "monthly":     {"name": "月付版", "price": 199,  "days": 30},
+    "quarterly":   {"name": "季付版", "price": 499,  "days": 90},
+    "semi_annual": {"name": "半年付", "price": 899,  "days": 180},
+    "annual":      {"name": "年付版", "price": 1699, "days": 365},
+}
+
 # 套餐配置
 PLAN_CONFIGS = {
     "free": {
@@ -160,5 +169,51 @@ PLAN_CONFIGS = {
         "concurrent_quota": 1000,
         "storage_quota": 200,
         "api_quota": 100000,
+    },
+    # 新订阅套餐（基于时间，无配额限制）
+    "trial": {
+        "name": "试用版",
+        "base_price": 0,
+        "features": [module for module in FeatureModule],
+        "conversation_quota": 999999,
+        "concurrent_quota": 999999,
+        "storage_quota": 999999,
+        "api_quota": 999999,
+    },
+    "monthly": {
+        "name": "月付版",
+        "base_price": 199,
+        "features": [module for module in FeatureModule],
+        "conversation_quota": 999999,
+        "concurrent_quota": 999999,
+        "storage_quota": 999999,
+        "api_quota": 999999,
+    },
+    "quarterly": {
+        "name": "季付版",
+        "base_price": 499,
+        "features": [module for module in FeatureModule],
+        "conversation_quota": 999999,
+        "concurrent_quota": 999999,
+        "storage_quota": 999999,
+        "api_quota": 999999,
+    },
+    "semi_annual": {
+        "name": "半年付",
+        "base_price": 899,
+        "features": [module for module in FeatureModule],
+        "conversation_quota": 999999,
+        "concurrent_quota": 999999,
+        "storage_quota": 999999,
+        "api_quota": 999999,
+    },
+    "annual": {
+        "name": "年付版",
+        "base_price": 1699,
+        "features": [module for module in FeatureModule],
+        "conversation_quota": 999999,
+        "concurrent_quota": 999999,
+        "storage_quota": 999999,
+        "api_quota": 999999,
     },
 }
