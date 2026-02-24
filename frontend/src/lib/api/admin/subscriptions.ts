@@ -44,4 +44,11 @@ export const adminSubscriptionsApi = {
     );
     return response.data;
   },
+
+  getTenantSubscription: async (tenantId: string): Promise<ApiResponse<SubscriptionInfo>> => {
+    const response = await adminApiClient.get<ApiResponse<SubscriptionInfo>>(
+      `/tenants/${tenantId}/subscription`
+    );
+    return response.data;
+  },
 };
