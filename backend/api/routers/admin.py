@@ -809,11 +809,13 @@ async def list_subscriptions(
     for subscription, tenant in rows:
         items.append({
             "id": subscription.id,
+            "subscription_id": subscription.subscription_id,
             "tenant_id": subscription.tenant_id,
             "company_name": tenant.company_name,
             "plan_type": subscription.plan_type,
             "status": subscription.status,
             "start_date": subscription.start_date.isoformat() if subscription.start_date else None,
+            "end_date": subscription.expire_at.isoformat() if subscription.expire_at else None,
             "expire_at": subscription.expire_at.isoformat() if subscription.expire_at else None,
             "auto_renew": subscription.auto_renew,
             "is_trial": subscription.is_trial,
