@@ -258,7 +258,7 @@ class RAGService:
 
     async def index_knowledge(self, knowledge_id: str) -> dict[str, Any]:
         """
-        为知识库项创建向量索引
+        为知识库项创建向量索引（按 chunk 逐片向量化，支持大文档）
 
         Args:
             knowledge_id: 知识库 ID
@@ -266,36 +266,54 @@ class RAGService:
         Returns:
             索引结果
         """
+        import uuid
+        from langchain.text_splitter import RecursiveCharacterTextSplitter
+
         # 1. 获取知识库内容
         knowledge = await self.knowledge_service.get_knowledge(knowledge_id)
 
-        # 2. 生成向量
-        # 使用标题 + 内容
-        text = f"{knowledge.title}\n{knowledge.content}"
-        vector = await self.embedding_service.embed_text(text)
+        # 2. 将内容重新切片（与 document_parser 保持一致的参数）
+        CHUNK_SIZE = 800
+        CHUNK_OVERLAP = 100
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP
+        )
+        chunks = splitter.split_text(knowledge.content) if knowledge.content else []
+        if not chunks:
+            chunks = [knowledge.title or knowledge.content or knowledge_id]
 
-        # 3. 插入 Milvus
-        import uuid
+        # 3. 逐 chunk 生成向量，并准备 Milvus 插入数据
+        knowledge_items = []
+        vectors = []
+        first_vector_id = None
 
-        vector_id = str(uuid.uuid4())
-
-        await self.milvus_service.insert_vectors(
-            knowledge_items=[
+        for chunk in chunks:
+            text = f"{knowledge.title}\n{chunk}"
+            vector = await self.embedding_service.embed_text(text)
+            vector_id = str(uuid.uuid4())
+            if first_vector_id is None:
+                first_vector_id = vector_id
+            knowledge_items.append(
                 {
                     "id": vector_id,
                     "knowledge_id": knowledge.knowledge_id,
-                    "content": knowledge.content[:1000],  # 存储摘要
+                    "content": chunk,
                 }
-            ],
-            vectors=[vector],
+            )
+            vectors.append(vector)
+
+        # 4. 批量插入 Milvus
+        await self.milvus_service.insert_vectors(
+            knowledge_items=knowledge_items,
+            vectors=vectors,
         )
 
-        # 4. 更新 DB 记录的向量 ID 和模型名称
+        # 5. 更新 DB 记录的向量 ID 和模型名称
         await self.db.execute(
             sa_update(KnowledgeBase)
             .where(KnowledgeBase.knowledge_id == knowledge_id)
             .values(
-                embedding_vector_id=vector_id,
+                embedding_vector_id=first_vector_id,
                 embedding_model=self.embedding_service.get_model_name(),
             )
         )
@@ -303,7 +321,8 @@ class RAGService:
 
         return {
             "knowledge_id": knowledge_id,
-            "vector_id": vector_id,
+            "vector_id": first_vector_id,
+            "chunk_count": len(chunks),
             "indexed": True,
         }
 

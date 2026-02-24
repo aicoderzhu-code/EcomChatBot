@@ -46,7 +46,9 @@ async def _embed_in_background(knowledge_id: str, tenant_id: str, embedding_mode
             )
             await db.commit()
     except Exception as e:
+        import traceback
         print(f"[Background Embedding] 向量化失败 knowledge_id={knowledge_id}: {e}")
+        print(f"[Background Embedding] 完整错误:\n{traceback.format_exc()}")
         try:
             async with AsyncSessionLocal() as db:
                 await db.execute(
