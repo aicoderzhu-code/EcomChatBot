@@ -18,6 +18,7 @@ celery_app = Celery(
         "tasks.data_tasks",
         "tasks.billing_tasks",
         "tasks.webhook_tasks",
+        "tasks.platform_tasks",
     ],
 )
 
@@ -54,6 +55,7 @@ celery_app.conf.update(
         "tasks.data_tasks.*": {"queue": "data_processing"},
         "tasks.billing_tasks.*": {"queue": "billing"},
         "tasks.webhook_tasks.*": {"queue": "webhooks"},
+        "tasks.platform_tasks.*": {"queue": "default"},
     },
 
     # 默认队列
@@ -118,6 +120,11 @@ celery_app.conf.beat_schedule = {
         "task": "tasks.billing_tasks.reset_monthly_quotas",
         "schedule": crontab(hour=0, minute=0, day_of_month=1),  # 每月1号凌晨0点
         "options": {"queue": "billing"}
+    },
+    # 每小时刷新即将过期的平台 access_token
+    "refresh-platform-tokens": {
+        "task": "tasks.platform_tasks.refresh_expiring_tokens",
+        "schedule": 3600.0,
     },
 }
 

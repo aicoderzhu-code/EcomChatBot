@@ -24,6 +24,7 @@ from models.invoice import Invoice, InvoiceTitle, InvoiceType, InvoiceStatus
 from models.tenant import Bill, Subscription, Tenant, UsageRecord
 from models.webhook import WebhookConfig, WebhookLog, WebhookEventType
 from models.notification import InAppNotification, NotificationPreference
+from models.platform import PlatformConfig
 
 __all__ = [
     # Base
@@ -72,4 +73,6 @@ __all__ = [
     # Notification
     "InAppNotification",
     "NotificationPreference",
+    # Platform
+    "PlatformConfig",
 ]

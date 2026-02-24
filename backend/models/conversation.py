@@ -23,6 +23,9 @@ class User(TenantBaseModel):
     user_external_id: Mapped[str] = mapped_column(
         String(128), nullable=False, comment="用户外部ID(租户内唯一)"
     )
+    platform_user_id: Mapped[str | None] = mapped_column(
+        String(128), comment="平台侧用户ID(如拼多多买家ID)"
+    )
 
     # 基本信息
     nickname: Mapped[str | None] = mapped_column(String(128), comment="昵称")
@@ -78,6 +81,14 @@ class Conversation(TenantBaseModel):
     # 渠道信息
     channel: Mapped[str] = mapped_column(
         String(32), nullable=False, default="web", comment="渠道(web/mobile/api等)"
+    )
+
+    # 平台对接字段
+    platform_type: Mapped[str | None] = mapped_column(
+        String(32), comment="来源平台(pinduoduo等)"
+    )
+    platform_conversation_id: Mapped[str | None] = mapped_column(
+        String(128), comment="平台侧会话ID"
     )
 
     # 会话状态

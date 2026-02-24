@@ -21,6 +21,7 @@ from api.routers import (
     model_config,
     monitor,
     payment,
+    platform,
     quality,
     rag,
     sensitive_word,
@@ -250,6 +251,7 @@ app.include_router(analytics.router, prefix=settings.api_v1_prefix)
 app.include_router(sensitive_word.router, prefix=settings.api_v1_prefix)
 app.include_router(audit.router, prefix=settings.api_v1_prefix)
 app.include_router(setup.router, prefix=settings.api_v1_prefix)
+app.include_router(platform.router, prefix=settings.api_v1_prefix)
 
 
 if __name__ == "__main__":

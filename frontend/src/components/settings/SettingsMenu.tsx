@@ -6,6 +6,7 @@ import {
   KeyOutlined,
   BankOutlined,
   BellOutlined,
+  ShopOutlined,
 } from '@ant-design/icons';
 
 const { Text } = Typography;
@@ -35,6 +36,11 @@ const menuItems = [
     key: 'notification',
     icon: <BellOutlined />,
     label: '通知设置',
+  },
+  {
+    key: 'platform',
+    icon: <ShopOutlined />,
+    label: '平台对接',
   },
 ];
 
