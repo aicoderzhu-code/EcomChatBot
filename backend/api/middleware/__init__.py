@@ -71,102 +71,20 @@ async def _resolve_tenant_id(
     )
 
 
-async def check_conversation_quota_dependency(
+async def _auth_only(
     x_api_key: Annotated[str | None, Header()] = None,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_security)] = None,
     db: Annotated[AsyncSession, Depends(get_db)] = None,
 ) -> str:
-    """
-    检查对话配额的依赖函数（用于API路由）
-    同时完成租户认证（API Key 或 JWT）和配额检查，返回 tenant_id
-    """
-    tenant_id = await _resolve_tenant_id(x_api_key, credentials, db)
-
-    # 检查对话配额
-    from services.quota_service import QuotaService
-    quota_service = QuotaService(db)
-
-    try:
-        await quota_service.check_conversation_quota(tenant_id)
-    except Exception as e:
-        from core.exceptions import QuotaExceededException
-        if isinstance(e, QuotaExceededException):
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail={
-                    "code": "QUOTA_EXCEEDED",
-                    "message": str(e),
-                    "quota_type": "conversation",
-                    "upgrade_url": "/pricing"
-                }
-            )
-        raise
-
-    return tenant_id
-
-
-async def check_concurrent_quota_dependency(
-    x_api_key: Annotated[str | None, Header()] = None,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_security)] = None,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
-) -> str:
-    """
-    检查并发会话配额的依赖函数（支持 API Key 和 JWT）
-    """
+    """仅做认证，不检查配额"""
     return await _resolve_tenant_id(x_api_key, credentials, db)
 
 
-async def check_storage_quota_dependency(
-    x_api_key: Annotated[str | None, Header()] = None,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_security)] = None,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
-) -> str:
-    """
-    检查存储配额的依赖函数（支持 API Key 和 JWT）
-    用于知识库创建等需要消耗存储空间的操作
-    """
-    return await _resolve_tenant_id(x_api_key, credentials, db)
-
-
-async def check_api_quota_dependency(
-    x_api_key: Annotated[str | None, Header()] = None,
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_security)] = None,
-    db: Annotated[AsyncSession, Depends(get_db)] = None,
-) -> str:
-    """
-    检查API调用配额的依赖函数（支持 API Key 和 JWT）
-    用于所有API调用的配额限制
-    """
-    tenant_id = await _resolve_tenant_id(x_api_key, credentials, db)
-
-    # 检查API调用配额
-    from services.quota_service import QuotaService
-    quota_service = QuotaService(db)
-
-    try:
-        await quota_service.check_api_quota(tenant_id)
-    except Exception as e:
-        from core.exceptions import QuotaExceededException
-        if isinstance(e, QuotaExceededException):
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail={
-                    "code": "QUOTA_EXCEEDED",
-                    "message": str(e),
-                    "quota_type": "api_call",
-                    "upgrade_url": "/pricing"
-                }
-            )
-        raise
-
-    return tenant_id
-
-
-# 类型别名,用于依赖注入
-ConversationQuotaDep = Annotated[str, Depends(check_conversation_quota_dependency)]
-ConcurrentQuotaDep = Annotated[str, Depends(check_concurrent_quota_dependency)]
-StorageQuotaDep = Annotated[str, Depends(check_storage_quota_dependency)]
-ApiQuotaDep = Annotated[str, Depends(check_api_quota_dependency)]
+# 类型别名，保持与原有路由兼容，但不再检查配额
+ConversationQuotaDep = Annotated[str, Depends(_auth_only)]
+ConcurrentQuotaDep = Annotated[str, Depends(_auth_only)]
+StorageQuotaDep = Annotated[str, Depends(_auth_only)]
+ApiQuotaDep = Annotated[str, Depends(_auth_only)]
 
 
 # CSRF函数

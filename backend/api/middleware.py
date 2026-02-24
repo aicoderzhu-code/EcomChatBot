@@ -12,8 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import DBDep, TenantFlexDep
 from api.content_filter import ContentFilter
-from core.exceptions import QuotaExceededException, ValidationException
-from services import QuotaService
+from core.exceptions import ValidationException
 
 logger = logging.getLogger(__name__)
 
@@ -21,80 +20,16 @@ logger = logging.getLogger(__name__)
 CSRF_SECRET_KEY = secrets.token_urlsafe(32)
 
 
-async def check_conversation_quota(
-    tenant_id: TenantFlexDep,
-    db: DBDep,
-):
-    """
-    检查对话次数配额（依赖注入）
-
-    用于创建会话、发送消息等场景
-    """
-    quota_service = QuotaService(db)
-    await quota_service.check_conversation_quota(tenant_id)
+async def _auth_only(tenant_id: TenantFlexDep) -> str:
+    """仅做认证，不检查配额"""
     return tenant_id
 
 
-async def check_concurrent_quota(
-    tenant_id: TenantFlexDep,
-    db: DBDep,
-):
-    """
-    检查并发会话配额（依赖注入）
-
-    用于创建新会话时检查
-    """
-    from services.conversation_service import ConversationService
-
-    quota_service = QuotaService(db)
-    conversation_service = ConversationService(db, tenant_id)  # 传递tenant_id
-
-    # 获取当前活跃会话数（不需要传递参数，服务内部会使用self.tenant_id）
-    active_count = await conversation_service.get_active_conversation_count()
-    await quota_service.check_concurrent_quota(tenant_id, active_count)
-
-    return tenant_id
-
-
-async def check_storage_quota(
-    tenant_id: TenantFlexDep,
-    db: DBDep,
-    file_size: float = 0.0,
-):
-    """
-    检查存储空间配额（依赖注入）
-
-    用于上传文件、添加知识库等场景
-
-    Args:
-        file_size: 需要新增的文件大小(MB)，会转换为GB
-    """
-    quota_service = QuotaService(db)
-    # 转换MB到GB
-    size_gb = file_size / 1024 if file_size > 0 else 0
-    await quota_service.check_storage_quota(tenant_id, size_gb)
-    return tenant_id
-
-
-async def check_api_quota(
-    tenant_id: TenantFlexDep,
-    db: DBDep,
-):
-    """
-    检查API调用配额（依赖注入）
-
-    用于API接口调用
-    """
-    quota_service = QuotaService(db)
-    await quota_service.check_api_quota(tenant_id)
-    return tenant_id
-
-
-# 组合依赖注入（同时检查多个配额）
-ConversationQuotaDep = Annotated[str, Depends(check_conversation_quota)]
-ConcurrentQuotaDep = Annotated[str, Depends(check_concurrent_quota)]
-StorageQuotaDep = Annotated[str, Depends(check_storage_quota)]
-ApiQuotaDep = Annotated[str, Depends(check_api_quota)]
+# 兼容性别名（不再检查配额）
+ConversationQuotaDep = Annotated[str, Depends(_auth_only)]
+ConcurrentQuotaDep = Annotated[str, Depends(_auth_only)]
+StorageQuotaDep = Annotated[str, Depends(_auth_only)]
+ApiQuotaDep = Annotated[str, Depends(_auth_only)]
 
 
 # ==================== 内容安全过滤 ====================

@@ -24,7 +24,7 @@ from schemas import (
     TenantUpdateStatus,
     TenantWithAPIKey,
 )
-from services import AdminService, AuditService, QuotaService, SubscriptionService, TenantService
+from services import AdminService, AuditService, SubscriptionService, TenantService
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
 
@@ -537,45 +537,6 @@ async def assign_plan(
 
 
 @router.post(
-    "/tenants/{tenant_id}/adjust-quota",
-    response_model=ApiResponse[dict],
-    dependencies=[Depends(require_admin_permission(Permission.QUOTA_ADJUST))],
-)
-async def adjust_quota(
-    tenant_id: str,
-    quota_type: str = Query(..., description="配额类型"),
-    amount: int = Query(..., description="调整数量"),
-    reason: str | None = Query(None, description="调整原因"),
-    admin: AdminDep = None,
-    db: DBDep = None,
-):
-    """
-    调整配额
-    
-    权限：super_admin, support_admin
-    """
-    service = QuotaService(db)
-    subscription = await service.adjust_quota(
-        tenant_id=tenant_id,
-        quota_type=quota_type,
-        amount=amount,
-        reason=reason,
-    )
-
-    # 记录审计日志
-    audit_service = AuditService(db)
-    await audit_service.log_quota_adjustment(
-        admin_id=admin.admin_id,
-        tenant_id=tenant_id,
-        quota_type=quota_type,
-        amount=amount,
-        reason=reason,
-    )
-
-    return ApiResponse(data=subscription)
-
-
-@router.post(
     "/tenants/batch-operation",
     response_model=ApiResponse[BatchOperationResponse],
     dependencies=[Depends(require_admin_permission(Permission.TENANT_UPDATE))],
@@ -636,11 +597,7 @@ async def batch_operation(
             tenant_ids=batch_data.tenant_ids,
             days=days,
         )
-    
-    elif batch_data.operation == "reset_quota":
-        redis = getattr(request.app.state, "redis", None)
-        results = await tenant_service.batch_reset_quota(batch_data.tenant_ids, redis)
-    
+
     else:
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=f"不支持的操作: {batch_data.operation}")

@@ -102,24 +102,6 @@ class AlertService:
             severity=AlertSeverity.ERROR,
             channels=[AlertChannel.DINGTALK, AlertChannel.SMS],
         ),
-        AlertRule(
-            name="quota_warning",
-            description="配额使用率告警",
-            metric="quota_usage_percentage",
-            condition="gt",
-            threshold=80,  # 80%
-            severity=AlertSeverity.WARNING,
-            channels=[AlertChannel.EMAIL],
-        ),
-        AlertRule(
-            name="quota_critical",
-            description="配额即将耗尽",
-            metric="quota_usage_percentage",
-            condition="gt",
-            threshold=95,  # 95%
-            severity=AlertSeverity.CRITICAL,
-            channels=[AlertChannel.SMS, AlertChannel.EMAIL],
-        ),
     ]
 
     def __init__(self, metrics_service, notification_service, redis):
@@ -175,16 +157,6 @@ class AlertService:
             conv_stats = await self.metrics_service.get_conversation_stats(tenant_id)
             metrics["resolution_rate"] = conv_stats["resolution_rate"]
             metrics["transfer_rate"] = conv_stats["transfer_rate"]
-
-            # 配额使用率（需要从QuotaService获取）
-            try:
-                quota_status = await self._get_quota_usage(tenant_id)
-                metrics["quota_usage_percentage"] = (
-                    quota_status.get("conversation", {}).get("percentage", 0)
-                )
-            except Exception as e:
-                logger.error(f"获取配额使用率失败: {e}")
-                metrics["quota_usage_percentage"] = 0
 
         return metrics
 
@@ -385,19 +357,6 @@ class AlertService:
             phones_str = getattr(settings, "alert_sms_phones", "")
             return [p.strip() for p in phones_str.split(",") if p.strip()]
         return []
-
-    async def _get_quota_usage(self, tenant_id: str) -> dict:
-        """获取配额使用情况"""
-        try:
-            from services.quota_service import QuotaService
-            from db import get_async_session
-
-            async with get_async_session() as db:
-                quota_service = QuotaService(db)
-                return await quota_service.get_quota_status(tenant_id)
-        except Exception as e:
-            logger.error(f"获取配额使用情况失败: {e}")
-            return {}
 
     # ==================== 规则管理 ====================
 

@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.exceptions import ConversationNotFoundException
 from core.security import generate_conversation_id
 from models import Conversation, Message, User
-from services.quota_service import QuotaService
 from services.usage_service import UsageService
 
 
@@ -19,7 +18,6 @@ class ConversationService:
     def __init__(self, db: AsyncSession, tenant_id: str):
         self.db = db
         self.tenant_id = tenant_id
-        self.quota_service = QuotaService(db)
         self.usage_service = UsageService(db)
 
     async def get_or_create_user(
@@ -60,9 +58,6 @@ class ConversationService:
         """
         创建会话
         """
-        # 检查配额
-        await self.quota_service.check_conversation_quota(self.tenant_id)
-
         # 获取或创建用户
         user = await self.get_or_create_user(user_external_id, user_data)
 

@@ -7,13 +7,12 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.exceptions import AuthenticationException, QuotaExceededException
+from core.exceptions import AuthenticationException
 from core.security import verify_api_key
 from db.session import get_db
 from services import (
     ConversationChainService,
     ConversationService,
-    QuotaService,
     UsageService,
 )
 from services.knowledge_service import KnowledgeService
@@ -90,16 +89,6 @@ async def websocket_chat_endpoint(
         print(
             f"✓ WebSocket 连接建立: tenant={tenant_id}, conversation={conversation_id}"
         )
-
-        # 检查配额
-        quota_service = QuotaService(db, tenant_id)
-        quota_check = await quota_service.check_quota("conversation_count")
-        if not quota_check["allowed"]:
-            await connection_manager.send_error(
-                tenant_id, conversation_id, "对话配额已用完，请升级套餐"
-            )
-            await websocket.close(code=1008, reason="配额超限")
-            return
 
         # 初始化对话链
         chain = ConversationChainService(
@@ -199,11 +188,7 @@ async def handle_chat_message(
         chain: 对话链服务
     """
     try:
-        # 1. 检查配额
-        quota_service = QuotaService(db, tenant_id)
-        await quota_service.use_quota("conversation_count", 1)
-
-        # 2. 保存用户消息
+        # 1. 保存用户消息
         conversation_service = ConversationService(db, tenant_id)
         user_message = await conversation_service.add_message(
             conversation_id=conversation_id,
@@ -211,7 +196,7 @@ async def handle_chat_message(
             content=user_input,
         )
 
-        # 3. 生成回复
+        # 2. 生成回复
         knowledge_items = None
         if use_rag:
             # 检索知识库

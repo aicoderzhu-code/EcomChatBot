@@ -1,6 +1,3 @@
-"""
-业务服务层
-"""
 from services.admin_service import AdminService
 from services.audit_service import AuditService
 from services.billing_service import BillingService
@@ -14,7 +11,6 @@ from services.milvus_service import MilvusService
 from services.llm_service import LLMService
 from services.memory_service import MemoryManager, MemoryService, memory_manager
 from services.prompt_service import PromptService
-from services.quota_service import QuotaService
 from services.websocket_service import ConnectionManager, connection_manager
 from services.rag_service import RAGService
 from services.subscription_service import SubscriptionService
@@ -51,7 +47,6 @@ __all__ = [
     "AuditService",
     "TenantService",
     "SubscriptionService",
-    "QuotaService",
     "UsageService",
     "BillingService",
     "ConversationService",

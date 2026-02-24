@@ -41,26 +41,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("✓ 数据库已初始化")
 
-    # 初始化配额服务
-    from db import get_async_session, get_redis
-    from services.quota_service import QuotaService
-    from api.middleware.quota import ConcurrentQuotaManager
-
-    # 创建配额服务实例(使用依赖注入时会创建新实例,这里主要用于并发管理器)
-    redis_client = await get_redis()
-
-    # 初始化并发配额管理器
-    async with get_async_session() as db:
-        quota_service = QuotaService(db)
-        concurrent_manager = ConcurrentQuotaManager(redis_client, quota_service)
-
-        # 将服务添加到app.state以供装饰器使用
-        app.state.concurrent_quota_manager = concurrent_manager
-
-    print("✓ 配额服务已初始化")
-    
     # 初始化限流中间件
+    from db import get_redis
     from api.middleware.rate_limit import RateLimitMiddleware
+    redis_client = await get_redis()
     app.state.redis_client = redis_client
     print("✓ 限流中间件已初始化")
 

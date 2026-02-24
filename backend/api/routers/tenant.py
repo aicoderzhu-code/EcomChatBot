@@ -11,7 +11,6 @@ from core import create_access_token, settings
 from schemas import (
     ApiResponse,
     PaginatedResponse,
-    QuotaUsageResponse,
     SubscriptionResponse,
     TenantLoginRequest,
     TenantLoginResponse,
@@ -25,7 +24,7 @@ from schemas import (
     ProratedPriceDetail,
     SubscriptionOperationResponse,
 )
-from services import QuotaService, SubscriptionService, TenantService, UsageService
+from services import SubscriptionService, TenantService, UsageService
 from services.payment_service import PaymentService, PLAN_PRICES
 from models.payment import PaymentType, SubscriptionType
 
@@ -150,17 +149,6 @@ async def get_usage(
     service = UsageService(db)
     usage = await service.get_usage_summary(tenant_id, year, month)
     return ApiResponse(data=usage)
-
-
-@router.get("/quota", response_model=ApiResponse[QuotaUsageResponse])
-async def get_quota_usage(
-    tenant_id: TenantDep,
-    db: DBDep,
-):
-    """获取配额使用情况"""
-    service = QuotaService(db)
-    quota = await service.get_quota_usage(tenant_id)
-    return ApiResponse(data=quota)
 
 
 # ============ 套餐订阅 API ============

@@ -18,7 +18,6 @@ from core import (
 from db import get_db, get_redis
 from models import Admin
 from services import AdminService, TenantService
-from services.quota_service import QuotaService
 
 # HTTP Bearer Token (auto_error=False to allow fallback to API Key)
 security = HTTPBearer(auto_error=False)
@@ -237,20 +236,9 @@ def require_role(*allowed_roles: AdminRole):
     return role_checker
 
 
-async def get_quota_service(
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> QuotaService:
-    """
-    获取配额服务实例(带Redis支持)
-    """
-    redis = await get_redis()
-    return QuotaService(db, redis)
-
-
 # 常用依赖注入类型定义
 TenantDep = Annotated[str, Depends(get_current_tenant_from_api_key)]
 TenantTokenDep = Annotated[str, Depends(get_current_tenant_from_token)]
 TenantFlexDep = Annotated[str, Depends(get_current_tenant_flexible)]  # 支持 API Key 和 JWT Token
 AdminDep = Annotated[Admin, Depends(get_current_admin)]
 DBDep = Annotated[AsyncSession, Depends(get_db)]
-QuotaServiceDep = Annotated[QuotaService, Depends(get_quota_service)]
