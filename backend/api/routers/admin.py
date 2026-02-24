@@ -25,6 +25,7 @@ from schemas import (
     TenantWithAPIKey,
 )
 from services import AdminService, AuditService, SubscriptionService, TenantService
+from core.permissions import SUBSCRIPTION_PLANS
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
 
@@ -500,6 +501,15 @@ async def update_tenant_status(
     return ApiResponse(data=tenant)
 
 
+@router.get(
+    "/subscriptions/plans",
+    response_model=ApiResponse[dict],
+)
+async def list_subscription_plans():
+    """获取可用套餐列表及价格"""
+    return ApiResponse(data={"plans": SUBSCRIPTION_PLANS})
+
+
 @router.post(
     "/tenants/{tenant_id}/assign-plan",
     response_model=ApiResponse[dict],
@@ -507,21 +517,21 @@ async def update_tenant_status(
 )
 async def assign_plan(
     tenant_id: str,
-    plan_type: str = Query(..., description="套餐类型"),
-    duration_months: int = Query(1, ge=1, le=36, description="订阅时长"),
+    plan_type: str = Query(..., description="套餐类型 (trial/monthly/quarterly/semi_annual/annual)"),
+    days: int | None = Query(None, ge=1, description="自定义天数（可选，覆盖套餐默认时长）"),
     admin: AdminDep = None,
     db: DBDep = None,
 ):
     """
-    分配套餐
-    
+    分配套餐（支持新订阅套餐，续费时叠加时间）
+
     权限：super_admin, support_admin
     """
     service = SubscriptionService(db)
     subscription = await service.assign_plan(
         tenant_id=tenant_id,
         plan_type=plan_type,
-        duration_months=duration_months,
+        days=days,
     )
 
     # 记录审计日志
