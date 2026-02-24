@@ -99,6 +99,9 @@ temp/
 backend/keys/
 *.pem
 
+# Git Worktrees
+.worktrees/
+
 # Temporary Docs
 Day1*.md
 实现完成*.md
