@@ -119,8 +119,11 @@ export default function SettingsPage() {
             />
           </Card>
         );
+      case 'subscription':
+        return <SubscriptionPanel />;
       case 'platform':
         return (
+          <>
             <Title level={5} className="mb-4">平台对接 - 拼多多</Title>
             <Spin spinning={pddLoading}>
               <div className="mb-4 flex items-center gap-2">
@@ -186,12 +189,10 @@ export default function SettingsPage() {
                 </Form.Item>
               </Form>
             </Spin>
-          </Card>
+          </>
         );
       default:
         return null;
-      case 'subscription':
-        return <SubscriptionPanel />;
     }
   };
 
