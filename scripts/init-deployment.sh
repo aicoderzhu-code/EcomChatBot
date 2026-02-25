@@ -143,7 +143,7 @@ LOG_LEVEL=INFO
 LOG_FORMAT=json
 
 # ============ CORS配置 ============
-CORS_ORIGINS=["http://localhost:3000","http://115.190.75.88"]
+CORS_ORIGINS=["http://localhost:3000","https://www.ecomchat.cn"]
 
 # ============ 限流配置 ============
 RATE_LIMIT_ENABLED=true
@@ -152,6 +152,11 @@ RATE_LIMIT_PER_MINUTE=60
 # ============ 监控配置 ============
 ENABLE_METRICS=true
 ENABLE_TRACING=false
+
+# ============ 支付回调 URL ============
+ALIPAY_RETURN_URL=https://www.ecomchat.cn/payment/alipay/return
+ALIPAY_NOTIFY_URL=https://www.ecomchat.cn/api/v1/payment/callback/alipay/notify
+YUNGOUOS_NOTIFY_URL=https://www.ecomchat.cn/api/v1/payment/callback/yungouos/notify
 EOF
 
     chmod 600 "$ENV_FILE"

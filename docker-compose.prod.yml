@@ -18,6 +18,9 @@ services:
   # Nginx - 生产环境配置
   nginx:
     restart: always
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
 
   # API - 生产环境配置
   api:
