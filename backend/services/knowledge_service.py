@@ -78,6 +78,7 @@ class KnowledgeService:
         source: str | None = None,
         priority: int = 0,
         chunk_count: int = 1,
+        file_size: int = 0,
     ) -> KnowledgeBase:
         """创建知识条目"""
         import uuid
@@ -102,6 +103,7 @@ class KnowledgeService:
             status="active",
             embedding_status=initial_embedding_status,
             chunk_count=chunk_count,
+            file_size=file_size,
         )
 
         self.db.add(knowledge)
@@ -157,17 +159,18 @@ class KnowledgeService:
         await self.db.refresh(s)
         return s
 
-    async def get_stats(self) -> tuple[int, int]:
-        """返回 (总文档数, 总切片数)"""
+    async def get_stats(self) -> tuple[int, int, int]:
+        """返回 (总文档数, 总切片数, 存储字节数)"""
         stmt = select(
             func.count(KnowledgeBase.id),
             func.coalesce(func.sum(KnowledgeBase.chunk_count), 0),
+            func.coalesce(func.sum(KnowledgeBase.file_size), 0),
         ).where(
             KnowledgeBase.tenant_id == self.tenant_id,
             KnowledgeBase.status == "active",
         )
         row = (await self.db.execute(stmt)).one()
-        return int(row[0]), int(row[1])
+        return int(row[0]), int(row[1]), int(row[2])
 
     async def has_indexed_documents(self) -> bool:
         """是否有已成功向量化的文档（仅完成向量化的文档才锁定嵌入模型切换）"""

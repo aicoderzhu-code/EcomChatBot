@@ -155,8 +155,19 @@ async def upload_document(
     db: DBDep = None,
 ):
     """上传文件并使用 LangChain 解析、切片后存入知识库"""
+    from fastapi import HTTPException
     file_bytes = await file.read()
     filename = file.filename or "unknown"
+    file_size = len(file_bytes)
+
+    ALLOWED_EXTENSIONS = {"txt", "pdf", "doc", "docx", "md"}
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型 '.{ext}'，仅允许上传：{', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+    knowledge_type = ext
 
     content, chunk_count = await parse_and_split(filename, file_bytes)
 
@@ -164,13 +175,14 @@ async def upload_document(
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
 
     item = await service.create_knowledge(
-        knowledge_type="doc",
+        knowledge_type=knowledge_type,
         title=filename,
         content=content,
         category=category,
         tags=tag_list,
         source="upload",
         chunk_count=chunk_count,
+        file_size=file_size,
     )
 
     return ApiResponse(data=KnowledgeBaseResponse.model_validate(item))
@@ -182,10 +194,11 @@ async def upload_document(
 async def get_knowledge_stats(tenant_id: TenantFlexDep, db: DBDep):
     """获取知识库统计数据（总文档数、总切片数）"""
     svc = KnowledgeService(db, tenant_id)
-    total_docs, total_chunks = await svc.get_stats()
+    total_docs, total_chunks, storage_bytes = await svc.get_stats()
     return ApiResponse(data=KnowledgeStatsResponse(
         total_documents=total_docs,
         total_chunks=total_chunks,
+        storage_used_mb=round(storage_bytes / 1024 / 1024, 2),
     ))
 
 @router.get("/settings", response_model=ApiResponse[KnowledgeSettingsResponse])

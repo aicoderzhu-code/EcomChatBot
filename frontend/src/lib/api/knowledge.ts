@@ -28,6 +28,7 @@ export interface KnowledgeStats {
   total_documents: number;
   total_chunks: number;
   storage_used: number;
+  storage_used_mb: number;
 }
 
 export interface KnowledgeSettings {
@@ -146,8 +147,8 @@ export const knowledgeApi = {
     return response.data;
   },
 
-  getStats: async (): Promise<ApiResponse<{ total_documents: number; total_chunks: number }>> => {
-    const response = await apiClient.get<ApiResponse<{ total_documents: number; total_chunks: number }>>('/knowledge/stats');
+  getStats: async (): Promise<ApiResponse<{ total_documents: number; total_chunks: number; storage_used_mb: number }>> => {
+    const response = await apiClient.get<ApiResponse<{ total_documents: number; total_chunks: number; storage_used_mb: number }>>('/knowledge/stats');
     return response.data;
   },
 

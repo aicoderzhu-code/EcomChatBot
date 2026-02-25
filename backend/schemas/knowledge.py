@@ -13,7 +13,7 @@ class KnowledgeBaseBase(BaseSchema):
     """知识库基础 Schema"""
 
     knowledge_type: str = Field(
-        "faq", pattern="^(faq|doc|product|policy)$", description="知识类型(默认faq)"
+        "txt", pattern="^(txt|pdf|doc|docx|md)$", description="知识类型"
     )
     title: str = Field(..., min_length=1, max_length=512, description="标题")
     content: str = Field(..., min_length=1, description="内容")
@@ -127,3 +127,4 @@ class KnowledgeStatsResponse(BaseSchema):
 
     total_documents: int
     total_chunks: int
+    storage_used_mb: float

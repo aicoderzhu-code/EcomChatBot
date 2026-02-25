@@ -66,29 +66,31 @@ class RAGService:
                     knowledge_ids
                 )
 
-                # 4. 合并结果
+                # 4. 合并结果，按 chunk_id 去重，展示 chunk 文本
+                seen_chunk_ids: set[str] = set()
                 results = []
                 for vector_result in vector_results:
-                    knowledge_id = vector_result["knowledge_id"]
+                    chunk_id = vector_result["id"]
+                    if chunk_id in seen_chunk_ids:
+                        continue
+                    seen_chunk_ids.add(chunk_id)
 
-                    # 找到对应的知识库项
+                    knowledge_id = vector_result["knowledge_id"]
                     knowledge_item = next(
                         (k for k in knowledge_items if k.knowledge_id == knowledge_id),
                         None,
                     )
-
                     if knowledge_item:
-                        results.append(
-                            {
-                                "knowledge_id": knowledge_item.knowledge_id,
-                                "title": knowledge_item.title,
-                                "content": knowledge_item.content,
-                                "score": vector_result["similarity"],
-                                "category": knowledge_item.category,
-                                "source": knowledge_item.source,
-                                "tags": knowledge_item.tags,
-                            }
-                        )
+                        results.append({
+                            "knowledge_id": knowledge_item.knowledge_id,
+                            "chunk_id": chunk_id,
+                            "title": knowledge_item.title,
+                            "content": vector_result["content"],   # chunk 文本，非完整文档
+                            "score": vector_result["similarity"],
+                            "category": knowledge_item.category,
+                            "source": knowledge_item.source,
+                            "tags": knowledge_item.tags,
+                        })
 
                 # 5. 可选重排
                 if self.rerank_model_config and results:

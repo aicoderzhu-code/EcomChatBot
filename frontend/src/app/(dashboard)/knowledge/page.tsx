@@ -34,6 +34,8 @@ export default function KnowledgePage() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [searchValue, setSearchValue] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searching, setSearching] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [pagination, setPagination] = useState({
     current: 1,
@@ -61,7 +63,7 @@ export default function KnowledgePage() {
         setStats({
           totalDocuments: resp.data.total_documents,
           totalChunks: resp.data.total_chunks,
-          storageUsed: 0,
+          storageUsed: resp.data.storage_used_mb ?? 0,
         });
       }
     } catch (err) {
@@ -107,7 +109,8 @@ export default function KnowledgePage() {
   // Load documents
   const loadDocuments = useCallback(async (page: number, pageSize: number, keyword: string) => {
     try {
-      setLoading(true);
+      if (keyword) setSearching(true);
+      else setLoading(true);
       const response = await knowledgeApi.list({
         keyword: keyword || undefined,
         page,
@@ -127,6 +130,7 @@ export default function KnowledgePage() {
       message.error('加载文档列表失败');
     } finally {
       setLoading(false);
+      setSearching(false);
     }
   }, []);
 
@@ -149,10 +153,17 @@ export default function KnowledgePage() {
   }, []);
 
   useEffect(() => {
-    loadDocuments(pagination.current, pagination.pageSize, searchValue);
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchValue);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchValue]);
+
+  useEffect(() => {
+    loadDocuments(pagination.current, pagination.pageSize, debouncedSearch);
     loadStats();
     loadSettings();
-  }, [loadDocuments, loadStats, loadSettings, pagination.current, pagination.pageSize, searchValue]);
+  }, [loadDocuments, loadStats, loadSettings, pagination.current, pagination.pageSize, debouncedSearch]);
 
   const handleSaveSettings = async () => {
     if (!knowledgeSettings) return;
@@ -363,14 +374,14 @@ export default function KnowledgePage() {
 
       {/* Document List */}
       <Card title="文档列表">
-        {loading ? (
+        {loading && !searching ? (
           <div className="flex justify-center py-12">
             <Spin size="large" />
           </div>
         ) : (
           <DocumentList
             documents={filteredDocuments}
-            loading={false}
+            loading={searching}
             searchValue={searchValue}
             statusFilter={statusFilter}
             onSearchChange={setSearchValue}

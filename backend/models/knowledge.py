@@ -72,6 +72,9 @@ class KnowledgeBase(TenantBaseModel):
     chunk_count: Mapped[int] = mapped_column(
         Integer, default=1, comment="文本切片数量"
     )
+    file_size: Mapped[int] = mapped_column(
+        Integer, default=0, comment="原始文件字节数"
+    )
 
     # 优先级和状态
     priority: Mapped[int] = mapped_column(Integer, default=0, comment="优先级")

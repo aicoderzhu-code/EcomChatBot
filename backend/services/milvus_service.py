@@ -256,6 +256,10 @@ class MilvusService:
         collection = Collection(self.COLLECTION_NAME)
         partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
         if collection.has_partition(partition_name):
+            try:
+                collection.release()
+            except Exception:
+                pass
             collection.drop_partition(partition_name)
         # 若除 _default 外无其他分区，删除整个 collection
         remaining = [p for p in collection.partitions if p.name != "_default"]
