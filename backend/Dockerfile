@@ -1,7 +1,7 @@
 # 多阶段构建 Dockerfile
 
 # 阶段1: 基础镜像
-FROM python:3.11-slim as base
+FROM python:3.11.14-slim as base
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --default-timeout=1000 -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 阶段2: 生产镜像
-FROM python:3.11-slim
+FROM python:3.11.14-slim
 
 WORKDIR /app
 
