@@ -123,7 +123,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: str = "json"
 
-    # ============ 支付宝配置 ============
+    # ============ 支付宝配置（旧，保留兼容） ============
     alipay_appid: str = ""
     alipay_private_key_path: str = "/app/keys/alipay_private_key.pem"
     alipay_public_key_path: str = "/app/keys/alipay_platform_public_key.pem"
@@ -132,6 +132,13 @@ class Settings(BaseSettings):
     alipay_notify_url: str = ""
     alipay_sandbox: bool = True
     alipay_sandbox_gateway: str = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
+
+    # ============ YunGouOS 聚合支付配置 ============
+    yungouos_wechat_mch_id: str = ""
+    yungouos_wechat_key: str = ""
+    yungouos_alipay_mch_id: str = ""
+    yungouos_alipay_key: str = ""
+    yungouos_notify_url: str = ""
 
     @field_validator("cors_origins", mode="before")
     @classmethod
