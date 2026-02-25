@@ -50,6 +50,7 @@ class PaymentType(str, Enum):
     PC = "pc"  # PC 网站支付
     MOBILE = "mobile"  # 手机网站支付
     APP = "app"  # APP 支付（预留）
+    NATIVE = "native"  # 扫码支付
 
 
 class SubscriptionType(str, Enum):
@@ -120,6 +121,9 @@ class PaymentOrder(BaseModel):
     )
     payment_url: Mapped[str | None] = mapped_column(
         Text, comment="支付URL或表单HTML"
+    )
+    qr_code_url: Mapped[str | None] = mapped_column(
+        Text, comment="二维码URL，用于前端展示"
     )
     
     # 时间信息
