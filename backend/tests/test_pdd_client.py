@@ -11,6 +11,7 @@ def test_sign_generation():
     sign = client._generate_sign(params)
     assert isinstance(sign, str)
     assert len(sign) == 32  # MD5 hex
+    assert sign == sign.upper()  # PDD requires uppercase MD5
 
 
 def test_build_request_params():

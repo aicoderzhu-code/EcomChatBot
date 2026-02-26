@@ -6,11 +6,20 @@ import httpx
 
 from core.config import settings
 
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=10.0)
+    return _http_client
+
 
 class PddClient:
     """拼多多开放平台 API 客户端"""
 
-    def __init__(self, app_key: str = None, app_secret: str = None):
+    def __init__(self, app_key: str | None = None, app_secret: str | None = None):
         self.app_key = app_key or settings.pdd_app_key
         self.app_secret = app_secret or settings.pdd_app_secret
         self.base_url = settings.pdd_api_base_url
@@ -41,10 +50,9 @@ class PddClient:
     async def _request(self, api_type: str, biz_params: dict) -> dict:
         """发起 HTTP 请求"""
         params = self._build_params(api_type, biz_params)
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(self.base_url, data=params)
-            resp.raise_for_status()
-            return resp.json()
+        resp = await _get_http_client().post(self.base_url, data=params)
+        resp.raise_for_status()
+        return resp.json()
 
     async def send_message(
         self,
