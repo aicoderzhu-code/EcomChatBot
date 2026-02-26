@@ -17,8 +17,6 @@ from .base import (
     ContextLengthExceededError,
 )
 from .openai_adapter import OpenAIAdapter
-from .deepseek_adapter import DeepSeekAdapter
-from .anthropic_adapter import AnthropicAdapter
 
 __all__ = [
     # 基类和数据类型
@@ -36,6 +34,4 @@ __all__ = [
     "ContextLengthExceededError",
     # 适配器实现
     "OpenAIAdapter",
-    "DeepSeekAdapter",
-    "AnthropicAdapter",
 ]

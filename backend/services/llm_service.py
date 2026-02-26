@@ -1,6 +1,6 @@
 """
 LLM 服务 - 封装 LangChain LLM 调用
-支持多种 LLM 提供商（OpenAI、Anthropic、DeepSeek 等）
+支持多种 LLM 提供商（OpenAI 兼容接口）
 """
 from typing import Any, AsyncIterator
 import logging
@@ -51,18 +51,6 @@ class LLMService:
         """
         初始化 LLM 实例，根据 provider 选择合适的实现
         """
-        if self._provider == "anthropic":
-            try:
-                from langchain_anthropic import ChatAnthropic
-                return ChatAnthropic(
-                    model=self.model_name,
-                    temperature=self._temperature,
-                    max_tokens=self._max_tokens,
-                    anthropic_api_key=self._api_key,
-                )
-            except ImportError:
-                logger.warning("langchain_anthropic not installed, falling back to ChatOpenAI")
-
         return ChatOpenAI(
             model=self.model_name,
             temperature=self._temperature,
@@ -74,19 +62,6 @@ class LLMService:
 
     def get_streaming_llm(self):
         """获取支持流式输出的 LLM 实例"""
-        if self._provider == "anthropic":
-            try:
-                from langchain_anthropic import ChatAnthropic
-                return ChatAnthropic(
-                    model=self.model_name,
-                    temperature=self._temperature,
-                    max_tokens=self._max_tokens,
-                    anthropic_api_key=self._api_key,
-                    streaming=True,
-                )
-            except ImportError:
-                pass
-
         return ChatOpenAI(
             model=self.model_name,
             temperature=self._temperature,

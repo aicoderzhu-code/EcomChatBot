@@ -55,10 +55,6 @@ class Settings(BaseSettings):
     openai_max_tokens: int = 2000
     openai_base_url: str | None = None
 
-    # Anthropic
-    anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-3-5-sonnet-20240620"
-
     # Milvus
     milvus_host: str = "localhost"
     milvus_port: int = 19530

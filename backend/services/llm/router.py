@@ -23,8 +23,6 @@ from .adapters import (
     StreamChunk,
     LLMError,
     OpenAIAdapter,
-    DeepSeekAdapter,
-    AnthropicAdapter,
 )
 
 logger = logging.getLogger(__name__)
@@ -109,11 +107,11 @@ class ModelRouter:
     # 默认意图-模型映射
     DEFAULT_INTENT_MODELS = {
         IntentCategory.GENERAL: "gpt-4o-mini",
-        IntentCategory.CODING: "deepseek-coder",
-        IntentCategory.CREATIVE: "claude-3-5-sonnet-20241022",
+        IntentCategory.CODING: "gpt-4o",
+        IntentCategory.CREATIVE: "gpt-4o",
         IntentCategory.ANALYSIS: "gpt-4o",
         IntentCategory.CUSTOMER_SERVICE: "gpt-4o-mini",
-        IntentCategory.KNOWLEDGE_QA: "deepseek-chat",
+        IntentCategory.KNOWLEDGE_QA: "gpt-4o-mini",
     }
 
     # 模型到提供商的映射
@@ -124,23 +122,11 @@ class ModelRouter:
         "gpt-4-turbo": LLMProvider.OPENAI,
         "gpt-4": LLMProvider.OPENAI,
         "gpt-3.5-turbo": LLMProvider.OPENAI,
-        # DeepSeek
-        "deepseek-chat": LLMProvider.DEEPSEEK,
-        "deepseek-coder": LLMProvider.DEEPSEEK,
-        "deepseek-reasoner": LLMProvider.DEEPSEEK,
-        # Anthropic
-        "claude-3-opus-20240229": LLMProvider.ANTHROPIC,
-        "claude-3-sonnet-20240229": LLMProvider.ANTHROPIC,
-        "claude-3-haiku-20240307": LLMProvider.ANTHROPIC,
-        "claude-3-5-sonnet-20241022": LLMProvider.ANTHROPIC,
-        "claude-3-5-haiku-20241022": LLMProvider.ANTHROPIC,
     }
 
     # 默认故障转移顺序
     DEFAULT_FALLBACK_ORDER = [
         LLMProvider.OPENAI,
-        LLMProvider.DEEPSEEK,
-        LLMProvider.ANTHROPIC,
     ]
 
     def __init__(self):
@@ -192,16 +178,12 @@ class ModelRouter:
     async def initialize(
         self,
         openai_api_key: Optional[str] = None,
-        deepseek_api_key: Optional[str] = None,
-        anthropic_api_key: Optional[str] = None,
     ):
         """
         初始化路由器，注册所有可用的适配器
 
         Args:
             openai_api_key: OpenAI API密钥
-            deepseek_api_key: DeepSeek API密钥
-            anthropic_api_key: Anthropic API密钥
         """
         if openai_api_key:
             try:
@@ -213,43 +195,11 @@ class ModelRouter:
                         provider=LLMProvider.OPENAI,
                         priority=1,
                         models=adapter.supported_models,
-                        cost_per_1k_tokens=0.01,  # GPT-4o-mini估算
+                        cost_per_1k_tokens=0.01,
                     )
                 )
             except Exception as e:
                 logger.warning(f"Failed to initialize OpenAI adapter: {e}")
-
-        if deepseek_api_key:
-            try:
-                adapter = DeepSeekAdapter(api_key=deepseek_api_key)
-                self.register_adapter(
-                    LLMProvider.DEEPSEEK,
-                    adapter,
-                    ProviderConfig(
-                        provider=LLMProvider.DEEPSEEK,
-                        priority=2,
-                        models=adapter.supported_models,
-                        cost_per_1k_tokens=0.001,  # DeepSeek较便宜
-                    )
-                )
-            except Exception as e:
-                logger.warning(f"Failed to initialize DeepSeek adapter: {e}")
-
-        if anthropic_api_key:
-            try:
-                adapter = AnthropicAdapter(api_key=anthropic_api_key)
-                self.register_adapter(
-                    LLMProvider.ANTHROPIC,
-                    adapter,
-                    ProviderConfig(
-                        provider=LLMProvider.ANTHROPIC,
-                        priority=3,
-                        models=adapter.supported_models,
-                        cost_per_1k_tokens=0.015,  # Claude估算
-                    )
-                )
-            except Exception as e:
-                logger.warning(f"Failed to initialize Anthropic adapter: {e}")
 
         self._initialized = True
         logger.info(f"Router initialized with {len(self._adapters)} providers")
@@ -553,16 +503,12 @@ def get_model_router() -> ModelRouter:
 
 async def init_model_router(
     openai_api_key: Optional[str] = None,
-    deepseek_api_key: Optional[str] = None,
-    anthropic_api_key: Optional[str] = None,
 ) -> ModelRouter:
     """
     初始化全局模型路由器
 
     Args:
         openai_api_key: OpenAI API密钥
-        deepseek_api_key: DeepSeek API密钥
-        anthropic_api_key: Anthropic API密钥
 
     Returns:
         ModelRouter实例
@@ -570,7 +516,5 @@ async def init_model_router(
     router = get_model_router()
     await router.initialize(
         openai_api_key=openai_api_key,
-        deepseek_api_key=deepseek_api_key,
-        anthropic_api_key=anthropic_api_key,
     )
     return router

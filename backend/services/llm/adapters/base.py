@@ -12,11 +12,11 @@ from enum import Enum
 class LLMProvider(str, Enum):
     """LLM提供商"""
     OPENAI = "openai"
-    DEEPSEEK = "deepseek"
-    ANTHROPIC = "anthropic"
-    ZHIPU = "zhipu"  # 智谱AI
-    QWEN = "qwen"    # 通义千问
-    MOONSHOT = "moonshot"  # Kimi
+    ZHIPU = "zhipu"          # 智谱AI
+    QWEN = "qwen"            # 通义千问
+    SILICONFLOW = "siliconflow"  # 硅基流动
+    META = "meta"            # Meta (自定义 base URL)
+    PRIVATE = "private"      # 私有/自托管部署
 
 
 @dataclass

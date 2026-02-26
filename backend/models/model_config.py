@@ -13,9 +13,7 @@ class LLMProvider(str, Enum):
     """LLM提供商"""
     OPENAI = "openai"
     ZHIPUAI = "zhipuai"          # 智谱AI
-    DEEPSEEK = "deepseek"        # DeepSeek
     QWEN = "qwen"                # 通义千问
-    GOOGLE = "google"            # Google Gemini
     META = "meta"                # Meta (自定义 base URL)
     SILICONFLOW = "siliconflow"  # 硅基流动
     PRIVATE = "private"          # 私有/自托管部署

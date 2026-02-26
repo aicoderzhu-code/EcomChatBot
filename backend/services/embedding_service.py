@@ -85,7 +85,7 @@ EMBEDDING_DIMENSIONS: dict[str, int] = {
 }
 
 # 支持 OpenAI 兼容接口的 provider（ZhipuAI / Qwen 单独处理，不走 LangChain OpenAIEmbeddings）
-OPENAI_COMPATIBLE = {"openai", "azure_openai", "deepseek", "moonshot"}
+OPENAI_COMPATIBLE = {"openai", "siliconflow", "meta", "private"}
 
 # Qwen text-embedding-v3 及以上版本支持兼容模式；v2 及以下需原生 API
 # 这里列出支持 OpenAI 兼容格式的 Qwen embedding 模型
@@ -94,10 +94,9 @@ QWEN_OPENAI_COMPATIBLE_MODELS = {"text-embedding-v3"}
 # 各 provider 的默认 base URL
 PROVIDER_DEFAULT_BASE: dict[str, str] = {
     "openai": "https://api.openai.com/v1",
-    "deepseek": "https://api.deepseek.com/v1",
-    "moonshot": "https://api.moonshot.cn/v1",
     "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "zhipuai": "https://open.bigmodel.cn/api/paas/v4",
+    "siliconflow": "https://api.siliconflow.cn/v1",
 }
 
 

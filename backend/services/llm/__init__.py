@@ -19,8 +19,6 @@ from .adapters import (
     ContextLengthExceededError,
     # 适配器实现
     OpenAIAdapter,
-    DeepSeekAdapter,
-    AnthropicAdapter,
 )
 from .router import (
     ModelRouter,
@@ -49,8 +47,6 @@ __all__ = [
     "ContextLengthExceededError",
     # 适配器实现
     "OpenAIAdapter",
-    "DeepSeekAdapter",
-    "AnthropicAdapter",
     # 路由器
     "ModelRouter",
     "RoutingStrategy",

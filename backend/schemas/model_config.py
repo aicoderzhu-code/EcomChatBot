@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class ModelConfigCreateRequest(BaseModel):
     """创建模型配置请求"""
-    provider: str = Field(..., description="LLM提供商(openai/deepseek/zhipuai/qwen/google/meta/siliconflow/private)")
+    provider: str = Field(..., description="LLM提供商(openai/zhipuai/qwen/siliconflow/meta/private)")
     model_name: str = Field(..., min_length=1, max_length=128, description="模型名称")
     model_type: str = Field("llm", description="模型类型(llm/embedding/rerank)")
     api_key: str | None = Field(None, max_length=512, description="API密钥")

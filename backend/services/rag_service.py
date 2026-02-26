@@ -111,7 +111,7 @@ class RAGService:
         """
         使用重排模型对检索结果重新排序
 
-        支持 Cohere 和 Jina 的 rerank API。
+        支持 Qwen（DashScope）和 SiliconFlow 的 rerank API。
         """
         import httpx
 
@@ -122,31 +122,33 @@ class RAGService:
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                if provider == "cohere":
+                if provider == "qwen":
                     resp = await client.post(
-                        "https://api.cohere.com/v2/rerank",
+                        "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank",
                         headers={
                             "Authorization": f"Bearer {api_key}",
                             "Content-Type": "application/json",
                         },
                         json={
                             "model": model_name,
-                            "query": query,
-                            "documents": documents,
-                            "top_n": len(results),
+                            "input": {"query": query, "documents": documents},
+                            "parameters": {
+                                "top_n": len(results),
+                                "return_documents": False,
+                            },
                         },
                     )
                     if resp.status_code == 200:
                         reranked = sorted(
-                            resp.json()["results"],
+                            resp.json().get("output", {}).get("results", []),
                             key=lambda x: x["relevance_score"],
                             reverse=True,
                         )
                         return [results[r["index"]] for r in reranked]
 
-                elif provider == "jina":
+                elif provider == "siliconflow":
                     resp = await client.post(
-                        "https://api.jina.ai/v1/rerank",
+                        "https://api.siliconflow.cn/v1/rerank",
                         headers={
                             "Authorization": f"Bearer {api_key}",
                             "Content-Type": "application/json",

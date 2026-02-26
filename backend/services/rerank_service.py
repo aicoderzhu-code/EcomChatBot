@@ -16,10 +16,8 @@ logger = logging.getLogger(__name__)
 
 class RerankProvider(str, Enum):
     """重排序提供商"""
-    COHERE = "cohere"
-    JINA = "jina"
-    BGE = "bge"
-    CROSS_ENCODER = "cross_encoder"
+    QWEN = "qwen"
+    SILICONFLOW = "siliconflow"
     LLM = "llm"  # 使用LLM进行重排序
 
 
@@ -71,36 +69,26 @@ class RerankAdapter(ABC):
         pass
 
 
-class CohereRerankAdapter(RerankAdapter):
+class QwenRerankAdapter(RerankAdapter):
     """
-    Cohere Rerank适配器
+    通义千问 Rerank 适配器
 
-    使用Cohere的rerank-english-v3.0或rerank-multilingual-v3.0模型
-    API文档: https://docs.cohere.com/reference/rerank
+    调用 DashScope rerank API（gte-rerank 等模型）
     """
+
+    BASE_URL = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
 
     def __init__(
         self,
         api_key: str,
-        model: str = "rerank-multilingual-v3.0"
+        model: str = "gte-rerank"
     ):
         self._api_key = api_key
         self._default_model = model
-        self._client = None
-
-    def _get_client(self):
-        """懒加载客户端"""
-        if self._client is None:
-            try:
-                import cohere
-                self._client = cohere.AsyncClient(api_key=self._api_key)
-            except ImportError:
-                raise ImportError("请安装cohere包: pip install cohere")
-        return self._client
 
     @property
     def provider(self) -> RerankProvider:
-        return RerankProvider.COHERE
+        return RerankProvider.QWEN
 
     async def rerank(
         self,
@@ -108,60 +96,70 @@ class CohereRerankAdapter(RerankAdapter):
         documents: List[str],
         config: RerankConfig
     ) -> List[RerankResult]:
-        """使用Cohere进行重排序"""
+        """使用通义千问进行重排序"""
         if not documents:
             return []
 
-        client = self._get_client()
-        model = config.model or self._default_model
-
         try:
-            response = await client.rerank(
-                query=query,
-                documents=documents,
-                model=model,
-                top_n=config.top_k,
-                return_documents=True,
-            )
+            import httpx
 
-            results = []
-            for item in response.results:
-                score = item.relevance_score
-                if score >= config.min_score:
-                    results.append(RerankResult(
-                        document=documents[item.index],
-                        score=score,
-                        original_index=item.index,
-                    ))
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.BASE_URL,
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": config.model or self._default_model,
+                        "input": {"query": query, "documents": documents},
+                        "parameters": {
+                            "top_n": config.top_k,
+                            "return_documents": False,
+                        },
+                    },
+                    timeout=30.0,
+                )
+                response.raise_for_status()
+                data = response.json()
 
-            return results
+                results = []
+                for item in data.get("output", {}).get("results", []):
+                    score = item.get("relevance_score", 0)
+                    if score >= config.min_score:
+                        results.append(RerankResult(
+                            document=documents[item["index"]],
+                            score=score,
+                            original_index=item["index"],
+                        ))
+
+                return results
 
         except Exception as e:
-            logger.error(f"Cohere rerank failed: {e}")
+            logger.error(f"Qwen rerank failed: {e}")
             raise
 
 
-class JinaRerankAdapter(RerankAdapter):
+class SiliconFlowRerankAdapter(RerankAdapter):
     """
-    Jina Rerank适配器
+    SiliconFlow Rerank 适配器
 
-    使用Jina的reranker模型
-    API文档: https://jina.ai/reranker/
+    调用 SiliconFlow rerank API（OpenAI 兼容格式）
     """
 
-    BASE_URL = "https://api.jina.ai/v1/rerank"
+    BASE_URL = "https://api.siliconflow.cn/v1/rerank"
 
     def __init__(
         self,
         api_key: str,
-        model: str = "jina-reranker-v2-base-multilingual"
+        model: str = "BAAI/bge-reranker-v2-m3"
     ):
         self._api_key = api_key
         self._default_model = model
 
     @property
     def provider(self) -> RerankProvider:
-        return RerankProvider.JINA
+        return RerankProvider.SILICONFLOW
 
     async def rerank(
         self,
@@ -169,7 +167,7 @@ class JinaRerankAdapter(RerankAdapter):
         documents: List[str],
         config: RerankConfig
     ) -> List[RerankResult]:
-        """使用Jina进行重排序"""
+        """使用 SiliconFlow 进行重排序"""
         if not documents:
             return []
 
@@ -199,182 +197,15 @@ class JinaRerankAdapter(RerankAdapter):
                     score = item.get("relevance_score", 0)
                     if score >= config.min_score:
                         results.append(RerankResult(
-                            document=item.get("document", {}).get("text", ""),
+                            document=documents[item["index"]],
                             score=score,
-                            original_index=item.get("index", 0),
+                            original_index=item["index"],
                         ))
 
                 return results
 
         except Exception as e:
-            logger.error(f"Jina rerank failed: {e}")
-            raise
-
-
-class BGERerankAdapter(RerankAdapter):
-    """
-    BGE Rerank适配器
-
-    使用本地BGE reranker模型
-    模型: BAAI/bge-reranker-v2-m3
-    """
-
-    def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3"):
-        self._model_name = model_name
-        self._model = None
-        self._tokenizer = None
-
-    def _load_model(self):
-        """懒加载模型"""
-        if self._model is None:
-            try:
-                from transformers import AutoModelForSequenceClassification, AutoTokenizer
-                import torch
-
-                self._tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-                self._model = AutoModelForSequenceClassification.from_pretrained(self._model_name)
-                self._model.eval()
-
-                # 如果有GPU则使用
-                if torch.cuda.is_available():
-                    self._model = self._model.cuda()
-
-            except ImportError:
-                raise ImportError("请安装transformers和torch: pip install transformers torch")
-
-    @property
-    def provider(self) -> RerankProvider:
-        return RerankProvider.BGE
-
-    async def rerank(
-        self,
-        query: str,
-        documents: List[str],
-        config: RerankConfig
-    ) -> List[RerankResult]:
-        """使用BGE进行重排序"""
-        if not documents:
-            return []
-
-        self._load_model()
-
-        try:
-            import torch
-
-            # 构建查询-文档对
-            pairs = [[query, doc] for doc in documents]
-
-            # 在线程池中运行模型推理
-            def compute_scores():
-                with torch.no_grad():
-                    inputs = self._tokenizer(
-                        pairs,
-                        padding=True,
-                        truncation=True,
-                        max_length=512,
-                        return_tensors="pt"
-                    )
-
-                    if torch.cuda.is_available():
-                        inputs = {k: v.cuda() for k, v in inputs.items()}
-
-                    outputs = self._model(**inputs)
-                    scores = outputs.logits.squeeze(-1).cpu().numpy()
-                    return scores
-
-            # 在事件循环中运行
-            loop = asyncio.get_event_loop()
-            scores = await loop.run_in_executor(None, compute_scores)
-
-            # 构建结果
-            results = []
-            for idx, (doc, score) in enumerate(zip(documents, scores)):
-                score_float = float(score)
-                if score_float >= config.min_score:
-                    results.append(RerankResult(
-                        document=doc,
-                        score=score_float,
-                        original_index=idx,
-                    ))
-
-            # 按分数排序
-            results.sort(key=lambda x: x.score, reverse=True)
-
-            # 返回top_k
-            return results[:config.top_k]
-
-        except Exception as e:
-            logger.error(f"BGE rerank failed: {e}")
-            raise
-
-
-class CrossEncoderRerankAdapter(RerankAdapter):
-    """
-    Cross-Encoder Rerank适配器
-
-    使用sentence-transformers的CrossEncoder模型
-    """
-
-    def __init__(self, model_name: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"):
-        self._model_name = model_name
-        self._model = None
-
-    def _load_model(self):
-        """懒加载模型"""
-        if self._model is None:
-            try:
-                from sentence_transformers import CrossEncoder
-                self._model = CrossEncoder(self._model_name)
-            except ImportError:
-                raise ImportError("请安装sentence-transformers: pip install sentence-transformers")
-
-    @property
-    def provider(self) -> RerankProvider:
-        return RerankProvider.CROSS_ENCODER
-
-    async def rerank(
-        self,
-        query: str,
-        documents: List[str],
-        config: RerankConfig
-    ) -> List[RerankResult]:
-        """使用CrossEncoder进行重排序"""
-        if not documents:
-            return []
-
-        self._load_model()
-
-        try:
-            # 构建查询-文档对
-            pairs = [(query, doc) for doc in documents]
-
-            # 在线程池中运行模型推理
-            loop = asyncio.get_event_loop()
-            scores = await loop.run_in_executor(
-                None,
-                self._model.predict,
-                pairs
-            )
-
-            # 构建结果
-            results = []
-            for idx, (doc, score) in enumerate(zip(documents, scores)):
-                score_float = float(score)
-                if score_float >= config.min_score:
-                    results.append(RerankResult(
-                        document=doc,
-                        score=score_float,
-                        original_index=idx,
-                    ))
-
-            # 按分数排序
-            results.sort(key=lambda x: x.score, reverse=True)
-
-            # 返回top_k
-            return results[:config.top_k]
-
-        except Exception as e:
-            logger.error(f"CrossEncoder rerank failed: {e}")
+            logger.error(f"SiliconFlow rerank failed: {e}")
             raise
 
 
@@ -609,20 +440,16 @@ def get_rerank_service() -> RerankService:
 
 
 async def init_rerank_service(
-    cohere_api_key: Optional[str] = None,
-    jina_api_key: Optional[str] = None,
-    use_local_bge: bool = False,
-    use_cross_encoder: bool = False,
+    qwen_api_key: Optional[str] = None,
+    siliconflow_api_key: Optional[str] = None,
     llm_service: Optional[Any] = None,
 ) -> RerankService:
     """
     初始化重排序服务
 
     Args:
-        cohere_api_key: Cohere API密钥
-        jina_api_key: Jina API密钥
-        use_local_bge: 是否使用本地BGE模型
-        use_cross_encoder: 是否使用CrossEncoder
+        qwen_api_key: 通义千问 API密钥
+        siliconflow_api_key: SiliconFlow API密钥
         llm_service: LLM服务实例（用于LLM重排序）
 
     Returns:
@@ -630,33 +457,19 @@ async def init_rerank_service(
     """
     service = get_rerank_service()
 
-    if cohere_api_key:
+    if qwen_api_key:
         try:
-            adapter = CohereRerankAdapter(api_key=cohere_api_key)
+            adapter = QwenRerankAdapter(api_key=qwen_api_key)
             service.register_adapter(adapter, is_default=True)
         except Exception as e:
-            logger.warning(f"Failed to initialize Cohere rerank: {e}")
+            logger.warning(f"Failed to initialize Qwen rerank: {e}")
 
-    if jina_api_key:
+    if siliconflow_api_key:
         try:
-            adapter = JinaRerankAdapter(api_key=jina_api_key)
+            adapter = SiliconFlowRerankAdapter(api_key=siliconflow_api_key)
             service.register_adapter(adapter)
         except Exception as e:
-            logger.warning(f"Failed to initialize Jina rerank: {e}")
-
-    if use_local_bge:
-        try:
-            adapter = BGERerankAdapter()
-            service.register_adapter(adapter)
-        except Exception as e:
-            logger.warning(f"Failed to initialize BGE rerank: {e}")
-
-    if use_cross_encoder:
-        try:
-            adapter = CrossEncoderRerankAdapter()
-            service.register_adapter(adapter)
-        except Exception as e:
-            logger.warning(f"Failed to initialize CrossEncoder rerank: {e}")
+            logger.warning(f"Failed to initialize SiliconFlow rerank: {e}")
 
     if llm_service:
         try:

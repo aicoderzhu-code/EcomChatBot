@@ -25,20 +25,16 @@ email-validator==2.1.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
-python-multipart==0.0.6
 cryptography==42.0.0
 
 # LangChain & AI
 langchain==0.1.4
 langchain-openai==0.0.5
-langchain-anthropic==0.1.1
 langchain-community==0.0.17
 langgraph==0.0.20
-langsmith>=0.0.83,<0.1
 
 # Vector Database
 pymilvus==2.3.5
-sentence-transformers==2.3.1
 
 # Task Queue
 celery[redis]==5.3.6
@@ -51,32 +47,6 @@ python-json-logger==2.0.7
 
 # HTTP Client
 httpx==0.26.0
-aiohttp==3.9.1
-
-# Data Processing
-pandas==2.2.0
-numpy==1.26.3
-
-# Code Quality
-black==24.1.1
-flake8==7.0.0
-mypy==1.8.0
-isort==5.13.2
-
-# Payment
-python-alipay-sdk==3.4.0
-
-# Email
-aiosmtplib==3.0.1
-
-# Aliyun SMS
-alibabacloud-dysmsapi20170525==2.0.24
-
-# PDF Generation
-reportlab==4.1.0
-
-# Excel Export
-openpyxl==3.1.2
 
 # Utilities
 python-dotenv==1.0.0
