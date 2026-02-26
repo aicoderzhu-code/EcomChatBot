@@ -6,7 +6,7 @@ import { PlusOutlined, FileTextOutlined, AppstoreOutlined, CloudOutlined } from 
 import {
   DocumentList,
   UploadModal,
-  RetrievalTest,
+  EnhancedRetrievalTest,
 } from '@/components/knowledge';
 import { knowledgeApi, KnowledgeItem, KnowledgeSettings } from '@/lib/api/knowledge';
 import { settingsApi, ModelConfig } from '@/lib/api/settings';
@@ -398,8 +398,8 @@ export default function KnowledgePage() {
         )}
       </Card>
 
-      {/* Retrieval Test */}
-      <RetrievalTest
+      {/* Enhanced Retrieval & RAG Test */}
+      <EnhancedRetrievalTest
         onSearch={handleSearch}
         rerankModels={rerankModels.map((m) => ({
           id: m.id,

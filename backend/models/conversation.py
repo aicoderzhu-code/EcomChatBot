@@ -141,7 +141,7 @@ class Conversation(TenantBaseModel):
     # 关联关系
     user: Mapped["User"] = relationship("User", back_populates="conversations")
     messages: Mapped[list["Message"]] = relationship(
-        "Message", back_populates="conversation", lazy="selectin"
+        "Message", back_populates="conversation", lazy="noload"
     )
 
     def __repr__(self) -> str:

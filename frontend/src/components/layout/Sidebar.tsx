@@ -10,6 +10,7 @@ import {
   LogoutOutlined,
   ShoppingCartOutlined,
   UserOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store';
 
@@ -30,6 +31,11 @@ const menuItems = [
     key: '/knowledge',
     icon: <BookOutlined />,
     label: '知识库',
+  },
+  {
+    key: '/playground',
+    icon: <ExperimentOutlined />,
+    label: 'Playground',
   },
   {
     key: '/settings',

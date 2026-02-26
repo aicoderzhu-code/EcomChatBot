@@ -2,12 +2,13 @@
 WebSocket 实时对话路由
 """
 import json
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.exceptions import AuthenticationException
+from core.exceptions import AuthenticationException, QuotaExceededException
 from core.security import verify_api_key
 from db.session import get_db
 from services import (
@@ -318,9 +319,6 @@ async def websocket_chat_stream_endpoint(
         )
         await chain.initialize()
 
-        # 获取流式 LLM
-        streaming_llm = chain.llm_service.get_streaming_llm()
-
         # 主消息循环
         while True:
             try:
@@ -331,7 +329,6 @@ async def websocket_chat_stream_endpoint(
                 if not user_input:
                     continue
 
-                # 保存用户消息
                 conversation_service = ConversationService(db, tenant_id)
                 await conversation_service.add_message(
                     conversation_id=conversation_id,
@@ -339,48 +336,47 @@ async def websocket_chat_stream_endpoint(
                     content=user_input,
                 )
 
-                # 获取系统提示词
                 from services.prompt_service import PromptService
-
                 prompt_service = PromptService()
                 system_prompt = prompt_service.get_system_prompt()
 
-                # 获取对话历史
                 chat_history = chain.memory.get_chat_history()
                 messages = chat_history.copy()
                 messages.append({"role": "user", "content": user_input})
 
-                # 流式生成（简化版）
-                # TODO: 实现真正的流式输出
-                from langchain.schema import HumanMessage, SystemMessage
+                full_response = ""
+                async for chunk in chain.llm_service.astream(messages, system_prompt):
+                    if chunk["type"] == "chunk":
+                        await connection_manager.send_streaming_chunk(
+                            tenant_id, conversation_id,
+                            chunk["content"], is_final=False,
+                        )
+                        full_response += chunk["content"]
+                    elif chunk["type"] == "done":
+                        await connection_manager.send_streaming_chunk(
+                            tenant_id, conversation_id, "", is_final=True,
+                        )
+                        await connection_manager.send_message(
+                            tenant_id, conversation_id,
+                            {
+                                "type": "metadata",
+                                "tokens": {
+                                    "input": chunk.get("input_tokens", 0),
+                                    "output": chunk.get("output_tokens", 0),
+                                    "total": chunk.get("input_tokens", 0) + chunk.get("output_tokens", 0),
+                                },
+                                "model": chunk.get("model"),
+                            },
+                        )
 
-                lc_messages = [SystemMessage(content=system_prompt)]
-                for msg in messages:
-                    if msg["role"] == "user":
-                        lc_messages.append(HumanMessage(content=msg["content"]))
-
-                response = await streaming_llm.ainvoke(lc_messages)
-                response_text = response.content
-
-                # 模拟流式输出（按字符发送）
-                for i, char in enumerate(response_text):
-                    await connection_manager.send_streaming_chunk(
-                        tenant_id,
-                        conversation_id,
-                        char,
-                        is_final=(i == len(response_text) - 1),
-                    )
-
-                # 保存 AI 回复
                 await conversation_service.add_message(
                     conversation_id=conversation_id,
                     role="assistant",
-                    content=response_text,
+                    content=full_response,
                 )
 
-                # 更新记忆
                 chain.memory.add_user_message(user_input)
-                chain.memory.add_ai_message(response_text)
+                chain.memory.add_ai_message(full_response)
 
             except WebSocketDisconnect:
                 break

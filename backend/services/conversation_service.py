@@ -1,6 +1,7 @@
 """
 对话管理服务
 """
+import uuid
 from datetime import datetime
 
 from sqlalchemy import and_, func, select
@@ -49,6 +50,17 @@ class ConversationService:
 
         return user
 
+    async def _get_user(self, user_external_id: str) -> User | None:
+        """查找用户（只读，不创建）"""
+        stmt = select(User).where(
+            and_(
+                User.tenant_id == self.tenant_id,
+                User.user_external_id == user_external_id,
+            )
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def create_conversation(
         self,
         user_external_id: str,
@@ -60,6 +72,10 @@ class ConversationService:
         """
         # 获取或创建用户
         user = await self.get_or_create_user(user_external_id, user_data)
+
+        # 更新用户统计
+        user.total_conversations = (user.total_conversations or 0) + 1
+        user.last_conversation_at = datetime.utcnow()
 
         # 创建会话
         conversation_id = generate_conversation_id()
@@ -115,8 +131,9 @@ class ConversationService:
         conditions = [Conversation.tenant_id == self.tenant_id]
 
         if user_external_id:
-            # 先查找用户ID
-            user = await self.get_or_create_user(user_external_id)
+            user = await self._get_user(user_external_id)
+            if not user:
+                return [], 0
             conditions.append(Conversation.user_id == user.id)
 
         if status:
@@ -153,8 +170,7 @@ class ConversationService:
         """添加消息"""
         conversation = await self.get_conversation(conversation_id)
 
-        # 生成消息ID
-        message_id = f"msg_{int(datetime.utcnow().timestamp())}_{conversation.message_count}"
+        message_id = f"msg_{uuid.uuid4().hex[:16]}"
 
         message = Message(
             tenant_id=self.tenant_id,
@@ -186,17 +202,22 @@ class ConversationService:
         self,
         conversation_id: str,
         limit: int = 50,
+        offset: int = 0,
+        before_id: int | None = None,
     ) -> list[Message]:
-        """获取会话消息"""
+        """获取会话消息，支持分页偏移和游标"""
+        conditions = [
+            Message.tenant_id == self.tenant_id,
+            Message.conversation_id == conversation_id,
+        ]
+        if before_id is not None:
+            conditions.append(Message.id < before_id)
+
         stmt = (
             select(Message)
-            .where(
-                and_(
-                    Message.tenant_id == self.tenant_id,
-                    Message.conversation_id == conversation_id,
-                )
-            )
+            .where(and_(*conditions))
             .order_by(Message.created_at.asc())
+            .offset(offset)
             .limit(limit)
         )
 
@@ -212,8 +233,12 @@ class ConversationService:
         """关闭会话"""
         conversation = await self.get_conversation(conversation_id)
 
+        now = datetime.utcnow()
         conversation.status = "closed"
-        conversation.end_time = datetime.utcnow()
+        conversation.end_time = now
+
+        if conversation.start_time:
+            conversation.resolution_time = int((now - conversation.start_time).total_seconds())
 
         if satisfaction_score:
             conversation.satisfaction_score = satisfaction_score

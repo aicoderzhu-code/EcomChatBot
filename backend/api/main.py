@@ -22,6 +22,7 @@ from api.routers import (
     monitor,
     payment,
     platform,
+    playground,
     quality,
     rag,
     sensitive_word,
@@ -252,6 +253,7 @@ app.include_router(sensitive_word.router, prefix=settings.api_v1_prefix)
 app.include_router(audit.router, prefix=settings.api_v1_prefix)
 app.include_router(setup.router, prefix=settings.api_v1_prefix)
 app.include_router(platform.router, prefix=settings.api_v1_prefix)
+app.include_router(playground.router, prefix=settings.api_v1_prefix)
 
 
 if __name__ == "__main__":

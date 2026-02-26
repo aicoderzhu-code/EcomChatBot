@@ -2,10 +2,9 @@
 LLM 服务 - 封装 LangChain LLM 调用
 支持多种 LLM 提供商（OpenAI、Anthropic、DeepSeek 等）
 """
-from typing import Any
+from typing import Any, AsyncIterator
 import logging
 
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
@@ -95,8 +94,71 @@ class LLMService:
             openai_api_key=self._api_key,
             openai_api_base=self._api_base,
             streaming=True,
-            callbacks=[StreamingStdOutCallbackHandler()],
         )
+
+    def _build_lc_messages(
+        self,
+        messages: list[dict[str, str]],
+        system_prompt: str | None = None,
+    ) -> list:
+        """Convert dict messages to LangChain message objects."""
+        lc_messages = []
+        if system_prompt:
+            lc_messages.append(SystemMessage(content=system_prompt))
+        for msg in messages:
+            role = msg.get("role")
+            content = msg.get("content", "")
+            if role == "user":
+                lc_messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                lc_messages.append(AIMessage(content=content))
+            elif role == "system":
+                lc_messages.append(SystemMessage(content=content))
+        return lc_messages
+
+    async def astream(
+        self,
+        messages: list[dict[str, str]],
+        system_prompt: str | None = None,
+        enable_safety_filter: bool = True,
+    ) -> AsyncIterator[dict]:
+        """
+        Real streaming generation via LangChain's astream().
+
+        Yields:
+            {"type": "chunk", "content": "token text"}
+            {"type": "done", "content": "full text", "input_tokens": N,
+             "output_tokens": N, "model": "..."}
+        """
+        streaming_llm = self.get_streaming_llm()
+        lc_messages = self._build_lc_messages(messages, system_prompt)
+
+        full_content = ""
+        async for chunk in streaming_llm.astream(lc_messages):
+            token = chunk.content or ""
+            if token:
+                full_content += token
+                yield {"type": "chunk", "content": token}
+
+        if enable_safety_filter:
+            filtered = filter_llm_output(full_content)
+            if filtered != full_content:
+                logger.info(
+                    "LLM stream output filtered for tenant %s: %d -> %d chars",
+                    self.tenant_id, len(full_content), len(filtered),
+                )
+                full_content = filtered
+
+        yield {
+            "type": "done",
+            "content": full_content,
+            "input_tokens": self.count_tokens(
+                " ".join(m.get("content", "") for m in messages)
+            ),
+            "output_tokens": self.count_tokens(full_content),
+            "model": self.model_name,
+            "provider": self._provider,
+        }
 
     async def generate_response(
         self,
@@ -115,42 +177,18 @@ class LLMService:
         Returns:
             AI 回复内容（已过滤PII等敏感信息）
         """
-        # 构建消息列表
-        langchain_messages = []
+        langchain_messages = self._build_lc_messages(messages, system_prompt)
 
-        # 添加系统提示词
-        if system_prompt:
-            langchain_messages.append(SystemMessage(content=system_prompt))
-
-        # 转换消息格式
-        for msg in messages:
-            role = msg.get("role")
-            content = msg.get("content", "")
-
-            if role == "user":
-                langchain_messages.append(HumanMessage(content=content))
-            elif role == "assistant":
-                langchain_messages.append(AIMessage(content=content))
-            elif role == "system":
-                langchain_messages.append(SystemMessage(content=content))
-
-        # 调用 LLM
         response = await self.llm.ainvoke(langchain_messages)
-
-        # 获取原始回复
         content = response.content
 
-        # 应用安全过滤（脱敏PII数据）
         if enable_safety_filter:
             filtered_content = filter_llm_output(content)
-
-            # 如果内容被修改，记录日志
             if filtered_content != content:
                 logger.info(
-                    f"LLM output filtered for tenant {self.tenant_id}: "
-                    f"Original length: {len(content)}, Filtered length: {len(filtered_content)}"
+                    "LLM output filtered for tenant %s: %d -> %d chars",
+                    self.tenant_id, len(content), len(filtered_content),
                 )
-
             return filtered_content
 
         return content

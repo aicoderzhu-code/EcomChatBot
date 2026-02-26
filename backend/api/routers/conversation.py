@@ -1,6 +1,8 @@
 """
 对话管理 API 路由
 """
+import logging
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
@@ -17,6 +19,8 @@ from schemas import (
     PaginatedResponse,
 )
 from services import ConversationService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversation", tags=["对话管理"])
 
@@ -85,17 +89,15 @@ async def get_conversation(
     service = ConversationService(db, tenant_id)
     conversation = await service.get_conversation(conversation_id)
 
-    # 获取消息列表
     messages = await service.get_messages(conversation_id)
 
-    # 获取用户信息
-    user = await service.get_or_create_user(conversation.user.user_external_id)
+    # user already loaded via selectinload in get_conversation
+    user = conversation.user
 
-    # 构建响应，避免字段重复
     conv_dict = {k: v for k, v in conversation.__dict__.items() if not k.startswith('_')}
-    conv_dict.pop('messages', None)  # 移除可能存在的 messages 字段
-    conv_dict.pop('user', None)  # 移除可能存在的 user 字段
-    
+    conv_dict.pop('messages', None)
+    conv_dict.pop('user', None)
+
     response = ConversationDetailResponse(
         **conv_dict,
         messages=messages,
@@ -118,27 +120,41 @@ async def send_message(
     """
     发送消息（同步方式）
 
-    注：生产环境建议使用 WebSocket 接口实现流式返回
+    注：生产环境建议使用 WebSocket 或 SSE 流式接口
 
     ⚠️ 会检查对话次数配额
     """
+    from services import ConversationChainService
+
     service = ConversationService(db, tenant_id)
 
-    # 添加用户消息
-    user_message = await service.add_message(
+    await service.add_message(
         conversation_id=conversation_id,
         role="user",
         content=message_data.content,
     )
 
-    # TODO: 调用 LLM 生成回复（这里先返回简单回复）
-    assistant_content = "这是一个示例回复。实际应用中会调用 LLM 服务生成回复。"
+    try:
+        chain = ConversationChainService(
+            db=db, tenant_id=tenant_id, conversation_id=conversation_id,
+        )
+        await chain.initialize()
+        result = await chain.chat(user_input=message_data.content)
+        assistant_content = result["response"]
+        input_tokens = result.get("input_tokens", 0)
+        output_tokens = result.get("output_tokens", 0)
+    except Exception as e:
+        logger.error("LLM generation failed for conversation %s: %s", conversation_id, e)
+        assistant_content = "抱歉，我遇到了一些问题，请稍后再试。"
+        input_tokens = 0
+        output_tokens = 0
 
-    # 添加助手回复
     assistant_message = await service.add_message(
         conversation_id=conversation_id,
         role="assistant",
         content=assistant_content,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
 
     return ApiResponse(data=assistant_message)

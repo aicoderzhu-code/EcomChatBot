@@ -186,11 +186,35 @@ class MemoryService:
 
 
 class MemoryManager:
-    """记忆管理器 - 管理多个会话的记忆"""
+    """记忆管理器 - 管理多个会话的记忆（LRU 淘汰 + TTL 过期）"""
 
-    def __init__(self):
-        """初始化记忆管理器"""
+    DEFAULT_MAX_SIZE = 500
+    DEFAULT_TTL_SECONDS = 3600  # 1 hour
+
+    def __init__(self, max_size: int = DEFAULT_MAX_SIZE, ttl_seconds: int = DEFAULT_TTL_SECONDS):
         self._memories: dict[str, MemoryService] = {}
+        self._access_times: dict[str, float] = {}
+        self._max_size = max_size
+        self._ttl_seconds = ttl_seconds
+
+    def _now(self) -> float:
+        import time
+        return time.monotonic()
+
+    def _evict_expired(self) -> None:
+        """Remove entries that have exceeded TTL."""
+        now = self._now()
+        expired = [k for k, t in self._access_times.items() if now - t > self._ttl_seconds]
+        for k in expired:
+            self._memories.pop(k, None)
+            self._access_times.pop(k, None)
+
+    def _evict_lru(self) -> None:
+        """Evict least-recently-used entries until under max_size."""
+        while len(self._memories) >= self._max_size:
+            oldest_key = min(self._access_times, key=self._access_times.get)  # type: ignore[arg-type]
+            self._memories.pop(oldest_key, None)
+            self._access_times.pop(oldest_key, None)
 
     def get_or_create_memory(
         self,
@@ -199,21 +223,12 @@ class MemoryManager:
         conversation_id: str,
         memory_type: str = "buffer_window",
     ) -> MemoryService:
-        """
-        获取或创建记忆服务
-        
-        Args:
-            db: 数据库会话
-            tenant_id: 租户 ID
-            conversation_id: 会话 ID
-            memory_type: 记忆类型
-            
-        Returns:
-            MemoryService 实例
-        """
         key = f"{tenant_id}:{conversation_id}"
 
+        self._evict_expired()
+
         if key not in self._memories:
+            self._evict_lru()
             self._memories[key] = MemoryService(
                 db=db,
                 tenant_id=tenant_id,
@@ -221,36 +236,24 @@ class MemoryManager:
                 memory_type=memory_type,
             )
 
+        self._access_times[key] = self._now()
         return self._memories[key]
 
     def remove_memory(self, tenant_id: str, conversation_id: str) -> None:
-        """
-        移除记忆（会话结束时调用）
-        
-        Args:
-            tenant_id: 租户 ID
-            conversation_id: 会话 ID
-        """
         key = f"{tenant_id}:{conversation_id}"
-        if key in self._memories:
-            del self._memories[key]
+        self._memories.pop(key, None)
+        self._access_times.pop(key, None)
 
     def clear_all(self) -> None:
-        """清空所有记忆"""
         self._memories.clear()
+        self._access_times.clear()
 
     def get_stats(self) -> dict[str, Any]:
-        """
-        获取记忆管理器统计信息
-        
-        Returns:
-            统计信息
-        """
+        self._evict_expired()
         return {
             "active_conversations": len(self._memories),
-            "total_messages": sum(
-                len(mem.get_chat_history()) for mem in self._memories.values()
-            ),
+            "max_size": self._max_size,
+            "ttl_seconds": self._ttl_seconds,
         }
 
 

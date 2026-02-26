@@ -4,7 +4,6 @@ AI 智能对话 API 路由 - 集成 LangChain
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-import asyncio
 import json
 
 from api.dependencies import DBDep, TenantDep
@@ -108,29 +107,27 @@ async def ai_chat(
 @router.post("/chat-stream")
 async def ai_chat_stream(
     request: ChatRequest,
-    tenant_id: ConversationQuotaDep,  # 检查对话次数配额
+    tenant_id: ConversationQuotaDep,
     db: DBDep,
 ):
     """
-    AI 智能对话流式接口
+    AI 智能对话流式接口（标准 SSE 事件流）
 
     ⚠️ 会检查对话次数配额
 
-    以 Server-Sent Events (SSE) 格式返回流式响应
-    适用于需要实时显示打字效果的场景
+    事件类型: chunk / sources / done / error
     """
-    async def event_generator():
+    async def sse_generator():
         try:
+            # 1. RAG retrieval (if enabled)
+            rag_sources: list[dict] = []
             knowledge_items = None
-
-            # 如果使用 RAG，先检索知识库
             if request.use_rag:
                 knowledge_service = KnowledgeService(db, tenant_id)
                 knowledge_list = await knowledge_service.search_knowledge(
                     query=request.message,
                     top_k=request.rag_top_k,
                 )
-
                 knowledge_items = [
                     {
                         "knowledge_id": k.knowledge_id,
@@ -141,55 +138,65 @@ async def ai_chat_stream(
                     }
                     for k in knowledge_list
                 ]
+                rag_sources = [
+                    {"title": k.title, "score": 0.9, "chunk_preview": (k.content or "")[:120]}
+                    for k in knowledge_list
+                ]
+                yield f"event: sources\ndata: {json.dumps({'sources': rag_sources}, ensure_ascii=False)}\n\n"
 
-            # 调用对话服务
-            result = await simple_chat(
-                db=db,
-                tenant_id=tenant_id,
+            # 2. Build conversation chain and messages
+            chain = ConversationChainService(
+                db=db, tenant_id=tenant_id,
                 conversation_id=request.conversation_id,
-                user_input=request.message,
-                use_rag=request.use_rag,
-                knowledge_items=knowledge_items,
             )
+            await chain.initialize()
 
-            # 模拟流式输出 (实际应用中需要使用支持流式的LLM)
-            response_text = result["response"]
-            words = response_text.split()
+            if request.use_rag and knowledge_items:
+                context = chain.prompt_service.build_context_from_knowledge(knowledge_items)
+                user_content = f"{request.message}\n\n参考以下知识库内容：\n{context}"
+            else:
+                user_content = request.message
 
-            for i, word in enumerate(words):
-                chunk_data = {
-                    "type": "chunk",
-                    "content": word + " ",
-                    "index": i,
-                }
-                yield f"data: {json.dumps(chunk_data)}\n\n"
-                await asyncio.sleep(0.05)  # 模拟延迟
+            messages = chain.memory.get_chat_history()
+            messages.append({"role": "user", "content": user_content})
+            system_prompt = chain.prompt_service.get_system_prompt()
 
-            # 发送完成事件
-            final_data = {
-                "type": "done",
-                "conversation_id": request.conversation_id,
-                "input_tokens": result["input_tokens"],
-                "output_tokens": result["output_tokens"],
-                "total_tokens": result["total_tokens"],
-                "model": result["model"],
-            }
-            yield f"data: {json.dumps(final_data)}\n\n"
+            # 3. Real streaming via LLMService.astream()
+            idx = 0
+            full_response = ""
+            async for chunk in chain.llm_service.astream(messages, system_prompt):
+                if chunk["type"] == "chunk":
+                    yield f"event: chunk\ndata: {json.dumps({'content': chunk['content'], 'index': idx}, ensure_ascii=False)}\n\n"
+                    full_response += chunk["content"]
+                    idx += 1
+                elif chunk["type"] == "done":
+                    done_data = {
+                        "conversation_id": request.conversation_id,
+                        "model": chunk.get("model", ""),
+                        "provider": chunk.get("provider", ""),
+                        "input_tokens": chunk.get("input_tokens", 0),
+                        "output_tokens": chunk.get("output_tokens", 0),
+                        "total_tokens": chunk.get("input_tokens", 0) + chunk.get("output_tokens", 0),
+                        "used_rag": request.use_rag,
+                    }
+                    yield f"event: done\ndata: {json.dumps(done_data, ensure_ascii=False)}\n\n"
+
+            # 4. Persist messages and update memory (after stream completes)
+            chain.memory.add_user_message(request.message)
+            chain.memory.add_ai_message(full_response)
 
         except Exception as e:
-            error_data = {
-                "type": "error",
-                "message": str(e),
-            }
-            yield f"data: {json.dumps(error_data)}\n\n"
+            error_data = {"code": "INTERNAL_ERROR", "message": str(e)}
+            yield f"event: error\ndata: {json.dumps(error_data, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
-        event_generator(),
+        sse_generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-        }
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
