@@ -3,7 +3,7 @@
 """
 from datetime import datetime, timedelta
 from typing import Any
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.conversation import Conversation, Message
@@ -59,56 +59,24 @@ class MonitorService:
         if self.tenant_id:
             conditions.append(Conversation.tenant_id == self.tenant_id)
 
-        # 总对话数
-        total_result = await self.db.execute(
-            select(func.count(Conversation.id)).where(*conditions)
+        # 单次查询获取所有统计（7 个独立查询 → 1 个条件聚合）
+        stats_result = await self.db.execute(
+            select(
+                func.count(Conversation.id).label("total"),
+                func.count(case((Conversation.status == "active", 1))).label("active"),
+                func.count(case((Conversation.status == "closed", 1))).label("closed"),
+                func.count(case((Conversation.resolved == 1, 1))).label("resolved"),
+                func.count(case((Conversation.transferred_to_human == 1, 1))).label("transferred"),
+                func.avg(Conversation.resolution_time).label("avg_resolution_time"),
+            ).where(*conditions)
         )
-        total_conversations = total_result.scalar() or 0
-
-        # 活跃对话数
-        active_result = await self.db.execute(
-            select(func.count(Conversation.id)).where(
-                *conditions,
-                Conversation.status == "active"
-            )
-        )
-        active_conversations = active_result.scalar() or 0
-
-        # 已关闭对话数
-        closed_result = await self.db.execute(
-            select(func.count(Conversation.id)).where(
-                *conditions,
-                Conversation.status == "closed"
-            )
-        )
-        closed_conversations = closed_result.scalar() or 0
-
-        # 已解决对话数（resolved 是 INTEGER 类型，1 表示已解决）
-        resolved_result = await self.db.execute(
-            select(func.count(Conversation.id)).where(
-                *conditions,
-                Conversation.resolved == 1
-            )
-        )
-        resolved_conversations = resolved_result.scalar() or 0
-
-        # 转人工对话数（transferred_to_human 是 INTEGER 类型，1 表示已转人工）
-        transferred_result = await self.db.execute(
-            select(func.count(Conversation.id)).where(
-                *conditions,
-                Conversation.transferred_to_human == 1
-            )
-        )
-        transferred_conversations = transferred_result.scalar() or 0
-
-        # 平均解决时长
-        avg_resolution_time_result = await self.db.execute(
-            select(func.avg(Conversation.resolution_time)).where(
-                *conditions,
-                Conversation.resolution_time.isnot(None)
-            )
-        )
-        avg_resolution_time = avg_resolution_time_result.scalar() or 0
+        row = stats_result.one()
+        total_conversations = row.total or 0
+        active_conversations = row.active or 0
+        closed_conversations = row.closed or 0
+        resolved_conversations = row.resolved or 0
+        transferred_conversations = row.transferred or 0
+        avg_resolution_time = row.avg_resolution_time or 0
 
         # 统计消息数和Token消耗
         message_conditions = [
@@ -373,47 +341,56 @@ class MonitorService:
         """
         results = []
         now = datetime.now()
+        start_time = now - timedelta(hours=hours)
 
-        for i in range(hours):
-            hour_start = now - timedelta(hours=i+1)
-            hour_end = now - timedelta(hours=i)
+        # 对话趋势：GROUP BY 替代 N 次循环查询
+        conv_conditions = [
+            Conversation.created_at >= start_time,
+            Conversation.created_at <= now,
+        ]
+        if self.tenant_id:
+            conv_conditions.append(Conversation.tenant_id == self.tenant_id)
 
-            # 统计该小时的对话数
-            conv_conditions = [
-                Conversation.created_at >= hour_start,
-                Conversation.created_at < hour_end
-            ]
-
-            if self.tenant_id:
-                conv_conditions.append(Conversation.tenant_id == self.tenant_id)
-
-            conv_result = await self.db.execute(
-                select(func.count(Conversation.id)).where(*conv_conditions)
+        conv_stmt = (
+            select(
+                func.date_trunc("hour", Conversation.created_at).label("hour"),
+                func.count(Conversation.id).label("count"),
             )
-            conversations = conv_result.scalar() or 0
+            .where(*conv_conditions)
+            .group_by("hour")
+            .order_by("hour")
+        )
+        conv_result = await self.db.execute(conv_stmt)
+        conv_by_hour = {row.hour: row.count for row in conv_result.all()}
 
-            # 统计该小时的消息数
-            msg_conditions = [
-                Message.created_at >= hour_start,
-                Message.created_at < hour_end
-            ]
+        # 消息趋势：GROUP BY
+        msg_conditions = [
+            Message.created_at >= start_time,
+            Message.created_at <= now,
+        ]
+        if self.tenant_id:
+            msg_conditions.append(Message.tenant_id == self.tenant_id)
 
-            if self.tenant_id:
-                msg_conditions.append(Message.tenant_id == self.tenant_id)
-
-            msg_result = await self.db.execute(
-                select(func.count(Message.id)).where(*msg_conditions)
+        msg_stmt = (
+            select(
+                func.date_trunc("hour", Message.created_at).label("hour"),
+                func.count(Message.id).label("count"),
             )
-            messages = msg_result.scalar() or 0
+            .where(*msg_conditions)
+            .group_by("hour")
+            .order_by("hour")
+        )
+        msg_result = await self.db.execute(msg_stmt)
+        msg_by_hour = {row.hour: row.count for row in msg_result.all()}
 
+        # 按小时填充结果（保持原有格式）
+        for i in range(hours - 1, -1, -1):
+            hour_start = (now - timedelta(hours=i + 1)).replace(minute=0, second=0, microsecond=0)
             results.append({
                 "hour": hour_start.strftime("%Y-%m-%d %H:00"),
-                "conversations": conversations,
-                "messages": messages,
+                "conversations": conv_by_hour.get(hour_start, 0),
+                "messages": msg_by_hour.get(hour_start, 0),
             })
-
-        # 反转列表，从早到晚
-        results.reverse()
 
         return results
 

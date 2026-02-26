@@ -23,35 +23,38 @@ export default function ChatPage() {
   const [searchValue, setSearchValue] = useState('');
   const [sending, setSending] = useState(false);
 
-  const {
-    conversations,
-    currentConversation,
-    messages,
-    isLoading,
-    pagination,
-    statusFilter,
-    ragSources,
-    fetchConversations,
-    selectConversation,
-    addMessage,
-    closeConversation,
-    setStatusFilter,
-    setWsStatus,
-    startStreamingMessage,
-    appendStreamChunk,
-    finalizeStreamingMessage,
-    setRagSources,
-    takeoverConversation,
-  } = useConversationStore();
+  // Zustand selector — 细粒度订阅，避免全量重渲染
+  const conversations = useConversationStore(s => s.conversations);
+  const currentConversation = useConversationStore(s => s.currentConversation);
+  const messages = useConversationStore(s => s.messages);
+  const isLoading = useConversationStore(s => s.isLoading);
+  const pagination = useConversationStore(s => s.pagination);
+  const statusFilter = useConversationStore(s => s.statusFilter);
+  const ragSources = useConversationStore(s => s.ragSources);
+  const fetchConversations = useConversationStore(s => s.fetchConversations);
+  const selectConversation = useConversationStore(s => s.selectConversation);
+  const addMessage = useConversationStore(s => s.addMessage);
+  const closeConversation = useConversationStore(s => s.closeConversation);
+  const setStatusFilter = useConversationStore(s => s.setStatusFilter);
+  const setWsStatus = useConversationStore(s => s.setWsStatus);
+  const startStreamingMessage = useConversationStore(s => s.startStreamingMessage);
+  const appendStreamChunk = useConversationStore(s => s.appendStreamChunk);
+  const finalizeStreamingMessage = useConversationStore(s => s.finalizeStreamingMessage);
+  const setRagSources = useConversationStore(s => s.setRagSources);
+  const takeoverConversation = useConversationStore(s => s.takeoverConversation);
 
   const streamingIdRef = useRef<string | null>(null);
 
-  // Initial load + 30s polling
+  // 用 ref 持有最新的 fetchConversations，避免 effect 依赖函数引用导致无限重渲染
+  const fetchConversationsRef = useRef(fetchConversations);
+  fetchConversationsRef.current = fetchConversations;
+
+  // Initial load + 30s polling（空依赖，只挂载一次）
   useEffect(() => {
-    fetchConversations();
-    const timer = setInterval(() => fetchConversations(), 30000);
+    fetchConversationsRef.current();
+    const timer = setInterval(() => fetchConversationsRef.current(), 30000);
     return () => clearInterval(timer);
-  }, [fetchConversations]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch when filter changes
   useEffect(() => {

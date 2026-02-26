@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Typography } from 'antd';
 import { Message } from '@/types';
 
@@ -18,7 +19,7 @@ function renderContent(content: string) {
   ));
 }
 
-export default function MessageBubble({ message }: MessageBubbleProps) {
+function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const isStreaming = message.isStreaming === true;
@@ -69,3 +70,5 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
     </div>
   );
 }
+
+export default memo(MessageBubble);

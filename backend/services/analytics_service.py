@@ -192,27 +192,36 @@ class AnalyticsService:
         at_risk_rows = result.all()
 
         at_risk_list = []
-        for tenant, subscription in at_risk_rows:
-            # 计算活跃度（最近30天对话数）
-            recent_conversations_stmt = select(func.count(Conversation.id)).where(
-                and_(
-                    Conversation.tenant_id == tenant.tenant_id,
-                    Conversation.created_at >= end_date - timedelta(days=30),
+        if at_risk_rows:
+            # 批量查询所有风险租户的最近对话数（N+1 → 1 次查询）
+            tenant_ids = [tenant.tenant_id for tenant, _ in at_risk_rows]
+            cutoff = end_date - timedelta(days=30)
+            batch_conv_stmt = (
+                select(Conversation.tenant_id, func.count(Conversation.id).label("cnt"))
+                .where(
+                    and_(
+                        Conversation.tenant_id.in_(tenant_ids),
+                        Conversation.created_at >= cutoff,
+                    )
                 )
+                .group_by(Conversation.tenant_id)
             )
-            recent_conversations = await self.db.scalar(recent_conversations_stmt) or 0
+            batch_result = await self.db.execute(batch_conv_stmt)
+            conv_counts = {row.tenant_id: row.cnt for row in batch_result.all()}
 
-            at_risk_list.append(
-                {
-                    "tenant_id": tenant.tenant_id,
-                    "company_name": tenant.company_name,
-                    "plan": subscription.plan,
-                    "expires_at": subscription.expire_at.isoformat(),
-                    "days_until_expiry": (subscription.expire_at - end_date).days,
-                    "recent_activity": recent_conversations,
-                    "risk_level": "high" if recent_conversations < 10 else "medium",
-                }
-            )
+            for tenant, subscription in at_risk_rows:
+                recent_conversations = conv_counts.get(tenant.tenant_id, 0)
+                at_risk_list.append(
+                    {
+                        "tenant_id": tenant.tenant_id,
+                        "company_name": tenant.company_name,
+                        "plan": subscription.plan,
+                        "expires_at": subscription.expire_at.isoformat(),
+                        "days_until_expiry": (subscription.expire_at - end_date).days,
+                        "recent_activity": recent_conversations,
+                        "risk_level": "high" if recent_conversations < 10 else "medium",
+                    }
+                )
 
         return {
             "monthly_churn": monthly_churn,
@@ -328,30 +337,87 @@ class AnalyticsService:
         result = await self.db.execute(stmt)
         tenants = result.scalars().all()
 
-        scored_tenants = []
+        if not tenants:
+            return []
 
+        tenant_ids = [t.tenant_id for t in tenants]
+        now = datetime.utcnow()
+
+        # 批量查询收入（N+1 → 1 次）
+        revenue_stmt = (
+            select(Bill.tenant_id, func.sum(Bill.total_amount).label("total"))
+            .where(and_(Bill.tenant_id.in_(tenant_ids), Bill.status == "paid"))
+            .group_by(Bill.tenant_id)
+        )
+        revenue_result = await self.db.execute(revenue_stmt)
+        revenue_map = {row.tenant_id: float(row.total or 0) for row in revenue_result.all()}
+
+        # 批量查询最近30天对话数（N+1 → 1 次）
+        conv_stmt = (
+            select(Conversation.tenant_id, func.count(Conversation.id).label("cnt"))
+            .where(
+                and_(
+                    Conversation.tenant_id.in_(tenant_ids),
+                    Conversation.created_at >= now - timedelta(days=30),
+                )
+            )
+            .group_by(Conversation.tenant_id)
+        )
+        conv_result = await self.db.execute(conv_stmt)
+        conv_map = {row.tenant_id: row.cnt for row in conv_result.all()}
+
+        # 批量查询订阅信息（N+1 → 1 次）
+        sub_stmt = select(Subscription).where(Subscription.tenant_id.in_(tenant_ids))
+        sub_result = await self.db.execute(sub_stmt)
+        sub_map = {s.tenant_id: s for s in sub_result.scalars().all()}
+
+        plan_order = {"free": 0, "basic": 1, "professional": 2, "enterprise": 3}
+
+        scored_tenants = []
         for tenant in tenants:
-            score = await self._calculate_value_score(tenant)
-            
-            # 获取订阅信息
-            sub_stmt = select(Subscription).where(Subscription.tenant_id == tenant.tenant_id)
-            sub_result = await self.db.execute(sub_stmt)
-            subscription = sub_result.scalar_one_or_none()
-            
+            total_revenue = revenue_map.get(tenant.tenant_id, 0)
+            monthly_conversations = conv_map.get(tenant.tenant_id, 0)
+            subscription = sub_map.get(tenant.tenant_id)
+
+            revenue_score = min(40, total_revenue / 1000 * 4)
+            activity_score = min(30, monthly_conversations / 100 * 30)
+
+            current_plan = subscription.plan if subscription else "free"
+            upgrade_potential = (3 - plan_order.get(current_plan, 0)) * 5
+            growth_score = min(20, upgrade_potential + 5)
+
+            months_as_customer = (now - tenant.created_at).days // 30
+            loyalty_score = min(10, months_as_customer)
+
+            total = revenue_score + activity_score + growth_score + loyalty_score
+
+            insights = []
+            if revenue_score >= 30:
+                insights.append("高收入贡献客户")
+            if activity_score >= 25:
+                insights.append("高活跃度用户")
+            if upgrade_potential >= 10:
+                insights.append("有升级潜力")
+            if loyalty_score >= 8:
+                insights.append("忠诚老客户")
+
             scored_tenants.append(
                 {
                     "tenant_id": tenant.tenant_id,
                     "company_name": tenant.company_name,
-                    "plan": subscription.plan if subscription else "free",
-                    "value_score": score["total"],
-                    "score_breakdown": score["breakdown"],
-                    "insights": score["insights"],
+                    "plan": current_plan,
+                    "value_score": round(total, 2),
+                    "score_breakdown": {
+                        "revenue": round(revenue_score, 2),
+                        "activity": round(activity_score, 2),
+                        "growth": round(growth_score, 2),
+                        "loyalty": round(loyalty_score, 2),
+                    },
+                    "insights": insights,
                 }
             )
 
-        # 按分数排序
         scored_tenants.sort(key=lambda x: x["value_score"], reverse=True)
-
         return scored_tenants[:top_n]
 
     async def _calculate_value_score(self, tenant: Tenant) -> Dict:

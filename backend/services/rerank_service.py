@@ -102,9 +102,10 @@ class QwenRerankAdapter(RerankAdapter):
 
         try:
             import httpx
+            from core.http_client import get_http_client
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
+            client = get_http_client()
+            response = await client.post(
                     self.BASE_URL,
                     headers={
                         "Authorization": f"Bearer {self._api_key}",
@@ -120,20 +121,20 @@ class QwenRerankAdapter(RerankAdapter):
                     },
                     timeout=30.0,
                 )
-                response.raise_for_status()
-                data = response.json()
+            response.raise_for_status()
+            data = response.json()
 
-                results = []
-                for item in data.get("output", {}).get("results", []):
-                    score = item.get("relevance_score", 0)
-                    if score >= config.min_score:
-                        results.append(RerankResult(
-                            document=documents[item["index"]],
-                            score=score,
-                            original_index=item["index"],
-                        ))
+            results = []
+            for item in data.get("output", {}).get("results", []):
+                score = item.get("relevance_score", 0)
+                if score >= config.min_score:
+                    results.append(RerankResult(
+                        document=documents[item["index"]],
+                        score=score,
+                        original_index=item["index"],
+                    ))
 
-                return results
+            return results
 
         except Exception as e:
             logger.error(f"Qwen rerank failed: {e}")
@@ -173,9 +174,10 @@ class SiliconFlowRerankAdapter(RerankAdapter):
 
         try:
             import httpx
+            from core.http_client import get_http_client
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
+            client = get_http_client()
+            response = await client.post(
                     self.BASE_URL,
                     headers={
                         "Authorization": f"Bearer {self._api_key}",
@@ -189,18 +191,18 @@ class SiliconFlowRerankAdapter(RerankAdapter):
                     },
                     timeout=30.0,
                 )
-                response.raise_for_status()
-                data = response.json()
+            response.raise_for_status()
+            data = response.json()
 
-                results = []
-                for item in data.get("results", []):
-                    score = item.get("relevance_score", 0)
-                    if score >= config.min_score:
-                        results.append(RerankResult(
-                            document=documents[item["index"]],
-                            score=score,
-                            original_index=item["index"],
-                        ))
+            results = []
+            for item in data.get("results", []):
+                score = item.get("relevance_score", 0)
+                if score >= config.min_score:
+                    results.append(RerankResult(
+                        document=documents[item["index"]],
+                        score=score,
+                        original_index=item["index"],
+                    ))
 
                 return results
 

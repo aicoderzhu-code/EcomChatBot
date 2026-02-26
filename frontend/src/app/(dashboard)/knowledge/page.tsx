@@ -72,18 +72,26 @@ export default function KnowledgePage() {
   }, []);
 
   // Polling ref
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollingIntervalRef = useRef<number>(3000);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
-      clearInterval(pollingRef.current);
+      clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
+    pollingIntervalRef.current = 3000;
   }, []);
 
   const startPolling = useCallback((pageSize: number) => {
     stopPolling();
-    pollingRef.current = setInterval(async () => {
+
+    const poll = async () => {
+      // 页面不可见时暂停
+      if (document.visibilityState === 'hidden') {
+        pollingRef.current = setTimeout(poll, pollingIntervalRef.current);
+        return;
+      }
       try {
         const resp = await knowledgeApi.list({ page: 1, size: pageSize });
         if (resp.success && resp.data) {
@@ -94,13 +102,19 @@ export default function KnowledgePage() {
           );
           if (allDone) {
             stopPolling();
+            return;
           }
           await loadStats();
         }
       } catch {
         // 轮询失败静默处理，不中断轮询
       }
-    }, 3000);
+      // 指数退避：3s → 6s → 12s → 30s（上限）
+      pollingIntervalRef.current = Math.min(pollingIntervalRef.current * 2, 30000);
+      pollingRef.current = setTimeout(poll, pollingIntervalRef.current);
+    };
+
+    pollingRef.current = setTimeout(poll, pollingIntervalRef.current);
   }, [stopPolling, loadStats]);
 
   // Cleanup on unmount

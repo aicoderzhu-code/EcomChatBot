@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { Input, List, Tag, Typography, Spin, Segmented, Pagination } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import { Conversation } from '@/types';
@@ -34,7 +35,7 @@ const filterOptions = [
   { label: '已结束', value: 'closed' },
 ];
 
-export default function ConversationList({
+function ConversationList({
   conversations,
   selectedId,
   onSelect,
@@ -138,3 +139,5 @@ export default function ConversationList({
     </div>
   );
 }
+
+export default memo(ConversationList);

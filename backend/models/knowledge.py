@@ -34,6 +34,7 @@ class KnowledgeBase(TenantBaseModel):
         Index("idx_knowledge_tenant_type", "tenant_id", "knowledge_type"),
         Index("idx_knowledge_category", "category"),
         Index("idx_knowledge_status", "status"),
+        Index("idx_knowledge_tenant_embed_status", "tenant_id", "embedding_status"),
         {"comment": "知识库表"},
     )
 

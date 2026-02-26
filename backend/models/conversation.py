@@ -67,6 +67,8 @@ class Conversation(TenantBaseModel):
         Index("idx_conversation_tenant", "tenant_id"),
         Index("idx_conversation_user", "tenant_id", "user_id"),
         Index("idx_conversation_status", "status"),
+        Index("idx_conv_tenant_status_created", "tenant_id", "status", "created_at"),
+        Index("idx_conv_tenant_resolved", "tenant_id", "resolved"),
         {"comment": "会话表"},
     )
 

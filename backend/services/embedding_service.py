@@ -7,6 +7,7 @@ import httpx
 from langchain_openai import OpenAIEmbeddings
 
 from core.config import settings
+from core.http_client import get_http_client
 
 
 class _ZhipuAIEmbeddings:
@@ -18,14 +19,14 @@ class _ZhipuAIEmbeddings:
         self._base_url = "https://open.bigmodel.cn/api/paas/v4/embeddings"
 
     async def aembed_query(self, text: str) -> list[float]:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
+        client = get_http_client()
+        resp = await client.post(
                 self._base_url,
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={"model": self.model, "input": text},
             )
-            resp.raise_for_status()
-            return resp.json()["data"][0]["embedding"]
+        resp.raise_for_status()
+        return resp.json()["data"][0]["embedding"]
 
     async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
         results = []
@@ -46,8 +47,8 @@ class _QwenEmbeddings:
         )
 
     async def aembed_query(self, text: str) -> list[float]:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
+        client = get_http_client()
+        resp = await client.post(
                 self._base_url,
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
@@ -59,9 +60,9 @@ class _QwenEmbeddings:
                     "parameters": {"text_type": "query"},
                 },
             )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["output"]["embeddings"][0]["embedding"]
+        resp.raise_for_status()
+        data = resp.json()
+        return data["output"]["embeddings"][0]["embedding"]
 
     async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
         # DashScope 支持批量请求，但为简单起见逐条处理

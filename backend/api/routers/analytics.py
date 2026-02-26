@@ -2,6 +2,7 @@
 运营分析 API 路由
 """
 from fastapi import APIRouter, Depends, Query
+import asyncio
 
 from api.dependencies import AdminDep, DBDep, TenantDep, require_admin_permission
 from core import Permission
@@ -179,11 +180,13 @@ async def get_dashboard_data(
     from datetime import datetime
     
     service = AnalyticsService(db)
-    
-    # 并发获取数据
-    growth_data = await service.get_growth_analysis(months=6)
-    churn_data = await service.get_churn_analysis(months=6)
-    top_tenants = await service.identify_high_value_tenants(top_n=10)
+
+    # 并发获取数据（串行 → asyncio.gather）
+    growth_data, churn_data, top_tenants = await asyncio.gather(
+        service.get_growth_analysis(months=6),
+        service.get_churn_analysis(months=6),
+        service.identify_high_value_tenants(top_n=10),
+    )
     
     dashboard = DashboardData(
         growth=GrowthAnalysisResponse(**growth_data),

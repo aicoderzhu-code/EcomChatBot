@@ -114,6 +114,7 @@ class RAGService:
         支持 Qwen（DashScope）和 SiliconFlow 的 rerank API。
         """
         import httpx
+        from core.http_client import get_http_client
 
         provider = self.rerank_model_config.provider
         api_key = self.rerank_model_config.api_key
@@ -121,8 +122,8 @@ class RAGService:
         documents = [r.get("content", "")[:512] for r in results]
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                if provider == "qwen":
+            client = get_http_client()
+            if provider == "qwen":
                     resp = await client.post(
                         "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank",
                         headers={
@@ -146,7 +147,7 @@ class RAGService:
                         )
                         return [results[r["index"]] for r in reranked]
 
-                elif provider == "siliconflow":
+            elif provider == "siliconflow":
                     resp = await client.post(
                         "https://api.siliconflow.cn/v1/rerank",
                         headers={
