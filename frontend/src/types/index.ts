@@ -86,6 +86,7 @@ export interface Conversation {
   last_message_at: string | null;
   last_message_preview: string | null;
   satisfaction_score: number | null;
+  platform_type: string | null;
 }
 
 export interface ConversationDetail extends Conversation {

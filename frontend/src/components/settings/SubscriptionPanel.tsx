@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Alert, Button, Card, Modal, Radio, Spin, Tag, Typography } from 'antd';
 import { subscriptionApi, SubscriptionStatus, CreateOrderResponse } from '@/lib/api/subscription';
 
@@ -207,12 +208,13 @@ export default function SubscriptionPanel() {
           <div className="text-center">
             {order?.qr_code_url ? (
               <>
-                <img
+                <Image
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(order.qr_code_url)}`}
                   alt="支付二维码"
                   className="mx-auto mb-3"
                   width={200}
                   height={200}
+                  unoptimized
                 />
                 <div className="text-gray-500 text-sm mb-2">
                   请使用{channel === 'wechat' ? '微信' : '支付宝'}扫码支付

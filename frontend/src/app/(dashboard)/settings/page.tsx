@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Row, Col, Card, Typography, message, Alert, Form, Input, Button, Slider, Spin, Tag, Steps } from 'antd';
+import { Row, Col, Card, Typography, message, Alert, Form, Input, Button, Slider, Spin, Steps } from 'antd';
 import { SettingsMenu, ModelConfigForm, SubscriptionPanel } from '@/components/settings';
 import { CopyOutlined, LinkOutlined, DisconnectOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/store';
@@ -44,6 +44,7 @@ export default function SettingsPage() {
         }
       }).finally(() => setPddLoading(false));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMenu]);
 
   const renderContent = () => {

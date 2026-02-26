@@ -163,6 +163,7 @@ export default function KnowledgePage() {
     loadDocuments(pagination.current, pagination.pageSize, debouncedSearch);
     loadStats();
     loadSettings();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadDocuments, loadStats, loadSettings, pagination.current, pagination.pageSize, debouncedSearch]);
 
   const handleSaveSettings = async () => {
