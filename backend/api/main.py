@@ -23,6 +23,7 @@ from api.routers import (
     payment,
     platform,
     playground,
+    pdd_webhook,
     quality,
     rag,
     sensitive_word,
@@ -254,6 +255,7 @@ app.include_router(audit.router, prefix=settings.api_v1_prefix)
 app.include_router(setup.router, prefix=settings.api_v1_prefix)
 app.include_router(platform.router, prefix=settings.api_v1_prefix)
 app.include_router(playground.router, prefix=settings.api_v1_prefix)
+app.include_router(pdd_webhook.router)
 
 
 if __name__ == "__main__":
