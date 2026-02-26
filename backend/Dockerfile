@@ -50,4 +50,4 @@ EXPOSE 8000
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # 默认启动命令（使用多 workers 避免单进程阻塞）
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--timeout-keep-alive", "30"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--timeout-keep-alive", "30"]

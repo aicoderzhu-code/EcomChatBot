@@ -97,26 +97,6 @@ services:
     networks:
       - ecom-network
 
-  # RabbitMQ
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: ecom-chatbot-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 30s
-      timeout: 30s
-      retries: 3
-    networks:
-      - ecom-network
-
   # 数据库初始化服务（只运行一次）
   db-init:
     build:
@@ -165,8 +145,6 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
       db-init:
         condition: service_completed_successfully
     environment:
@@ -174,7 +152,6 @@ services:
       REDIS_URL: redis://redis:6379/0
       MILVUS_HOST: milvus
       MILVUS_PORT: 19530
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       POSTGRES_HOST: postgres
@@ -265,8 +242,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
       db-init:
         condition: service_completed_successfully
     environment:
@@ -288,7 +263,7 @@ services:
       DEBUG: "true"
       ENVIRONMENT: "development"
       LOG_LEVEL: "INFO"
-    command: celery -A tasks.celery_app worker --loglevel=info
+    command: celery -A tasks.celery_app worker --loglevel=info --concurrency=2
     networks:
       - ecom-network
     restart: unless-stopped
@@ -299,7 +274,6 @@ volumes:
   etcd_data:
   minio_data:
   milvus_data:
-  rabbitmq_data:
 
 networks:
   ecom-network:
