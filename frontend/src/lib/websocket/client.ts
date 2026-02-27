@@ -130,11 +130,21 @@ export class WebSocketClient {
   }
 }
 
+function getWsBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_WS_BASE_URL) {
+    return process.env.NEXT_PUBLIC_WS_BASE_URL;
+  }
+  if (typeof window !== 'undefined') {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${wsProtocol}//${window.location.hostname}:8000/api/v1/ws`;
+  }
+  return 'ws://localhost:8000/api/v1/ws';
+}
+
 export function createWebSocketClient(
   apiKey: string,
   conversationId: string,
   stream = false
 ): WebSocketClient {
-  const baseUrl = process.env.NEXT_PUBLIC_WS_BASE_URL || 'ws://localhost:8000/api/v1/ws';
-  return new WebSocketClient(baseUrl, apiKey, conversationId, stream);
+  return new WebSocketClient(getWsBaseUrl(), apiKey, conversationId, stream);
 }

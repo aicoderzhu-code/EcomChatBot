@@ -2,18 +2,16 @@
 const nextConfig = {
   output: 'standalone',
   transpilePackages: ['antd', '@ant-design/icons', '@ant-design/charts'],
-  // Development rewrite - in production, nginx handles API routing
   async rewrites() {
-    // Only apply rewrites in development
-    if (process.env.NODE_ENV === 'development') {
-      return [
-        {
-          source: '/api/v1/:path*',
-          destination: 'http://localhost:8000/api/v1/:path*',
-        },
-      ];
-    }
-    return [];
+    const apiTarget = process.env.NODE_ENV === 'development'
+      ? 'http://localhost:8000'
+      : 'http://api:8000';
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${apiTarget}/api/v1/:path*`,
+      },
+    ];
   },
 };
 
