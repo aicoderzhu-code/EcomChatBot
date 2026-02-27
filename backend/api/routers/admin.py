@@ -24,7 +24,7 @@ from schemas import (
     TenantUpdateStatus,
     TenantWithAPIKey,
 )
-from services import AdminService, AuditService, SubscriptionService, TenantService
+from services import AdminService, AuditService, SubscriptionService, TenantService, UsageService
 from core.permissions import SUBSCRIPTION_PLANS
 
 router = APIRouter(prefix="/admin", tags=["管理员"])
@@ -770,6 +770,28 @@ async def reset_tenant_api_key(
     )
 
 
+# ============ 用量统计 ============
+@router.get("/tenants/{tenant_id}/usage")
+async def get_tenant_usage(
+    tenant_id: str,
+    admin: AdminDep,
+    db: DBDep,
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+):
+    """
+    获取租户用量统计（按月）
+
+    权限：所有管理员
+    """
+    now = datetime.utcnow()
+    year = year or now.year
+    month = month or now.month
+    service = UsageService(db)
+    data = await service.get_usage_detail(tenant_id, year, month)
+    return ApiResponse(data=data)
+
+
 # ============ 订阅管理 ============
 @router.get("/subscriptions")
 async def list_subscriptions(
@@ -1032,6 +1054,64 @@ async def approve_bill(
     )
     
     return ApiResponse(data={"message": "账单审核通过"})
+
+
+@router.post("/billing/{bill_id}/refund")
+async def refund_bill(
+    bill_id: str,
+    admin: AdminDep,
+    db: DBDep,
+    reason: str = Query(..., min_length=1, max_length=500, description="退款原因"),
+    amount: float | None = Query(None, gt=0, description="退款金额（不填则全额退款）"),
+):
+    """
+    处理账单退款
+
+    将已支付账单标记为退款状态
+
+    权限：需要 BILLING_UPDATE 权限
+    """
+    from models.tenant import Bill
+
+    stmt = select(Bill).where(Bill.bill_id == bill_id)
+    result = await db.execute(stmt)
+    bill = result.scalar_one_or_none()
+
+    if not bill:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="账单不存在")
+
+    if bill.status != "paid":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"账单状态为{bill.status}，仅已支付账单可退款")
+
+    refund_amount = amount if amount is not None else bill.total_amount
+    if refund_amount > bill.total_amount:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="退款金额不能大于账单金额")
+
+    bill.refund_amount = refund_amount
+    bill.refund_reason = reason
+    bill.status = "refunded"
+    bill.updated_at = datetime.utcnow()
+
+    await db.commit()
+
+    audit_service = AuditService(db)
+    await audit_service.log_operation(
+        admin_id=admin.admin_id,
+        operation_type="refund_bill",
+        resource_type="bill",
+        resource_id=bill_id,
+        operation_details={
+            "tenant_id": bill.tenant_id,
+            "refund_amount": refund_amount,
+            "total_amount": float(bill.total_amount),
+            "reason": reason,
+        },
+    )
+
+    return ApiResponse(data={"message": "退款处理成功", "refund_amount": refund_amount})
 
 
 @router.post("/bills/{bill_id}/reject")

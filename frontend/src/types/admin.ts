@@ -371,3 +371,32 @@ export interface AdminPaginatedResponse<T> {
   size: number;
   pages: number;
 }
+
+// Tenant Usage Types
+export interface TenantUsageSummary {
+  tenant_id: string;
+  period: string;
+  total_conversations: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  max_storage_used: number;
+  total_api_calls: number;
+  total_overage_fee: number;
+}
+
+export interface TenantUsageDailyData {
+  date: string;
+  conversations: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  storage_used_gb: number;
+  api_calls: number;
+  overage_fee: number;
+}
+
+export interface TenantUsageDetail {
+  period: string;
+  summary: TenantUsageSummary;
+  daily_data: TenantUsageDailyData[];
+}

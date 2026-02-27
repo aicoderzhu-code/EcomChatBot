@@ -10,6 +10,7 @@ import {
   BatchOperationResponse,
   OverdueTenantListResponse,
   AdminPaginatedResponse,
+  TenantUsageDetail,
 } from '@/types/admin';
 
 export const adminTenantsApi = {
@@ -114,6 +115,15 @@ export const adminTenantsApi = {
   resetApiKey: async (tenantId: string): Promise<ApiResponse<{ api_key: string; message: string }>> => {
     const response = await adminApiClient.post<ApiResponse<{ api_key: string; message: string }>>(
       `/admin/tenants/${tenantId}/reset-api-key`
+    );
+    return response.data;
+  },
+
+  // Get tenant usage statistics
+  getUsage: async (tenantId: string, year?: number, month?: number): Promise<ApiResponse<TenantUsageDetail>> => {
+    const response = await adminApiClient.get<ApiResponse<TenantUsageDetail>>(
+      `/admin/tenants/${tenantId}/usage`,
+      { params: { year, month } }
     );
     return response.data;
   },
