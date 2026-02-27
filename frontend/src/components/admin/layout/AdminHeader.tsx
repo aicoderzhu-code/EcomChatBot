@@ -1,14 +1,12 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { Layout, Breadcrumb, Badge, Typography, Dropdown, Space } from 'antd';
+import { Layout, Breadcrumb, Badge, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
-import { BellOutlined, HomeOutlined, UserOutlined } from '@ant-design/icons';
+import { BellOutlined, HomeOutlined } from '@ant-design/icons';
 import Link from 'next/link';
-import { useAdminStore } from '@/store';
 
 const { Header: AntHeader } = Layout;
-const { Text } = Typography;
 
 const pathNames: Record<string, string> = {
   platform: '平台概览',
@@ -27,7 +25,6 @@ const pathNames: Record<string, string> = {
 
 export default function AdminHeader() {
   const pathname = usePathname();
-  const { admin } = useAdminStore();
   const pathParts = pathname.split('/').filter(Boolean);
 
   const breadcrumbItems = [
@@ -67,21 +64,6 @@ export default function AdminHeader() {
     },
   ];
 
-  const userMenuItems: MenuProps['items'] = [
-    {
-      key: 'profile',
-      label: '个人信息',
-      icon: <UserOutlined />,
-    },
-    {
-      type: 'divider',
-    },
-    {
-      key: 'logout',
-      label: '退出登录',
-    },
-  ];
-
   return (
     <AntHeader
       className="bg-white flex items-center justify-between shadow-sm sticky top-0 z-10"
@@ -94,13 +76,6 @@ export default function AdminHeader() {
           <Badge count={0} size="small">
             <BellOutlined className="text-lg text-gray-600 cursor-pointer hover:text-blue-600" />
           </Badge>
-        </Dropdown>
-
-        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-          <Space className="cursor-pointer">
-            <UserOutlined className="text-gray-600" />
-            <Text>{admin?.username || '管理员'}</Text>
-          </Space>
         </Dropdown>
       </div>
     </AntHeader>
