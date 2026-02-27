@@ -11,6 +11,7 @@ from core import create_access_token, settings
 from schemas import (
     ApiResponse,
     PaginatedResponse,
+    ResetApiKeyResponse,
     SubscriptionResponse,
     TenantLoginRequest,
     TenantLoginResponse,
@@ -114,6 +115,27 @@ async def get_tenant_info_token(
     service = TenantService(db)
     tenant = await service.get_tenant(tenant_id)
     return ApiResponse(data=tenant)
+
+
+@router.post("/reset-api-key", response_model=ApiResponse[ResetApiKeyResponse])
+async def reset_api_key(
+    tenant_id: TenantTokenDep,
+    db: DBDep,
+):
+    """
+    租户自助重置 API Key
+
+    重置后旧 Key 立即失效，新 Key 仅在响应中返回一次，请妥善保存。
+    需要 JWT Token 认证（登录后可用）。
+    """
+    service = TenantService(db)
+    tenant, new_api_key = await service.reset_api_key(tenant_id)
+    return ApiResponse(
+        data=ResetApiKeyResponse(
+            api_key=new_api_key,
+            api_key_prefix=tenant.api_key_prefix or new_api_key[:12],
+        )
+    )
 
 
 @router.get("/subscription", response_model=ApiResponse[SubscriptionResponse])
