@@ -3,6 +3,7 @@
 """
 from datetime import datetime
 import json
+import re
 
 from pydantic import EmailStr, Field, field_validator
 
@@ -164,6 +165,26 @@ class TenantRegisterRequest(BaseSchema):
     contact_phone: str | None = None
     password: str = Field(..., min_length=8, max_length=64, description="密码")
 
+    @field_validator('contact_phone')
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not re.match(r'^1[3-9]\d{9}$', v):
+            raise ValueError('手机号格式不正确')
+        return v
+
+    @field_validator('password')
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('密码须包含至少一个大写字母')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('密码须包含至少一个小写字母')
+        if not re.search(r'\d', v):
+            raise ValueError('密码须包含至少一个数字')
+        return v
+
 
 class TenantRegisterResponse(BaseSchema):
     """租户注册响应"""
@@ -171,6 +192,14 @@ class TenantRegisterResponse(BaseSchema):
     tenant_id: str
     api_key: str
     message: str = "注册成功"
+
+
+class ResetApiKeyResponse(BaseSchema):
+    """重置 API Key 响应"""
+
+    api_key: str = Field(..., description="新的 API Key（明文，仅此一次）")
+    api_key_prefix: str = Field(..., description="API Key 前缀")
+    message: str = "API Key 已重置，请妥善保存"
 
 
 # ============ 租户认证 ============
