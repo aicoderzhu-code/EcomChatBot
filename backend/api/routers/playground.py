@@ -9,12 +9,15 @@ import logging
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import select as sa_select
 
 from api.dependencies import DBDep, TenantFlexDep
+from models.model_config import ModelConfig
 from schemas import ApiResponse
 from services.llm_service import LLMService
 from services.model_config_service import ModelConfigService
 from services.knowledge_service import KnowledgeService
+from services.rag_service import RAGService
 from services.prompt_service import PromptService
 
 logger = logging.getLogger(__name__)
@@ -80,13 +83,21 @@ async def playground_chat(
 
     if request.use_rag:
         ks = KnowledgeService(db, tenant_id)
-        knowledge_list = await ks.search_knowledge(query=request.message, top_k=request.rag_top_k)
-        if knowledge_list:
-            context = "\n\n".join(f"[{k.title}]\n{k.content}" for k in knowledge_list)
+        ks_settings = await ks.get_settings()
+        if ks_settings.embedding_model_id:
+            mc_result = await db.execute(sa_select(ModelConfig).where(ModelConfig.id == ks_settings.embedding_model_id))
+            embedding_config = mc_result.scalar_one_or_none()
+            rag = RAGService(db, tenant_id, embedding_model_config=embedding_config)
+            chunks = await rag.retrieve(query=request.message, top_k=request.rag_top_k)
+        else:
+            chunks = []
+
+        if chunks:
+            context = "\n\n".join(f"[{c['title']}]\n{c['content']}" for c in chunks)
             messages.append({"role": "user", "content": f"{request.message}\n\n参考以下知识库内容：\n{context}"})
             rag_sources = [
-                {"title": k.title, "score": 0.9, "chunk_preview": (k.content or "")[:120]}
-                for k in knowledge_list
+                {"title": c["title"], "score": c.get("score", 0.9), "chunk_preview": c["content"][:120]}
+                for c in chunks
             ]
         else:
             messages.append({"role": "user", "content": request.message})
@@ -136,15 +147,23 @@ async def playground_chat_stream(
 
             if request.use_rag:
                 ks = KnowledgeService(db, tenant_id)
-                knowledge_list = await ks.search_knowledge(query=request.message, top_k=request.rag_top_k)
-                if knowledge_list:
+                ks_settings = await ks.get_settings()
+                if ks_settings.embedding_model_id:
+                    mc_result = await db.execute(sa_select(ModelConfig).where(ModelConfig.id == ks_settings.embedding_model_id))
+                    embedding_config = mc_result.scalar_one_or_none()
+                    rag = RAGService(db, tenant_id, embedding_model_config=embedding_config)
+                    chunks = await rag.retrieve(query=request.message, top_k=request.rag_top_k)
+                else:
+                    chunks = []
+
+                if chunks:
                     rag_sources = [
-                        {"title": k.title, "score": 0.9, "chunk_preview": (k.content or "")[:120]}
-                        for k in knowledge_list
+                        {"title": c["title"], "score": c.get("score", 0.9), "chunk_preview": c["content"][:120]}
+                        for c in chunks
                     ]
                     yield f"event: sources\ndata: {json.dumps({'sources': rag_sources}, ensure_ascii=False)}\n\n"
 
-                    context = "\n\n".join(f"[{k.title}]\n{k.content}" for k in knowledge_list)
+                    context = "\n\n".join(f"[{c['title']}]\n{c['content']}" for c in chunks)
                     messages.append({"role": "user", "content": f"{request.message}\n\n参考以下知识库内容：\n{context}"})
                 else:
                     messages.append({"role": "user", "content": request.message})

@@ -220,6 +220,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: ecom-chatbot-nginx
+    command: /bin/sh -c "rm -f /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
     depends_on:
       - frontend
       - api

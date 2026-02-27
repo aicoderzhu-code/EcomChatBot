@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantDep, TenantFlexDep
 from api.middleware import ApiQuotaDep, StorageQuotaDep
 from models.model_config import ModelConfig
 from schemas import ApiResponse
@@ -175,7 +175,7 @@ class RAGTestRequest(BaseModel):
 @router.post("/test", response_model=ApiResponse[dict])
 async def rag_end_to_end_test(
     request: RAGTestRequest,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """

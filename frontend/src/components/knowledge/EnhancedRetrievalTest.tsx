@@ -121,21 +121,21 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
   const tabItems = [
     {
       key: 'retrieval',
-      label: 'Retrieval Test',
+      label: '检索测试',
       children: (
         <div>
           <div className="mb-4">
-            <Text type="secondary" className="block mb-2">Test Query</Text>
+            <Text type="secondary" className="block mb-2">测试查询</Text>
             <div className="flex gap-3">
               <Input
-                placeholder="Input a question to test knowledge base retrieval..."
+                placeholder="输入问题以测试知识库检索..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onPressEnter={handleSearch}
                 className="flex-1"
               />
               <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch} loading={loading}>
-                Test
+                测试
               </Button>
             </div>
           </div>
@@ -148,10 +148,10 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
             </div>
             {hasRerankModels && (
               <Form layout="inline">
-                <Form.Item label="Rerank Model">
+                <Form.Item label="重排序模型">
                   <Select
                     style={{ width: 220 }}
-                    placeholder="No reranking"
+                    placeholder="不使用重排序"
                     allowClear
                     value={selectedRerankModelId}
                     onChange={(val) => setSelectedRerankModelId(val)}
@@ -164,18 +164,18 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
 
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <Spin tip="Retrieving..." />
+              <Spin tip="检索中..." />
             </div>
           )}
 
           {!loading && searched && results.length === 0 && (
-            <Empty description="No matching knowledge found" />
+            <Empty description="未找到匹配的知识" />
           )}
 
           {!loading && results.length > 0 && (
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
               <Text strong className="block mb-3">
-                Top {results.length} results{selectedRerankModelId ? ' (reranked)' : ''}:
+                前 {results.length} 条结果{selectedRerankModelId ? '（已重排序）' : ''}：
               </Text>
               <Collapse
                 size="small"
@@ -184,7 +184,7 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
                   label: (
                     <div className="flex justify-between items-center w-full pr-4">
                       <Text strong className="text-blue-600">{result.title}</Text>
-                      <Tag color="green">Score: {result.score.toFixed(3)}</Tag>
+                      <Tag color="green">得分: {result.score.toFixed(3)}</Tag>
                     </div>
                   ),
                   children: (
@@ -193,7 +193,7 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
                         {result.content}
                       </Paragraph>
                       {result.source && (
-                        <Text type="secondary" className="text-xs">Source: {result.source}</Text>
+                        <Text type="secondary" className="text-xs">来源: {result.source}</Text>
                       )}
                     </div>
                   ),
@@ -206,14 +206,14 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
     },
     {
       key: 'rag-e2e',
-      label: 'End-to-End RAG Test',
+      label: '端到端 RAG 测试',
       children: (
         <div>
           <div className="mb-4">
-            <Text type="secondary" className="block mb-2">Test Query</Text>
+            <Text type="secondary" className="block mb-2">测试查询</Text>
             <div className="flex gap-3">
               <Input
-                placeholder="Input a question for end-to-end RAG test..."
+                placeholder="输入问题进行端到端 RAG 测试..."
                 value={ragQuery}
                 onChange={(e) => setRagQuery(e.target.value)}
                 onPressEnter={handleRAGTest}
@@ -225,19 +225,19 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
                 onClick={handleRAGTest}
                 loading={ragLoading}
               >
-                Test
+                测试
               </Button>
             </div>
           </div>
 
           <div className="mb-4 flex gap-4 flex-wrap items-center">
             <div className="flex items-center gap-2">
-              <Text className="text-xs text-gray-500">LLM Model:</Text>
+              <Text className="text-xs text-gray-500">LLM 模型:</Text>
               <Select
                 style={{ minWidth: 220 }}
                 value={ragModelConfigId}
                 onChange={setRagModelConfigId}
-                placeholder="Select model"
+                placeholder="选择模型"
                 options={llmModels.map((m) => ({
                   value: m.id,
                   label: `${m.model_name} (${m.provider})`,
@@ -253,7 +253,7 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
 
           {ragLoading && (
             <div className="flex items-center justify-center py-8">
-              <Spin tip="Running RAG pipeline..." />
+              <Spin tip="正在运行 RAG 流程..." />
             </div>
           )}
 
@@ -261,7 +261,7 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Left: knowledge sources */}
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <Text strong className="block mb-3">Knowledge Sources ({ragResult.retrieval_results.length})</Text>
+                <Text strong className="block mb-3">知识来源（{ragResult.retrieval_results.length}）</Text>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
                   {ragResult.rag_sources.map((s, i) => (
                     <div key={i} className="p-2 bg-white rounded border border-gray-100">
@@ -275,14 +275,14 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
                     </div>
                   ))}
                   {ragResult.rag_sources.length === 0 && (
-                    <Text type="secondary">No sources retrieved.</Text>
+                    <Text type="secondary">未检索到来源。</Text>
                   )}
                 </div>
               </div>
 
               {/* Right: AI response */}
               <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <Text strong className="block mb-3">AI Response</Text>
+                <Text strong className="block mb-3">AI 回答</Text>
                 <Paragraph className="whitespace-pre-wrap text-sm">
                   {ragResult.generated_response}
                 </Paragraph>
@@ -291,21 +291,21 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
               {/* Bottom: timing & token stats */}
               <div className="lg:col-span-2">
                 <Descriptions bordered size="small" column={{ xs: 2, sm: 3, lg: 6 }}>
-                  <Descriptions.Item label="Model">{ragResult.model}</Descriptions.Item>
-                  <Descriptions.Item label="Provider">{ragResult.provider}</Descriptions.Item>
-                  <Descriptions.Item label="Retrieval">
+                  <Descriptions.Item label="模型">{ragResult.model}</Descriptions.Item>
+                  <Descriptions.Item label="提供商">{ragResult.provider}</Descriptions.Item>
+                  <Descriptions.Item label="检索">
                     <Tag color="blue">{ragResult.timing.retrieval_ms}ms</Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Generation">
+                  <Descriptions.Item label="生成">
                     <Tag color="purple">{ragResult.timing.generation_ms}ms</Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Total">
+                  <Descriptions.Item label="总计">
                     <Tag color="orange">{ragResult.timing.total_ms}ms</Tag>
                   </Descriptions.Item>
-                  <Descriptions.Item label="Tokens">
+                  <Descriptions.Item label="Token 用量">
                     <Space size={4}>
-                      <Tag>In: {ragResult.token_usage.input_tokens}</Tag>
-                      <Tag>Out: {ragResult.token_usage.output_tokens}</Tag>
+                      <Tag>输入: {ragResult.token_usage.input_tokens}</Tag>
+                      <Tag>输出: {ragResult.token_usage.output_tokens}</Tag>
                     </Space>
                   </Descriptions.Item>
                 </Descriptions>
@@ -319,7 +319,7 @@ export default function EnhancedRetrievalTest({ onSearch, rerankModels }: Enhanc
 
   return (
     <Card>
-      <Title level={5} className="mb-4">Retrieval & RAG Test</Title>
+      <Title level={5} className="mb-4">检索与 RAG 测试</Title>
       <Tabs items={tabItems} />
     </Card>
   );

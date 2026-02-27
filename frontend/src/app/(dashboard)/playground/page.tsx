@@ -28,6 +28,10 @@ export default function PlaygroundPage() {
   const handleSend = useCallback(async () => {
     const content = inputValue.trim();
     if (!content || sending) return;
+    if (!settings.modelConfigId) {
+      message.warning('请先选择模型');
+      return;
+    }
 
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,

@@ -3,28 +3,32 @@
 """
 import uuid
 import time
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.requests import Request
+from starlette.datastructures import MutableHeaders
 
 from utils.logger import request_logger
 
 
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """请求日志中间件"""
+class RequestLoggingMiddleware:
+    """请求日志中间件（纯 ASGI，兼容 StreamingResponse）"""
 
-    async def dispatch(self, request: Request, call_next):
-        # 生成请求ID
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope, receive)
         request_id = str(uuid.uuid4())
+        scope["state"] = scope.get("state", {})
         request.state.request_id = request_id
 
-        # 获取客户端信息
         client_ip = self._get_client_ip(request)
         user_agent = request.headers.get("user-agent", "")
-
-        # 获取租户ID（如果有）
         tenant_id = getattr(request.state, "tenant_id", None)
-
-        # 记录请求开始
         start_time = time.time()
 
         request_logger.log_request(
@@ -36,32 +40,27 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             user_agent=user_agent,
         )
 
-        # 处理请求
+        status_code = 500
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message["status"]
+                headers = MutableHeaders(scope=message)
+                headers["X-Request-ID"] = request_id
+            await send(message)
+
         try:
-            response = await call_next(request)
-
-            # 记录请求结束
+            await self.app(scope, receive, send_wrapper)
+        finally:
             duration_ms = (time.time() - start_time) * 1000
-
             request_logger.log_response(
                 request_id=request_id,
-                status_code=response.status_code,
+                status_code=status_code,
                 duration_ms=duration_ms,
-                response_size=int(response.headers.get("content-length", 0)),
             )
 
-            # 添加请求ID到响应头
-            response.headers["X-Request-ID"] = request_id
-
-            return response
-
-        except Exception as e:
-            # 记录错误
-            request_logger.log_error(request_id=request_id, error=e)
-            raise
-
     def _get_client_ip(self, request: Request) -> str:
-        """获取客户端IP"""
         forwarded = request.headers.get("X-Forwarded-For")
         if forwarded:
             return forwarded.split(",")[0].strip()
