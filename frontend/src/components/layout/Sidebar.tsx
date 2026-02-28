@@ -20,6 +20,7 @@ import {
   LineChartOutlined,
   FundOutlined,
   DollarOutlined,
+  FormOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store';
 import { settingsApi } from '@/lib/api/settings';
@@ -54,6 +55,7 @@ const menuItems = [
     children: [
       { key: '/content/poster', icon: <FileImageOutlined />, label: '海报生成' },
       { key: '/content/video', icon: <VideoCameraOutlined />, label: '视频生成' },
+      { key: '/content/prompts', icon: <FormOutlined />, label: '提示词管理' },
       { key: '/content/assets', icon: <AppstoreOutlined />, label: '素材库' },
     ],
   },
