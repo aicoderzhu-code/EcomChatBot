@@ -3,14 +3,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Card, Button, Input, Select, Space, Tag, Image, message,
-  Typography, Row, Col, Spin, Empty, Modal, List,
+  Typography, Row, Col, Spin, Empty, List,
 } from 'antd';
 import {
   FileImageOutlined, SendOutlined, ReloadOutlined,
   CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined,
   ClockCircleOutlined,
 } from '@ant-design/icons';
-import { contentApi, type GenerationTask, type GeneratedAsset, type PromptTemplate } from '@/lib/api/content';
+import { contentApi, type GenerationTask, type GeneratedAsset, type ProductPrompt } from '@/lib/api/content';
 import { productApi } from '@/lib/api/product';
 import { settingsApi, type ModelConfig } from '@/lib/api/settings';
 import type { Product } from '@/types';
@@ -21,35 +21,28 @@ const { Title, Text } = Typography;
 export default function PosterPage() {
   const [prompt, setPrompt] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<number | undefined>();
-  const [selectedTemplate, setSelectedTemplate] = useState<number | undefined>();
+  const [selectedPrompt, setSelectedPrompt] = useState<number | undefined>();
   const [selectedModel, setSelectedModel] = useState<number | undefined>();
   const [generating, setGenerating] = useState(false);
 
   const [tasks, setTasks] = useState<GenerationTask[]>([]);
   const [assets, setAssets] = useState<GeneratedAsset[]>([]);
-  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [prompts, setPrompts] = useState<ProductPrompt[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [imageModels, setImageModels] = useState<ModelConfig[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 模板管理弹窗
-  const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [newTemplateName, setNewTemplateName] = useState('');
-  const [newTemplateContent, setNewTemplateContent] = useState('');
-
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksResp, assetsResp, templatesResp, productsResp, modelsResp] = await Promise.all([
+      const [tasksResp, assetsResp, productsResp, modelsResp] = await Promise.all([
         contentApi.listTasks({ task_type: 'poster', size: 10 }),
         contentApi.listAssets({ asset_type: 'image', size: 20 }),
-        contentApi.listTemplates({ template_type: 'poster' }),
         productApi.listProducts({ status: 'active', size: 100 }),
         settingsApi.getModelConfigsByType('image_generation'),
       ]);
       if (tasksResp.success && tasksResp.data) setTasks(tasksResp.data.items);
       if (assetsResp.success && assetsResp.data) setAssets(assetsResp.data.items);
-      if (templatesResp.success && templatesResp.data) setTemplates(templatesResp.data.items);
       if (productsResp.success && productsResp.data) setProducts(productsResp.data.items);
       if (modelsResp.success && modelsResp.data) setImageModels(modelsResp.data);
     } catch {
@@ -60,6 +53,20 @@ export default function PosterPage() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // 选择商品后加载该商品的 image 类型提示词
+  useEffect(() => {
+    if (selectedProduct) {
+      contentApi.listPrompts({ product_id: selectedProduct, prompt_type: 'image', size: 100 })
+        .then(resp => {
+          if (resp.success && resp.data) setPrompts(resp.data.items);
+        })
+        .catch(() => {});
+    } else {
+      setPrompts([]);
+      setSelectedPrompt(undefined);
+    }
+  }, [selectedProduct]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -72,7 +79,7 @@ export default function PosterPage() {
         task_type: 'poster',
         prompt: prompt.trim(),
         product_id: selectedProduct,
-        template_id: selectedTemplate,
+        prompt_id: selectedPrompt,
         model_config_id: selectedModel,
       });
       if (resp.success) {
@@ -86,26 +93,6 @@ export default function PosterPage() {
       message.error('创建任务失败');
     } finally {
       setGenerating(false);
-    }
-  };
-
-  const handleCreateTemplate = async () => {
-    if (!newTemplateName || !newTemplateContent) return;
-    try {
-      const resp = await contentApi.createTemplate({
-        name: newTemplateName,
-        template_type: 'poster',
-        content: newTemplateContent,
-      });
-      if (resp.success) {
-        message.success('模板创建成功');
-        setTemplateModalOpen(false);
-        setNewTemplateName('');
-        setNewTemplateContent('');
-        loadData();
-      }
-    } catch {
-      message.error('创建模板失败');
     }
   };
 
@@ -152,33 +139,35 @@ export default function PosterPage() {
                   allowClear
                   style={{ width: '100%', marginTop: 8 }}
                   value={selectedProduct}
-                  onChange={setSelectedProduct}
+                  onChange={(val) => {
+                    setSelectedProduct(val);
+                    setSelectedPrompt(undefined);
+                  }}
                   showSearch
                   optionFilterProp="label"
                   options={products.map(p => ({ value: p.id, label: p.title }))}
                 />
               </div>
 
-              <div>
-                <Text strong>使用模板（可选）</Text>
-                <Space style={{ width: '100%', marginTop: 8 }}>
+              {selectedProduct && prompts.length > 0 && (
+                <div>
+                  <Text strong>使用提示词（可选）</Text>
                   <Select
-                    placeholder="选择模板"
+                    placeholder="选择提示词"
                     allowClear
-                    style={{ flex: 1 }}
-                    value={selectedTemplate}
+                    style={{ width: '100%', marginTop: 8 }}
+                    value={selectedPrompt}
                     onChange={(val) => {
-                      setSelectedTemplate(val);
+                      setSelectedPrompt(val);
                       if (val) {
-                        const t = templates.find(t => t.id === val);
-                        if (t) setPrompt(t.content);
+                        const p = prompts.find(p => p.id === val);
+                        if (p) setPrompt(p.content);
                       }
                     }}
-                    options={templates.map(t => ({ value: t.id, label: t.name }))}
+                    options={prompts.map(p => ({ value: p.id, label: p.name }))}
                   />
-                  <Button onClick={() => setTemplateModalOpen(true)}>新建模板</Button>
-                </Space>
-              </div>
+                </div>
+              )}
 
               <div>
                 <Text strong>图像生成模型（可选）</Text>
@@ -310,29 +299,6 @@ export default function PosterPage() {
           </Card>
         </Col>
       </Row>
-
-      {/* 新建模板弹窗 */}
-      <Modal
-        title="新建海报提示词模板"
-        open={templateModalOpen}
-        onCancel={() => setTemplateModalOpen(false)}
-        onOk={handleCreateTemplate}
-        okText="创建"
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <Input
-            placeholder="模板名称"
-            value={newTemplateName}
-            onChange={e => setNewTemplateName(e.target.value)}
-          />
-          <TextArea
-            rows={6}
-            placeholder="模板内容，可使用变量如 {{product_title}}、{{product_description}}"
-            value={newTemplateContent}
-            onChange={e => setNewTemplateContent(e.target.value)}
-          />
-        </Space>
-      </Modal>
     </div>
   );
 }
