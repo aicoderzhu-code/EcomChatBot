@@ -10,6 +10,7 @@ from services.content_generation.image_model_router import ImageModelRouter
 from services.content_generation.video_model_router import VideoModelRouter
 from services.content_generation.product_prompt_service import ProductPromptService
 from services.model_config_service import ModelConfigService
+from services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -132,12 +133,24 @@ class GenerationService:
                 params=task.params,
             )
             for url in urls:
+                # 下载到 MinIO 持久化存储
+                try:
+                    object_name = await StorageService.download_and_store(
+                        url, "images", self.tenant_id
+                    )
+                    file_url = object_name
+                    meta = {"original_url": url}
+                except Exception as e:
+                    logger.warning("MinIO存储失败，使用原始URL: %s", e)
+                    file_url = url
+                    meta = None
                 asset = GeneratedAsset(
                     tenant_id=self.tenant_id,
                     task_id=task.id,
                     product_id=task.product_id,
                     asset_type="image",
-                    file_url=url,
+                    file_url=file_url,
+                    meta_info=meta,
                 )
                 self.db.add(asset)
             task.result_count = len(urls)
@@ -171,12 +184,24 @@ class GenerationService:
             model_config_id=task.model_config_id,
             params=task.params,
         )
+        # 下载到 MinIO 持久化存储
+        try:
+            object_name = await StorageService.download_and_store(
+                video_url, "videos", self.tenant_id
+            )
+            file_url = object_name
+            meta = {"original_url": video_url}
+        except Exception as e:
+            logger.warning("MinIO存储失败，使用原始URL: %s", e)
+            file_url = video_url
+            meta = None
         asset = GeneratedAsset(
             tenant_id=self.tenant_id,
             task_id=task.id,
             product_id=task.product_id,
             asset_type="video",
-            file_url=video_url,
+            file_url=file_url,
+            meta_info=meta,
         )
         self.db.add(asset)
         task.result_count = 1
@@ -220,7 +245,8 @@ class GenerationService:
 
     async def list_assets(
         self, task_id: int | None = None, product_id: int | None = None,
-        asset_type: str | None = None, page: int = 1, size: int = 20,
+        asset_type: str | None = None, keyword: str | None = None,
+        is_selected: bool | None = None, page: int = 1, size: int = 20,
     ) -> tuple[list[GeneratedAsset], int]:
         conditions = [GeneratedAsset.tenant_id == self.tenant_id]
         if task_id:
@@ -229,6 +255,10 @@ class GenerationService:
             conditions.append(GeneratedAsset.product_id == product_id)
         if asset_type:
             conditions.append(GeneratedAsset.asset_type == asset_type)
+        if keyword:
+            conditions.append(GeneratedAsset.content.ilike(f"%{keyword}%"))
+        if is_selected is not None:
+            conditions.append(GeneratedAsset.is_selected == (1 if is_selected else 0))
 
         count_stmt = select(func.count(GeneratedAsset.id)).where(and_(*conditions))
         total = (await self.db.execute(count_stmt)).scalar() or 0
@@ -243,6 +273,47 @@ class GenerationService:
         result = await self.db.execute(stmt)
         assets = list(result.scalars().all())
         return assets, total
+
+    async def get_asset(self, asset_id: int) -> GeneratedAsset | None:
+        stmt = select(GeneratedAsset).where(
+            and_(GeneratedAsset.id == asset_id, GeneratedAsset.tenant_id == self.tenant_id)
+        )
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def delete_asset(self, asset_id: int) -> bool:
+        """删除素材（MinIO 文件 + 数据库记录）"""
+        asset = await self.get_asset(asset_id)
+        if not asset:
+            return False
+        # 删除 MinIO 文件
+        if asset.file_url:
+            obj_name = None
+            if not asset.file_url.startswith("http"):
+                obj_name = asset.file_url
+            else:
+                # 旧数据：从内部 URL 提取 object_name
+                from services.storage_service import MINIO_ENDPOINT, MINIO_BUCKET
+                prefix = f"http://{MINIO_ENDPOINT}/{MINIO_BUCKET}/"
+                if asset.file_url.startswith(prefix):
+                    obj_name = asset.file_url[len(prefix):].split("?")[0]
+            if obj_name:
+                try:
+                    StorageService.delete_object(obj_name)
+                except Exception as e:
+                    logger.warning("删除MinIO文件失败: %s", e)
+        await self.db.delete(asset)
+        await self.db.commit()
+        return True
+
+    async def toggle_asset_selected(self, asset_id: int) -> GeneratedAsset | None:
+        """切换素材收藏状态"""
+        asset = await self.get_asset(asset_id)
+        if not asset:
+            return None
+        asset.is_selected = 0 if asset.is_selected else 1
+        await self.db.commit()
+        await self.db.refresh(asset)
+        return asset
 
     async def retry_task(self, task_id: int) -> GenerationTask | None:
         """重试失败的任务"""

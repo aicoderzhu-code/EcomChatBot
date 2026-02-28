@@ -52,7 +52,7 @@ class ModelConfig(TenantBaseModel):
 
     # API配置
     api_key: Mapped[str | None] = mapped_column(
-        String(256), comment="API密钥"
+        String(512), comment="API密钥"
     )
     api_base: Mapped[str | None] = mapped_column(
         String(512), comment="API基础URL"

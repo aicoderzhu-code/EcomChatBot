@@ -1,5 +1,6 @@
 """内容生成 API 路由"""
 from fastapi import APIRouter, Query
+from fastapi.responses import RedirectResponse
 
 from api.dependencies import DBDep, TenantFlexDep
 from schemas.base import ApiResponse, PaginatedResponse
@@ -13,6 +14,7 @@ from schemas.product_prompt import (
 from services.content_generation.generation_service import GenerationService
 from services.content_generation.product_prompt_service import ProductPromptService
 from services.content_generation.asset_upload_service import AssetUploadService
+from services.storage_service import StorageService
 from tasks.generation_tasks import run_generation
 
 router = APIRouter(prefix="/content", tags=["内容生成"])
@@ -167,6 +169,31 @@ async def retry_generation_task(
 
 # ===== 素材 =====
 
+def _extract_minio_object_name(file_url: str) -> str | None:
+    """从 MinIO URL（内部或外部地址）中提取 object_name，非 MinIO URL 返回 None"""
+    from services.storage_service import MINIO_ENDPOINT, MINIO_EXTERNAL_ENDPOINT, MINIO_BUCKET
+    for endpoint in (MINIO_ENDPOINT, MINIO_EXTERNAL_ENDPOINT):
+        prefix = f"http://{endpoint}/{MINIO_BUCKET}/"
+        if file_url.startswith(prefix):
+            path = file_url[len(prefix):]
+            return path.split("?")[0]
+    return None
+
+
+def _resolve_asset_urls(assets: list) -> list:
+    """对 MinIO 对象路径生成公开访问 URL"""
+    for asset in assets:
+        if not asset.file_url:
+            continue
+        if not asset.file_url.startswith("http"):
+            asset.file_url = StorageService.get_public_url(asset.file_url)
+        else:
+            obj_name = _extract_minio_object_name(asset.file_url)
+            if obj_name:
+                asset.file_url = StorageService.get_public_url(obj_name)
+    return assets
+
+
 @router.get("/assets", response_model=ApiResponse[PaginatedResponse[GeneratedAssetResponse]])
 async def list_assets(
     tenant_id: TenantFlexDep,
@@ -174,6 +201,8 @@ async def list_assets(
     task_id: int | None = None,
     product_id: int | None = None,
     asset_type: str | None = None,
+    keyword: str | None = None,
+    is_selected: bool | None = None,
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
 ):
@@ -181,12 +210,64 @@ async def list_assets(
     service = GenerationService(db, tenant_id)
     assets, total = await service.list_assets(
         task_id=task_id, product_id=product_id,
-        asset_type=asset_type, page=page, size=size,
+        asset_type=asset_type, keyword=keyword,
+        is_selected=is_selected, page=page, size=size,
     )
+    _resolve_asset_urls(assets)
     paginated = PaginatedResponse.create(
         items=assets, total=total, page=page, size=size
     )
     return ApiResponse(data=paginated)
+
+
+@router.delete("/assets/{asset_id}", response_model=ApiResponse)
+async def delete_asset(
+    asset_id: int,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """删除素材"""
+    service = GenerationService(db, tenant_id)
+    deleted = await service.delete_asset(asset_id)
+    if not deleted:
+        return ApiResponse(success=False, error={"code": "NOT_FOUND", "message": "素材不存在"})
+    return ApiResponse(data=None)
+
+
+@router.put("/assets/{asset_id}/selected", response_model=ApiResponse[GeneratedAssetResponse])
+async def toggle_asset_selected(
+    asset_id: int,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """切换素材收藏状态"""
+    service = GenerationService(db, tenant_id)
+    asset = await service.toggle_asset_selected(asset_id)
+    if not asset:
+        return ApiResponse(success=False, error={"code": "NOT_FOUND", "message": "素材不存在"})
+    _resolve_asset_urls([asset])
+    return ApiResponse(data=asset)
+
+
+@router.get("/assets/{asset_id}/download")
+async def download_asset(
+    asset_id: int,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """生成素材下载链接"""
+    service = GenerationService(db, tenant_id)
+    asset = await service.get_asset(asset_id)
+    if not asset or not asset.file_url:
+        return ApiResponse(success=False, error={"code": "NOT_FOUND", "message": "素材不存在"})
+    if not asset.file_url.startswith("http"):
+        url = StorageService.get_public_url(asset.file_url)
+        return RedirectResponse(url=url)
+    obj_name = _extract_minio_object_name(asset.file_url)
+    if obj_name:
+        url = StorageService.get_public_url(obj_name)
+        return RedirectResponse(url=url)
+    return RedirectResponse(url=asset.file_url)
 
 
 @router.post("/assets/upload", response_model=ApiResponse[dict])

@@ -49,15 +49,18 @@ class VideoModelRouter:
 
     async def _generate_zhipuai(self, config: ModelConfig, prompt: str, params: dict) -> str:
         """智谱AI CogVideoX API"""
+        body: dict = {
+            "model": config.model_name,
+            "prompt": prompt,
+            "image_url": params.get("image_url"),
+        }
+        if params.get("duration"):
+            body["duration"] = params["duration"]
         async with httpx.AsyncClient(timeout=300) as client:
             resp = await client.post(
                 "https://open.bigmodel.cn/api/paas/v4/videos/generations",
                 headers={"Authorization": f"Bearer {config.api_key}"},
-                json={
-                    "model": config.model_name,
-                    "prompt": prompt,
-                    "image_url": params.get("image_url"),
-                },
+                json=body,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -90,15 +93,18 @@ class VideoModelRouter:
     async def _generate_siliconflow(self, config: ModelConfig, prompt: str, params: dict) -> str:
         """硅基流动视频生成"""
         api_base = config.api_base or "https://api.siliconflow.cn/v1"
+        body: dict = {
+            "model": config.model_name,
+            "prompt": prompt,
+            "image_url": params.get("image_url"),
+        }
+        if params.get("duration"):
+            body["duration"] = params["duration"]
         async with httpx.AsyncClient(timeout=300) as client:
             resp = await client.post(
                 f"{api_base}/videos/generations",
                 headers={"Authorization": f"Bearer {config.api_key}"},
-                json={
-                    "model": config.model_name,
-                    "prompt": prompt,
-                    "image_url": params.get("image_url"),
-                },
+                json=body,
             )
             resp.raise_for_status()
             data = resp.json()

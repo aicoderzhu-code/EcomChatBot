@@ -22,7 +22,7 @@ class PlatformConfig(TenantBaseModel):
 
     # OAuth 凭证
     app_key: Mapped[str] = mapped_column(String(128), nullable=False, comment="平台 App Key")
-    app_secret: Mapped[str] = mapped_column(String(256), nullable=False, comment="平台 App Secret(加密存储)")
+    app_secret: Mapped[str] = mapped_column(String(512), nullable=False, comment="平台 App Secret(加密存储)")
     access_token: Mapped[str | None] = mapped_column(String(512), comment="访问令牌")
     refresh_token: Mapped[str | None] = mapped_column(String(512), comment="刷新令牌")
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, comment="令牌过期时间")

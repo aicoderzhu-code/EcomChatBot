@@ -62,6 +62,8 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
     volumes:
       - minio_data:/minio_data
     command: minio server /minio_data --console-address ":9001"
@@ -187,6 +189,12 @@ services:
       DEFAULT_LLM_MODEL: "deepseek-chat"
       # Embedding 维度（text-embedding-v4 输出 1024 维）
       EMBEDDING_DIMENSION: "1024"
+      # MinIO配置
+      MINIO_ENDPOINT: "milvus-minio:9000"
+      MINIO_EXTERNAL_ENDPOINT: "localhost:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_BUCKET: "ecom-chatbot"
       # 日志配置
       LOG_LEVEL: "INFO"
       LOG_FORMAT: "json"
@@ -246,6 +254,12 @@ services:
       APP_NAME: "电商智能客服系统"
       DEBUG: "true"
       ENVIRONMENT: "development"
+      # MinIO配置
+      MINIO_ENDPOINT: "milvus-minio:9000"
+      MINIO_EXTERNAL_ENDPOINT: "localhost:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_BUCKET: "ecom-chatbot"
       LOG_LEVEL: "INFO"
     command: celery -A tasks.celery_app worker --loglevel=info --concurrency=2 -Q default,notifications,data_processing,billing,webhooks
     networks:

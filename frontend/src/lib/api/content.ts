@@ -128,11 +128,27 @@ export const contentApi = {
     task_id?: number;
     product_id?: number;
     asset_type?: string;
+    keyword?: string;
+    is_selected?: boolean;
     page?: number;
     size?: number;
   }): Promise<ApiResponse<PaginatedResponse<GeneratedAsset>>> {
     const { data } = await apiClient.get('/content/assets', { params });
     return data;
+  },
+
+  async deleteAsset(assetId: number): Promise<ApiResponse<null>> {
+    const { data } = await apiClient.delete(`/content/assets/${assetId}`);
+    return data;
+  },
+
+  async toggleAssetSelected(assetId: number): Promise<ApiResponse<GeneratedAsset>> {
+    const { data } = await apiClient.put(`/content/assets/${assetId}/selected`);
+    return data;
+  },
+
+  getAssetDownloadUrl(assetId: number): string {
+    return `/api/v1/content/assets/${assetId}/download`;
   },
 
   async uploadAssetToPlatform(body: {
