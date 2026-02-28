@@ -138,7 +138,7 @@ export interface KnowledgeSearchResult {
 
 // Settings Types
 export type ModelProvider = 'openai' | 'deepseek' | 'zhipuai' | 'qwen' | 'google' | 'meta' | 'siliconflow' | 'private';
-export type ModelType = 'llm' | 'embedding' | 'rerank';
+export type ModelType = 'llm' | 'embedding' | 'rerank' | 'image_generation' | 'video_generation';
 
 export interface LLMConfig {
   provider: ModelProvider;
@@ -195,4 +195,59 @@ export interface WSSendMessage {
   type: 'message' | 'ping';
   content?: string;
   use_rag?: boolean;
+}
+
+// ===== 商品管理 =====
+
+export interface Product {
+  id: number;
+  tenant_id: string;
+  platform_config_id: number;
+  platform_product_id: string;
+  title: string;
+  description: string | null;
+  price: number;
+  original_price: number | null;
+  currency: string;
+  category: string | null;
+  images: string[] | null;
+  videos: string[] | null;
+  attributes: Record<string, unknown> | null;
+  sales_count: number;
+  stock: number;
+  status: 'active' | 'inactive' | 'deleted';
+  knowledge_base_id: number | null;
+  last_synced_at: string | null;
+  platform_data: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SyncTask {
+  id: number;
+  tenant_id: string;
+  platform_config_id: number;
+  sync_target: 'product' | 'order';
+  sync_type: 'full' | 'incremental';
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  total_count: number;
+  synced_count: number;
+  failed_count: number;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SyncSchedule {
+  id: number;
+  tenant_id: string;
+  platform_config_id: number;
+  interval_minutes: number;
+  is_active: boolean;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
 }

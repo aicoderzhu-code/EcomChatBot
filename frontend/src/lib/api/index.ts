@@ -5,3 +5,7 @@ export { conversationApi } from './conversation';
 export { knowledgeApi } from './knowledge';
 export { dashboardApi } from './dashboard';
 export { settingsApi } from './settings';
+export { productApi } from './product';
+export { contentApi } from './content';
+export { pricingApi } from './pricing';
+export { analyticsApi } from './analytics';

@@ -12,6 +12,7 @@ from api.routers import (
     admin,
     ai_chat,
     analytics,
+    analysis_report,
     audit,
     auth,
     conversation,
@@ -20,10 +21,14 @@ from api.routers import (
     knowledge,
     model_config,
     monitor,
+    order,
     payment,
     platform,
     playground,
     pdd_webhook,
+    product,
+    content_generation,
+    pricing,
     quality,
     rag,
     sensitive_word,
@@ -255,6 +260,11 @@ app.include_router(audit.router, prefix=settings.api_v1_prefix)
 app.include_router(setup.router, prefix=settings.api_v1_prefix)
 app.include_router(platform.router, prefix=settings.api_v1_prefix)
 app.include_router(playground.router, prefix=settings.api_v1_prefix)
+app.include_router(product.router, prefix=settings.api_v1_prefix)
+app.include_router(content_generation.router, prefix=settings.api_v1_prefix)
+app.include_router(pricing.router, prefix=settings.api_v1_prefix)
+app.include_router(order.router, prefix=settings.api_v1_prefix)
+app.include_router(analysis_report.router, prefix=settings.api_v1_prefix)
 app.include_router(pdd_webhook.router)
 
 

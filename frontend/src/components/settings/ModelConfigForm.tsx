@@ -39,6 +39,8 @@ interface PlatformInfo {
   llm: string[];
   embedding: string[];
   rerank: string[];
+  image_generation: string[];
+  video_generation: string[];
   supportedTypes: ModelType[]; // 静态声明支持的类型，用于卡片 tag
   needsApiBase?: boolean; // 是否支持自定义 API Base
 }
@@ -50,6 +52,8 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
+    image_generation: [],
+    video_generation: [],
     supportedTypes: ['llm', 'embedding'],
     needsApiBase: true,
   },
@@ -59,6 +63,8 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
+    image_generation: [],
+    video_generation: [],
     supportedTypes: ['llm', 'embedding', 'rerank'],
     needsApiBase: true,
   },
@@ -68,6 +74,8 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
+    image_generation: [],
+    video_generation: [],
     supportedTypes: ['llm'],
     needsApiBase: true,
   },
@@ -77,6 +85,8 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
+    image_generation: [],
+    video_generation: [],
     supportedTypes: ['llm', 'embedding'],
   },
   google: {
@@ -85,6 +95,8 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
+    image_generation: [],
+    video_generation: [],
     supportedTypes: ['llm', 'embedding'],
   },
   meta: {
@@ -93,6 +105,8 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
+    image_generation: [],
+    video_generation: [],
     supportedTypes: ['llm'],
     needsApiBase: true,
   },
@@ -102,7 +116,9 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
-    supportedTypes: ['llm', 'embedding', 'rerank'],
+    image_generation: [],
+    video_generation: [],
+    supportedTypes: ['llm', 'embedding', 'rerank', 'image_generation', 'video_generation'],
     needsApiBase: true,
   },
   private: {
@@ -111,6 +127,8 @@ const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
     llm: [],
     embedding: [],
     rerank: [],
+    image_generation: [],
+    video_generation: [],
     supportedTypes: [],
     needsApiBase: true,
   },
@@ -120,6 +138,8 @@ const MODEL_TYPE_LABELS: Record<ModelType, string> = {
   llm: '大语言模型',
   embedding: '嵌入模型',
   rerank: '重排模型',
+  image_generation: '图像生成',
+  video_generation: '视频生成',
 };
 
 // 支持自动发现模型的提供商
@@ -132,10 +152,14 @@ interface PlatformConfig {
   llm_model: string;
   embedding_model: string;
   rerank_model: string;
+  image_generation_model: string;
+  video_generation_model: string;
   // 已保存的记录 ID（用于更新）
   llm_id?: number;
   embedding_id?: number;
   rerank_id?: number;
+  image_generation_id?: number;
+  video_generation_id?: number;
 }
 
 type ValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid';
@@ -171,6 +195,8 @@ export default function ModelConfigForm() {
               llm_model: '',
               embedding_model: '',
               rerank_model: '',
+              image_generation_model: '',
+              video_generation_model: '',
             };
           }
           // 用已有 api_key（同一 provider 共享）
@@ -186,6 +212,12 @@ export default function ModelConfigForm() {
           } else if (cfg.model_type === 'rerank') {
             merged[provider].rerank_model = cfg.model_name;
             merged[provider].rerank_id = cfg.id;
+          } else if (cfg.model_type === 'image_generation') {
+            merged[provider].image_generation_model = cfg.model_name;
+            merged[provider].image_generation_id = cfg.id;
+          } else if (cfg.model_type === 'video_generation') {
+            merged[provider].video_generation_model = cfg.model_name;
+            merged[provider].video_generation_id = cfg.id;
           }
         }
         setConfigs(merged);

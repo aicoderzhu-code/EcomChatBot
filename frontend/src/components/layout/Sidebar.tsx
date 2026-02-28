@@ -10,8 +10,16 @@ import {
   SettingOutlined,
   LogoutOutlined,
   ShoppingCartOutlined,
+  ShoppingOutlined,
   UserOutlined,
   ExperimentOutlined,
+  FileImageOutlined,
+  VideoCameraOutlined,
+  AppstoreOutlined,
+  BarChartOutlined,
+  LineChartOutlined,
+  FundOutlined,
+  DollarOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store';
 import { settingsApi } from '@/lib/api/settings';
@@ -33,6 +41,36 @@ const menuItems = [
     key: '/knowledge',
     icon: <BookOutlined />,
     label: '知识库',
+  },
+  {
+    key: '/products',
+    icon: <ShoppingOutlined />,
+    label: '商品管理',
+  },
+  {
+    key: 'content',
+    icon: <FileImageOutlined />,
+    label: '内容创作',
+    children: [
+      { key: '/content/poster', icon: <FileImageOutlined />, label: '海报生成' },
+      { key: '/content/video', icon: <VideoCameraOutlined />, label: '视频生成' },
+      { key: '/content/assets', icon: <AppstoreOutlined />, label: '素材库' },
+    ],
+  },
+  {
+    key: 'analytics',
+    icon: <BarChartOutlined />,
+    label: '数据分析',
+    children: [
+      { key: '/analytics/orders', icon: <LineChartOutlined />, label: '订单分析' },
+      { key: '/analytics/reports', icon: <FundOutlined />, label: '分析报告' },
+      { key: '/analytics/dashboard', icon: <BarChartOutlined />, label: '销售看板' },
+    ],
+  },
+  {
+    key: '/pricing',
+    icon: <DollarOutlined />,
+    label: '智能定价',
   },
   {
     key: '/playground',

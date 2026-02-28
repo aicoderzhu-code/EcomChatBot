@@ -24,6 +24,21 @@ from models.tenant import Bill, Subscription, Tenant
 from models.webhook import WebhookConfig, WebhookLog, WebhookEventType
 from models.notification import InAppNotification, NotificationPreference
 from models.platform import PlatformConfig
+from models.product import (
+    Product, PlatformSyncTask, ProductSyncSchedule,
+    ProductStatus, SyncTarget, SyncType, SyncTaskStatus,
+)
+from models.prompt_template import PromptTemplate, TemplateType
+from models.generation import (
+    GenerationTask, GeneratedAsset,
+    GenerationTaskType, GenerationTaskStatus, AssetType,
+)
+from models.pricing import CompetitorProduct, PricingAnalysis, PricingStrategy
+from models.order import (
+    Order, AnalysisReport,
+    OrderStatus as PlatformOrderStatus,
+    ReportType, ReportStatus,
+)
 
 __all__ = [
     # Base
@@ -71,4 +86,31 @@ __all__ = [
     "NotificationPreference",
     # Platform
     "PlatformConfig",
+    # Product
+    "Product",
+    "PlatformSyncTask",
+    "ProductSyncSchedule",
+    "ProductStatus",
+    "SyncTarget",
+    "SyncType",
+    "SyncTaskStatus",
+    # Prompt Template
+    "PromptTemplate",
+    "TemplateType",
+    # Generation
+    "GenerationTask",
+    "GeneratedAsset",
+    "GenerationTaskType",
+    "GenerationTaskStatus",
+    "AssetType",
+    # Pricing
+    "CompetitorProduct",
+    "PricingAnalysis",
+    "PricingStrategy",
+    # Order & Report
+    "Order",
+    "AnalysisReport",
+    "PlatformOrderStatus",
+    "ReportType",
+    "ReportStatus",
 ]

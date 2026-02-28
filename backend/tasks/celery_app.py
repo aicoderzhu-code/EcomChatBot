@@ -19,6 +19,8 @@ celery_app = Celery(
         "tasks.billing_tasks",
         "tasks.webhook_tasks",
         "tasks.platform_tasks",
+        "tasks.product_sync_tasks",
+        "tasks.generation_tasks",
     ],
 )
 
@@ -56,6 +58,8 @@ celery_app.conf.update(
         "tasks.billing_tasks.*": {"queue": "billing"},
         "tasks.webhook_tasks.*": {"queue": "webhooks"},
         "tasks.platform_tasks.*": {"queue": "default"},
+        "tasks.product_sync_tasks.*": {"queue": "data_processing"},
+        "tasks.generation_tasks.*": {"queue": "data_processing"},
     },
 
     # 默认队列
@@ -108,6 +112,11 @@ celery_app.conf.beat_schedule = {
         "task": "tasks.billing_tasks.process_subscription_renewal",
         "schedule": crontab(hour=2, minute=0),  # 每天凌晨2点
         "options": {"queue": "billing"}
+    },
+    # 每5分钟检查需要执行的商品同步调度
+    "run-scheduled-product-syncs": {
+        "task": "tasks.product_sync_tasks.run_scheduled_syncs",
+        "schedule": 300.0,  # 每5分钟检查一次
     },
     # 每小时刷新即将过期的平台 access_token
     "refresh-platform-tokens": {

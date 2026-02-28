@@ -24,6 +24,8 @@ class ModelType(str, Enum):
     LLM = "llm"            # 大语言模型
     EMBEDDING = "embedding" # 嵌入模型
     RERANK = "rerank"       # 重排模型
+    IMAGE_GENERATION = "image_generation"  # 图像生成模型
+    VIDEO_GENERATION = "video_generation"  # 视频生成模型
 
 
 class ModelConfig(TenantBaseModel):
