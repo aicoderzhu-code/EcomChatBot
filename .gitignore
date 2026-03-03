@@ -43,6 +43,17 @@ env/
 .env.*.local
 *.env
 
+# Allow example and template files
+!.env.example
+!.env.development
+!.env.production.template
+!backend/.env.example
+!backend/.env.development
+!backend/.env.production.template
+!frontend/.env.example
+!frontend/.env.development
+!frontend/.env.production
+
 # Database
 *.db
 *.sqlite
