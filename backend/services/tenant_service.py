@@ -38,95 +38,6 @@ class TenantService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def register_tenant(
-        self,
-        register_data: TenantRegisterRequest,
-    ) -> tuple[str, str]:
-        """
-        租户自助注册
-
-        Returns:
-            (tenant_id, api_key): 租户ID和API密钥（明文，仅此一次）
-        """
-        # 检查邮箱是否已存在
-        existing = await self.get_tenant_by_email(register_data.contact_email)
-        if existing:
-            raise DuplicateResourceException("租户", "邮箱", register_data.contact_email)
-
-        # 生成租户ID和API Key
-        tenant_id = generate_tenant_id()
-        api_key = generate_api_key()
-        api_key_hash = hash_api_key(api_key)
-        api_key_prefix = api_key[:12] if len(api_key) >= 12 else api_key  # 保存前缀用于快速查找
-        password_hash = hash_password(register_data.password)
-
-        # 计算套餐过期时间
-        plan_expire_at = datetime.utcnow() + timedelta(days=365)  # 免费套餐1年有效期
-
-        # 创建租户（默认免费套餐）
-        tenant = Tenant(
-            tenant_id=tenant_id,
-            company_name=register_data.company_name,
-            contact_name=register_data.contact_name,
-            contact_email=register_data.contact_email,
-            contact_phone=register_data.contact_phone,
-            password_hash=password_hash,
-            api_key_hash=api_key_hash,
-            api_key_prefix=api_key_prefix,  # 保存API Key前缀用于快速认证
-            status="active",
-            current_plan="free",
-            plan_expire_at=plan_expire_at,  # 设置套餐过期时间
-        )
-        self.db.add(tenant)
-
-        # 创建免费订阅
-        plan_config = PLAN_CONFIGS["free"]
-        subscription = Subscription(
-            subscription_id=str(uuid.uuid4()),
-            tenant_id=tenant_id,
-            plan_type="free",
-            status="active",
-            enabled_features=json.dumps([f.value for f in plan_config["features"]]),  # 转换为JSON字符串
-            start_date=datetime.utcnow(),
-            expire_at=datetime.utcnow() + timedelta(days=365),  # 免费套餐1年有效期
-            auto_renew=False,
-            is_trial=True,
-        )
-        self.db.add(subscription)
-
-        await self.db.commit()
-        await self.db.refresh(tenant)
-
-        return tenant_id, api_key
-
-    async def authenticate_tenant(
-        self,
-        email: str,
-        password: str,
-    ) -> str:
-        """
-        租户登录认证
-
-        Returns:
-            tenant_id: 租户ID
-
-        Raises:
-            AuthenticationException: 认证失败
-        """
-        # 根据邮箱获取租户
-        tenant = await self.get_tenant_by_email(email)
-        if not tenant:
-            raise AuthenticationException("邮箱或密码错误")
-
-        # 验证密码
-        if not verify_password(password, tenant.password_hash):
-            raise AuthenticationException("邮箱或密码错误")
-
-        # 检查租户状态
-        await self.check_tenant_access(tenant.tenant_id)
-
-        return tenant.tenant_id
-
     async def create_tenant(
         self,
         tenant_data: TenantCreate,
@@ -512,6 +423,12 @@ class TenantService:
         api_key_prefix = api_key[:12] if len(api_key) >= 12 else api_key  # 保存前缀用于快速查找
         password_hash_value = hash_password(register_data.password)
 
+        # 创建试用订阅配置
+        from core.permissions import SUBSCRIPTION_PLANS
+        trial_config = PLAN_CONFIGS.get("trial", PLAN_CONFIGS["free"])
+        trial_days = SUBSCRIPTION_PLANS["trial"]["days"]
+        plan_expire_at = datetime.utcnow() + timedelta(days=trial_days)
+
         # 创建租户（默认试用套餐）
         tenant = Tenant(
             tenant_id=tenant_id,
@@ -520,18 +437,14 @@ class TenantService:
             contact_email=register_data.contact_email,
             contact_phone=register_data.contact_phone,
             api_key_hash=api_key_hash_value,
-            api_key_prefix=api_key_prefix,  # 保存API Key前缀用于快速认证
+            api_key_prefix=api_key_prefix,
             password_hash=password_hash_value,
             status="active",
             current_plan="trial",
+            plan_expire_at=plan_expire_at,
             login_attempts=0,
         )
         self.db.add(tenant)
-
-        # 创建试用订阅（3天）
-        from core.permissions import SUBSCRIPTION_PLANS
-        trial_config = PLAN_CONFIGS.get("trial", PLAN_CONFIGS["free"])
-        trial_days = SUBSCRIPTION_PLANS["trial"]["days"]
         subscription = Subscription(
             subscription_id=str(uuid.uuid4()),
             tenant_id=tenant_id,

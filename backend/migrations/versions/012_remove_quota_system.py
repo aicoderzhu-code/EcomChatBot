@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "012_remove_quota_system"
-down_revision = "011_encrypt_platform_secret"
+down_revision = "011"
 branch_labels = None
 depends_on = None
 

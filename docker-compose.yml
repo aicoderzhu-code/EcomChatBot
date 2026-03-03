@@ -105,7 +105,7 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_API_BASE_URL=/api/v1
-        - NEXT_PUBLIC_WS_BASE_URL=
+        - NEXT_PUBLIC_WS_BASE_URL=wss://www.ecomchat.cn/api/v1/ws
     container_name: ecom-chatbot-frontend
     depends_on:
       - api
@@ -159,8 +159,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
+      - ./ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
     networks:
       - ecom-network

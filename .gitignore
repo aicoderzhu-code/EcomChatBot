@@ -74,8 +74,6 @@ coverage.xml
 *.cover
 .hypothesis/
 backend/reports/
-reports/
-backend/tests/reports/
 test-reports/
 .benchmarks/
 

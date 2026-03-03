@@ -134,6 +134,17 @@ async def app_exception_handler(request: Request, exc: AppException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """处理数据验证异常"""
+    errors = exc.errors()
+    safe_errors = []
+    for err in errors:
+        safe_err = {}
+        for k, v in err.items():
+            if k == "ctx":
+                safe_err[k] = {ck: str(cv) for ck, cv in v.items()}
+            else:
+                safe_err[k] = v
+        safe_errors.append(safe_err)
+
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -141,7 +152,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "数据验证失败",
-                "details": exc.errors(),
+                "details": safe_errors,
             },
         },
     )
