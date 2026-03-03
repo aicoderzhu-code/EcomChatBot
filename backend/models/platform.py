@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from models.base import TenantBaseModel
@@ -13,7 +13,10 @@ class PlatformConfig(TenantBaseModel):
     """平台对接配置表"""
 
     __tablename__ = "platform_configs"
-    __table_args__ = {"comment": "电商平台对接配置表"}
+    __table_args__ = (
+        Index("idx_platform_config_tenant_type_shop", "tenant_id", "platform_type", "shop_id"),
+        {"comment": "电商平台对接配置表"},
+    )
 
     # 平台标识
     platform_type: Mapped[str] = mapped_column(

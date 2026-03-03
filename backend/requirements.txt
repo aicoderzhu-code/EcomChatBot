@@ -9,7 +9,6 @@ pypdf==4.1.0
 # Database
 sqlalchemy[asyncio]==2.0.25
 asyncpg==0.29.0
-alembic==1.13.1
 psycopg2-binary==2.9.9
 
 # Redis & Cache

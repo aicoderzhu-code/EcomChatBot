@@ -39,6 +39,7 @@ from models.order import (
     OrderStatus as PlatformOrderStatus,
     ReportType, ReportStatus,
 )
+from models.sensitive_word import SensitiveWord
 
 __all__ = [
     # Base
@@ -113,4 +114,6 @@ __all__ = [
     "PlatformOrderStatus",
     "ReportType",
     "ReportStatus",
+    # Sensitive Word
+    "SensitiveWord",
 ]
