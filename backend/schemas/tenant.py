@@ -57,6 +57,7 @@ class TenantResponse(TenantBase, TimestampSchema):
     total_messages: int
     total_spent: float
     last_active_at: datetime | None
+    api_key_prefix: str | None
 
 
 class TenantWithAPIKey(TenantResponse):

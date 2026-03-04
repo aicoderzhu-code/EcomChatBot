@@ -12,6 +12,17 @@ const pathNames: Record<string, string> = {
   chat: '对话管理',
   knowledge: '知识库',
   settings: '系统设置',
+  products: '商品管理',
+  content: '内容创作',
+  poster: '海报生成',
+  video: '视频生成',
+  prompts: '提示词管理',
+  assets: '素材库',
+  analytics: '数据分析',
+  orders: '订单分析',
+  reports: '分析报告',
+  pricing: '智能定价',
+  playground: 'Playground',
 };
 
 export default function Header() {

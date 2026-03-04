@@ -22,6 +22,7 @@ export default function PlatformConfigCard({
   const getPlatformLabel = (platform: string): string => {
     const labels: Record<string, string> = {
       pinduoduo: '拼多多',
+      douyin: '抖音抖店',
       taobao: '淘宝',
       jd: '京东',
     };
@@ -29,7 +30,7 @@ export default function PlatformConfigCard({
   };
 
   const copyWebhookUrl = () => {
-    const webhookUrl = `${window.location.origin}/api/v1/platform/pinduoduo/webhook`;
+    const webhookUrl = `${window.location.origin}/api/v1/platform/${config.platform_type}/webhook`;
     navigator.clipboard.writeText(webhookUrl);
     message.success('Webhook 地址已复制');
   };
@@ -89,7 +90,7 @@ export default function PlatformConfigCard({
           <div>
             <Text type="secondary">Webhook 地址：</Text>
             <Space>
-              <Text code>{`${window.location.origin}/api/v1/platform/pinduoduo/webhook`}</Text>
+              <Text code>{`${window.location.origin}/api/v1/platform/${config.platform_type}/webhook`}</Text>
               <Button
                 type="link"
                 size="small"

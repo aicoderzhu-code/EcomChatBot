@@ -239,6 +239,7 @@ export default function SettingsPage() {
         return <SubscriptionPanel />;
       case 'platform': {
         const pddConfigs = platformConfigs.filter(c => c.platform_type === 'pinduoduo');
+        const douyinConfigs = platformConfigs.filter(c => c.platform_type === 'douyin');
 
         return (
           <>
@@ -249,6 +250,7 @@ export default function SettingsPage() {
               onChange={setSelectedPlatform}
               items={[
                 { key: 'pinduoduo', label: '拼多多' },
+                { key: 'douyin', label: '抖音抖店' },
                 { key: 'taobao', label: '淘宝（即将支持）', disabled: true },
                 { key: 'jd', label: '京东（即将支持）', disabled: true },
               ]}
@@ -297,11 +299,58 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               )}
+
+              {selectedPlatform === 'douyin' && (
+                <div>
+                  {douyinConfigs.map(config => (
+                    <Card key={config.id} className="mb-4">
+                      <PlatformConfigCard
+                        config={config}
+                        onEdit={() => setEditingConfig(config)}
+                        onDelete={async () => {
+                          Modal.confirm({
+                            title: '确认删除',
+                            content: '删除后将断开与该店铺的连接，确认继续？',
+                            okText: '确认',
+                            cancelText: '取消',
+                            onOk: async () => {
+                              try {
+                                await platformApi.disconnect(config.id);
+                                message.success('已删除');
+                                loadPlatformConfigs();
+                              } catch {
+                                message.error('删除失败');
+                              }
+                            },
+                          });
+                        }}
+                        onConnect={() => {
+                          const redirectUri = `${window.location.origin}/api/v1/platform/douyin/callback`;
+                          window.location.href = platformApi.getDouyinAuthUrl(config.id, redirectUri);
+                        }}
+                      />
+                    </Card>
+                  ))}
+
+                  <Button
+                    type="dashed"
+                    block
+                    icon={<PlusOutlined />}
+                    onClick={() => {
+                      setSelectedPlatform('douyin');
+                      setShowAddModal(true);
+                    }}
+                  >
+                    添加抖音店铺
+                  </Button>
+                </div>
+              )}
             </Spin>
 
             <PlatformConfigModal
               visible={showAddModal || !!editingConfig}
               config={editingConfig}
+              platform={selectedPlatform}
               onClose={() => {
                 setShowAddModal(false);
                 setEditingConfig(null);

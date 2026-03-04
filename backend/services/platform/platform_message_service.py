@@ -13,6 +13,7 @@ from models import Conversation, Message, User
 from models.platform import PlatformConfig
 from services.conversation_service import ConversationService
 from services.platform.pinduoduo_client import PinduoduoClient
+from services.platform.douyin_client import DouyinClient
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +117,91 @@ class PlatformMessageService:
             )
         else:
             await self._escalate_to_human(
+                db=self.db,
+                tenant_id=tenant_id,
+                conversation=conversation,
+                config=config,
+            )
+
+    async def handle_douyin_webhook(self, payload: dict) -> None:
+        """
+        处理抖音 Webhook 推送
+
+        payload 字段（参考抖音开放平台文档）：
+          - shop_id: 店铺ID
+          - buyer_id: 买家ID
+          - conversation_id: 抖音会话ID
+          - content: 消息内容
+          - msg_type: 消息类型（text=文本）
+        """
+        shop_id = str(payload.get("shop_id", ""))
+        buyer_id = str(payload.get("buyer_id", ""))
+        douyin_conversation_id = str(payload.get("conversation_id", ""))
+        content = payload.get("content", "")
+        msg_type = payload.get("msg_type", "text")
+
+        # 只处理文本消息
+        if msg_type != "text" or not content:
+            return
+
+        # 1. 查找平台配置 → 获取 tenant_id
+        config = await self._get_platform_config("douyin", shop_id)
+        if not config:
+            logger.warning("未找到 shop_id=%s 对应的平台配置", shop_id)
+            return
+
+        tenant_id = config.tenant_id
+
+        # 2. 查找或创建用户
+        conv_service = ConversationService(self.db, tenant_id)
+        user_external_id = f"douyin_{buyer_id}"
+        user = await conv_service.get_or_create_user(
+            user_external_id=user_external_id,
+            user_data={"nickname": f"抖音买家{buyer_id}"},
+        )
+        # 记录平台用户ID
+        if not user.platform_user_id:
+            user.platform_user_id = buyer_id
+            await self.db.commit()
+
+        # 3. 查找或创建会话
+        conversation = await self._get_or_create_platform_conversation(
+            tenant_id=tenant_id,
+            user_id=user.id,
+            platform_type="douyin",
+            platform_conversation_id=douyin_conversation_id,
+        )
+
+        # 4. 保存用户消息
+        msg_id = f"msg_{int(datetime.utcnow().timestamp())}_{buyer_id}"
+        message = Message(
+            tenant_id=tenant_id,
+            message_id=msg_id,
+            conversation_id=conversation.conversation_id,
+            role="user",
+            content=content,
+        )
+        self.db.add(message)
+        await self.db.commit()
+
+        # 5. 意图识别
+        from services.intent_service import IntentService
+        intent_service = IntentService(db=self.db, tenant_id=tenant_id)
+        intent = intent_service.classify_intent_by_rules(content)
+        confidence = intent_service.get_intent_confidence(content, intent)
+
+        # 6. 根据置信度决定 AI 回复还是转人工
+        threshold = config.auto_reply_threshold
+        if confidence >= threshold:
+            await self._ai_reply_douyin(
+                db=self.db,
+                tenant_id=tenant_id,
+                conversation=conversation,
+                user_input=content,
+                config=config,
+            )
+        else:
+            await self._escalate_to_human_douyin(
                 db=self.db,
                 tenant_id=tenant_id,
                 conversation=conversation,
@@ -230,6 +316,101 @@ class PlatformMessageService:
                 except Exception:
                     plain_secret = config.app_secret
                 client = PinduoduoClient(config.app_key, plain_secret)
+                await client.send_message(
+                    access_token=config.access_token,
+                    conversation_id=conversation.platform_conversation_id,
+                    content=config.human_takeover_message,
+                )
+            except Exception as e:
+                logger.warning("发送转人工提示语失败: %s", e)
+
+        # 触发 Webhook 通知租户
+        try:
+            from services.webhook_service import WebhookService
+            webhook_service = WebhookService(db, tenant_id)
+            await webhook_service.trigger_event(
+                event_type="conversation.human_required",
+                event_data={
+                    "conversation_id": conversation.conversation_id,
+                    "platform_type": conversation.platform_type,
+                    "platform_conversation_id": conversation.platform_conversation_id,
+                },
+            )
+        except Exception as e:
+            logger.warning("触发 Webhook 通知失败: %s", e)
+
+    async def _ai_reply_douyin(
+        self,
+        db: AsyncSession,
+        tenant_id: str,
+        conversation: Conversation,
+        user_input: str,
+        config: PlatformConfig,
+    ) -> None:
+        """调用 AI 生成回复并发送到抖音"""
+        try:
+            from services.conversation_chain_service import ConversationChainService
+            chain = ConversationChainService(
+                db=db,
+                tenant_id=tenant_id,
+                conversation_id=conversation.conversation_id,
+                platform_name="抖音抖店",
+            )
+            await chain.initialize()
+            result = await chain.chat(user_input=user_input)
+            reply_text = result["response"]
+
+            # 发送到抖音
+            from core.crypto import decrypt_field
+            try:
+                plain_secret = decrypt_field(config.app_secret)
+            except Exception:
+                plain_secret = config.app_secret
+            client = DouyinClient(config.app_key, plain_secret)
+            await client.send_message(
+                access_token=config.access_token,
+                conversation_id=conversation.platform_conversation_id,
+                content=reply_text,
+            )
+
+            # 保存 AI 回复消息
+            ai_msg_id = f"msg_{int(datetime.utcnow().timestamp())}_ai"
+            ai_msg = Message(
+                tenant_id=tenant_id,
+                message_id=ai_msg_id,
+                conversation_id=conversation.conversation_id,
+                role="assistant",
+                content=reply_text,
+                input_tokens=result.get("input_tokens"),
+                output_tokens=result.get("output_tokens"),
+            )
+            db.add(ai_msg)
+            await db.commit()
+        except Exception as e:
+            logger.error("AI 回复失败: %s", e, exc_info=True)
+
+    async def _escalate_to_human_douyin(
+        self,
+        db: AsyncSession,
+        tenant_id: str,
+        conversation: Conversation,
+        config: PlatformConfig,
+    ) -> None:
+        """标记转人工并通知租户（抖音）"""
+        conversation.status = "pending_human"
+        conversation.transferred_to_human = True
+        conversation.transfer_reason = "AI 置信度不足"
+        await db.commit()
+
+        # 发送转人工提示语给买家
+        if config.human_takeover_message and config.access_token:
+            try:
+                from core.crypto import decrypt_field
+                try:
+                    plain_secret = decrypt_field(config.app_secret)
+                except Exception:
+                    plain_secret = config.app_secret
+                client = DouyinClient(config.app_key, plain_secret)
                 await client.send_message(
                     access_token=config.access_token,
                     conversation_id=conversation.platform_conversation_id,

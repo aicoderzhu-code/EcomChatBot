@@ -7,6 +7,7 @@ import { PlatformConfig, PlatformConfigUpdate, platformApi } from '@/lib/api/pla
 interface PlatformConfigModalProps {
   visible: boolean;
   config: PlatformConfig | null;
+  platform?: string;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -14,6 +15,7 @@ interface PlatformConfigModalProps {
 export default function PlatformConfigModal({
   visible,
   config,
+  platform = 'pinduoduo',
   onClose,
   onSuccess,
 }: PlatformConfigModalProps) {
@@ -41,7 +43,7 @@ export default function PlatformConfigModal({
         human_takeover_message: values.human_takeover_message,
       };
 
-      await platformApi.upsertConfig('pinduoduo', data, config?.id);
+      await platformApi.upsertConfig(platform, data, config?.id);
       message.success(config ? '更新成功' : '创建成功');
       onSuccess();
     } catch (error) {

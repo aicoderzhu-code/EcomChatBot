@@ -14,6 +14,7 @@ from core.crypto import decrypt_field, encrypt_field
 from models.platform import PlatformConfig
 from schemas.platform import PlatformConfigCreate, PlatformConfigResponse, PinduoduoWebhookPayload
 from services.platform.pinduoduo_client import PinduoduoClient
+from services.platform.douyin_client import DouyinClient
 from services.platform.platform_message_service import PlatformMessageService
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,8 @@ router = APIRouter(prefix="/platform", tags=["平台对接"])
 
 PDD_AUTH_URL = "https://mms.pinduoduo.com/open.html"
 PDD_TOKEN_URL = "https://open-api.pinduoduo.com/oauth/token"
+DOUYIN_AUTH_URL = "https://open.douyin.com/platform/oauth/connect"
+DOUYIN_TOKEN_URL = "https://open.douyin.com/oauth/access_token"
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +74,52 @@ async def pinduoduo_webhook(
 
     service = PlatformMessageService(db)
     background_tasks.add_task(service.handle_pinduoduo_webhook, payload_data)
+
+    return {"success": True}
+
+
+@router.post("/douyin/webhook", summary="接收抖音消息推送", include_in_schema=False)
+async def douyin_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: DBDep,
+    x_douyin_signature: str | None = Header(None, alias="X-Douyin-Signature"),
+):
+    """接收抖音 Webhook 推送，验签后异步处理"""
+    body = await request.body()
+
+    try:
+        payload_data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="无效的请求体")
+
+    # 验签：解析 shop_id → 查 config → 解密 secret → 验签
+    shop_id = str(payload_data.get("shop_id", ""))
+    if x_douyin_signature and shop_id:
+        stmt = select(PlatformConfig).where(
+            and_(
+                PlatformConfig.platform_type == "douyin",
+                PlatformConfig.shop_id == shop_id,
+                PlatformConfig.is_active == True,
+            )
+        )
+        result = await db.execute(stmt)
+        config = result.scalar_one_or_none()
+
+        if config and config.app_secret:
+            try:
+                plain_secret = decrypt_field(config.app_secret)
+            except Exception:
+                plain_secret = config.app_secret
+            client = DouyinClient(config.app_key, plain_secret)
+            if not client.verify_webhook_signature(body, x_douyin_signature):
+                raise HTTPException(status_code=401, detail="Webhook 签名验证失败")
+        else:
+            if x_douyin_signature:
+                raise HTTPException(status_code=401, detail="未找到对应的平台配置")
+
+    service = PlatformMessageService(db)
+    background_tasks.add_task(service.handle_douyin_webhook, payload_data)
 
     return {"success": True}
 
@@ -163,6 +212,98 @@ async def pinduoduo_callback(
     config.refresh_token = refresh_token
     config.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
     config.shop_id = owner_id
+    config.is_active = True
+    await db.commit()
+
+    return RedirectResponse(url="/settings?menu=platform&status=success")
+
+
+@router.get("/douyin/auth", summary="跳转抖音 OAuth 授权")
+async def douyin_auth(
+    tenant_id: TenantTokenDep,
+    db: DBDep,
+    config_id: int,
+    redirect_uri: str,
+):
+    """重定向到抖音开放平台 OAuth 授权页"""
+    stmt = select(PlatformConfig).where(
+        and_(
+            PlatformConfig.id == config_id,
+            PlatformConfig.tenant_id == tenant_id,
+        )
+    )
+    result = await db.execute(stmt)
+    config = result.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=404, detail="配置不存在")
+
+    import urllib.parse
+    params = {
+        "client_key": config.app_key,
+        "response_type": "code",
+        "scope": "user_info,im.message,product.list,order.list",
+        "redirect_uri": redirect_uri,
+        "state": f"{tenant_id}:{config_id}",
+    }
+    url = f"{DOUYIN_AUTH_URL}?{urllib.parse.urlencode(params)}"
+    return RedirectResponse(url=url)
+
+
+@router.get("/douyin/callback", summary="抖音 OAuth 回调", include_in_schema=False)
+async def douyin_callback(
+    code: str,
+    state: str,
+    db: DBDep,
+):
+    """处理抖音 OAuth 回调，换取 access_token 并保存"""
+    import httpx
+    from datetime import datetime, timedelta
+
+    parts = state.split(":")
+    if len(parts) != 2:
+        return RedirectResponse(url="/settings?menu=platform&status=error&msg=invalid_state")
+
+    tenant_id, config_id = parts[0], int(parts[1])
+
+    stmt = select(PlatformConfig).where(
+        and_(
+            PlatformConfig.id == config_id,
+            PlatformConfig.tenant_id == tenant_id,
+        )
+    )
+    result = await db.execute(stmt)
+    config = result.scalar_one_or_none()
+
+    if not config:
+        return RedirectResponse(url="/settings?menu=platform&status=error&msg=no_config")
+
+    try:
+        plain_secret = decrypt_field(config.app_secret)
+    except Exception:
+        plain_secret = config.app_secret
+
+    client = DouyinClient(config.app_key, plain_secret)
+    try:
+        token_data = await client.call_api(
+            endpoint="/oauth/access_token",
+            params={
+                "code": code,
+                "grant_type": "authorization_code",
+            },
+        )
+    except Exception as e:
+        logger.error("换取 access_token 失败: %s", e)
+        return RedirectResponse(url="/settings?menu=platform&status=error&msg=token_failed")
+
+    access_token = token_data.get("access_token")
+    refresh_token = token_data.get("refresh_token")
+    expires_in = token_data.get("expires_in", 86400)
+    open_id = str(token_data.get("open_id", ""))
+
+    config.access_token = access_token
+    config.refresh_token = refresh_token
+    config.expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+    config.shop_id = open_id
     config.is_active = True
     await db.commit()
 
@@ -311,6 +452,73 @@ async def manual_reply(
         plain_secret = config.app_secret
 
     client = PinduoduoClient(config.app_key, plain_secret)
+    try:
+        await client.send_message(
+            access_token=config.access_token,
+            conversation_id=conversation.platform_conversation_id,
+            content=body.content,
+        )
+    except Exception as e:
+        logger.error("人工回复发送失败: %s", e)
+        raise HTTPException(status_code=502, detail="消息发送失败")
+
+    # 保存消息记录
+    msg = Message(
+        tenant_id=tenant_id,
+        message_id=f"msg_{int(datetime.utcnow().timestamp())}_human",
+        conversation_id=body.conversation_id,
+        role="assistant",
+        content=body.content,
+    )
+    db.add(msg)
+    await db.commit()
+
+    return {"success": True}
+
+
+@router.post("/douyin/reply", summary="人工回复抖音消息")
+async def douyin_manual_reply(
+    tenant_id: TenantTokenDep,
+    db: DBDep,
+    body: ManualReplyRequest,
+):
+    """管理员人工回复抖音买家消息"""
+    from datetime import datetime
+    from models import Conversation, Message
+    from sqlalchemy import select as sa_select
+
+    # 查找会话
+    stmt = sa_select(Conversation).where(
+        and_(
+            Conversation.tenant_id == tenant_id,
+            Conversation.conversation_id == body.conversation_id,
+            Conversation.platform_type == "douyin",
+        )
+    )
+    result = await db.execute(stmt)
+    conversation = result.scalar_one_or_none()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 查找平台配置
+    stmt2 = sa_select(PlatformConfig).where(
+        and_(
+            PlatformConfig.tenant_id == tenant_id,
+            PlatformConfig.platform_type == "douyin",
+            PlatformConfig.is_active == True,
+        )
+    )
+    result2 = await db.execute(stmt2)
+    config = result2.scalar_one_or_none()
+    if not config:
+        raise HTTPException(status_code=400, detail="平台未连接")
+
+    try:
+        plain_secret = decrypt_field(config.app_secret)
+    except Exception:
+        plain_secret = config.app_secret
+
+    client = DouyinClient(config.app_key, plain_secret)
     try:
         await client.send_message(
             access_token=config.access_token,

@@ -2,12 +2,14 @@
 from models.platform import PlatformConfig
 from services.platform.base_adapter import BasePlatformAdapter
 from services.platform.pdd_adapter import PddAdapter
+from services.platform.douyin_adapter import DouyinAdapter
 
 
 def create_adapter(config: PlatformConfig) -> BasePlatformAdapter:
     """根据平台配置创建对应的适配器实例"""
     adapters = {
         "pinduoduo": PddAdapter,
+        "douyin": DouyinAdapter,
     }
 
     adapter_class = adapters.get(config.platform_type)

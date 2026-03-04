@@ -52,12 +52,27 @@ export const platformApi = {
     return `/api/v1/platform/pinduoduo/auth?config_id=${configId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
   },
 
+  getDouyinAuthUrl: (configId: number, redirectUri: string): string => {
+    return `/api/v1/platform/douyin/auth?config_id=${configId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  },
+
   sendPlatformMessage: async (
     conversationId: string,
     content: string
   ): Promise<ApiResponse<{ success: boolean }>> => {
     const response = await apiClient.post<ApiResponse<{ success: boolean }>>(
       '/platform/pinduoduo/reply',
+      { conversation_id: conversationId, content }
+    );
+    return response.data;
+  },
+
+  sendDouyinMessage: async (
+    conversationId: string,
+    content: string
+  ): Promise<ApiResponse<{ success: boolean }>> => {
+    const response = await apiClient.post<ApiResponse<{ success: boolean }>>(
+      '/platform/douyin/reply',
       { conversation_id: conversationId, content }
     );
     return response.data;
