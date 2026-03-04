@@ -1,6 +1,7 @@
 """
 应用配置管理
 """
+import os
 from functools import lru_cache
 from typing import Any
 
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     """应用配置"""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=".env.production" if os.getenv("DEPLOY_ENV", "production") == "production" else ".env.development",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -23,6 +24,10 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     environment: str = "production"
+
+    # 部署环境配置
+    deploy_env: str = Field(default="production", description="部署环境：development 或 production")
+    host_ip: str = Field(default="localhost", description="开发环境主机IP")
 
     # API
     api_v1_prefix: str = "/api/v1"
