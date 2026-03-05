@@ -137,6 +137,14 @@ class Settings(BaseSettings):
     alipay_sandbox: bool = False
     alipay_sandbox_gateway: str = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
 
+    # ============ 微信支付配置 ============
+    wechat_mch_id: str = ""                    # 商户号
+    wechat_app_id: str = ""                    # 应用ID
+    wechat_api_v3_key: str = ""                # APIv3密钥
+    wechat_private_key: str = ""               # 商户API私钥（PEM格式）
+    wechat_serial_no: str = ""                 # 商户证书序列号
+    wechat_notify_url: str = ""                # 回调地址
+
     # ============ 拼多多开放平台配置 ============
     pdd_app_key: str = ""
     pdd_app_secret: str = ""

@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import TenantDep, DBDep
-from models.payment import SubscriptionType
+from models.payment import SubscriptionType, PaymentChannel
 from schemas.base import ApiResponse
 from services.payment_service import PaymentService, PLAN_CONFIG
 from services.subscription_service import SubscriptionService
@@ -27,6 +27,7 @@ router = APIRouter(prefix="/payment", tags=["支付管理"])
 class CreateOrderRequest(BaseModel):
     plan_type: str
     subscription_type: str = "new"   # "new" | "renewal" | "upgrade"
+    payment_channel: str = "alipay"  # "alipay" | "wechat"
     description: Optional[str] = None
 
 
@@ -37,18 +38,19 @@ class RefundRequest(BaseModel):
 
 # ===== 订单接口 =====
 
-@router.post("/orders/create", summary="创建支付宝扫码支付订单")
+@router.post("/orders/create", summary="创建扫码支付订单")
 async def create_payment_order(
     request_data: CreateOrderRequest,
     tenant_id: TenantDep,
     db: DBDep,
 ):
     """
-    创建支付宝扫码支付订单
+    创建扫码支付订单（支持支付宝和微信支付）
 
     **请求参数**:
     - plan_type: 套餐类型（monthly/quarterly/semi_annual/annual）
     - subscription_type: 订阅类型（new/renewal/upgrade）
+    - payment_channel: 支付渠道（alipay/wechat）
 
     **响应**:
     - order_number: 订单编号
@@ -59,6 +61,10 @@ async def create_payment_order(
     if request_data.plan_type not in PLAN_CONFIG:
         raise HTTPException(status_code=400, detail=f"无效的套餐类型: {request_data.plan_type}")
 
+    # 验证支付渠道
+    channel_map = {"alipay": PaymentChannel.ALIPAY, "wechat": PaymentChannel.WECHAT}
+    channel = channel_map.get(request_data.payment_channel, PaymentChannel.ALIPAY)
+
     try:
         sub_type_map = {
             "new": SubscriptionType.NEW,
@@ -67,11 +73,12 @@ async def create_payment_order(
         }
         subscription_type = sub_type_map.get(request_data.subscription_type, SubscriptionType.NEW)
 
-        payment_service = PaymentService(db)
+        payment_service = PaymentService(db, channel=channel)
         order, qr_url = await payment_service.create_native_payment_order(
             tenant_id=tenant_id,
             plan_type=request_data.plan_type,
             subscription_type=subscription_type,
+            payment_channel=channel,
             description=request_data.description,
         )
 
@@ -80,6 +87,7 @@ async def create_payment_order(
             "order_number": order.order_number,
             "amount": float(order.amount),
             "currency": order.currency,
+            "payment_channel": channel.value,
             "qr_code_url": qr_url,
             "expires_at": order.expired_at.isoformat(),
         })
@@ -195,6 +203,44 @@ async def alipay_notify_callback(
     except Exception as e:
         logger.error(f"Error handling alipay notify: {e}")
         return Response(content="fail", media_type="text/plain", status_code=500)
+
+
+@router.post("/callback/wechat/notify", summary="微信支付异步回调")
+async def wechat_pay_notify(request: Request, db: DBDep):
+    """
+    接收微信支付异步通知
+
+    微信支付会POST加密的JSON数据，需要验签和解密。
+    返回格式: {"code": "SUCCESS", "message": "成功"}
+    """
+    try:
+        body = await request.body()
+        headers = dict(request.headers)
+
+        # 解析JSON
+        import json
+        notify_data = json.loads(body.decode("utf-8"))
+
+        logger.info(f"Received wechat notify: event_type={notify_data.get('event_type')}")
+
+        payment_service = PaymentService(db, channel=PaymentChannel.WECHAT)
+        success = await payment_service.handle_wechat_notify(notify_data, headers)
+
+        if success:
+            return {"code": "SUCCESS", "message": "成功"}
+        else:
+            return Response(
+                status_code=400,
+                content='{"code":"FAIL","message":"处理失败"}',
+                media_type="application/json"
+            )
+    except Exception as e:
+        logger.error(f"Wechat notify error: {e}")
+        return Response(
+            status_code=500,
+            content='{"code":"FAIL","message":"系统错误"}',
+            media_type="application/json"
+        )
 
 
 # ===== 订单列表（管理员） =====

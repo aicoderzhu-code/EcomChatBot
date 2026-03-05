@@ -41,6 +41,7 @@ class OrderStatus(str, Enum):
 class PaymentChannel(str, Enum):
     """支付渠道"""
     ALIPAY = "alipay"  # 支付宝
+    WECHAT = "wechat"  # 微信支付
 
 
 class PaymentType(str, Enum):

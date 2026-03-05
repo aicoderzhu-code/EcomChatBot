@@ -43,6 +43,7 @@ export const subscriptionApi = {
   createOrder: async (params: {
     plan_type: string;
     subscription_type?: string;
+    payment_channel?: string;
   }): Promise<ApiResponse<CreateOrderResponse>> => {
     const response = await apiClient.post<ApiResponse<CreateOrderResponse>>(
       '/payment/orders/create',

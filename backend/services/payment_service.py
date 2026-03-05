@@ -43,12 +43,29 @@ PLAN_CONFIG: Dict[str, tuple[Decimal, int]] = {
 class PaymentService:
     """支付服务类"""
 
-    def __init__(self, db: AsyncSession, gateway: Optional[PaymentGateway] = None):
+    def __init__(
+        self,
+        db: AsyncSession,
+        gateway: Optional[PaymentGateway] = None,
+        channel: PaymentChannel = PaymentChannel.ALIPAY,
+    ):
         self.db = db
+        self.channel = channel
         if gateway is not None:
             self._gateway = gateway
         else:
-            self._gateway = self._init_default_gateway()
+            self._gateway = self._init_gateway_by_channel(channel)
+
+    @staticmethod
+    def _init_gateway_by_channel(channel: PaymentChannel) -> Optional[PaymentGateway]:
+        """根据渠道初始化支付网关"""
+        if channel == PaymentChannel.ALIPAY:
+            from services.alipay_client import get_alipay_client
+            return get_alipay_client()
+        elif channel == PaymentChannel.WECHAT:
+            from services.wechat_pay_client import get_wechat_pay_client
+            return get_wechat_pay_client()
+        return None
 
     @staticmethod
     def _init_default_gateway() -> Optional[PaymentGateway]:
@@ -82,22 +99,24 @@ class PaymentService:
         tenant_id: int,
         plan_type: str,
         subscription_type: SubscriptionType,
+        payment_channel: PaymentChannel = PaymentChannel.ALIPAY,
         description: Optional[str] = None,
     ) -> tuple[PaymentOrder, str]:
         """
-        创建支付宝扫码支付订单
+        创建扫码支付订单
 
         Args:
             tenant_id: 租户ID
             plan_type: 套餐类型（monthly/quarterly/semi_annual/annual）
             subscription_type: 订阅类型
+            payment_channel: 支付渠道
             description: 订单描述
 
         Returns:
             (订单对象, 二维码URL)
         """
         if not self._gateway:
-            raise PaymentException("支付网关未配置，请检查支付宝配置")
+            raise PaymentException("支付网关未配置，请检查支付配置")
 
         try:
             # 验证租户
@@ -116,7 +135,7 @@ class PaymentService:
                 tenant_id=tenant_id,
                 amount=amount,
                 currency="CNY",
-                payment_channel=PaymentChannel.ALIPAY,
+                payment_channel=payment_channel,
                 payment_type=PaymentType.NATIVE,
                 status=OrderStatus.PENDING,
                 subscription_type=subscription_type,
@@ -130,8 +149,14 @@ class PaymentService:
             await self.db.commit()
             await self.db.refresh(order)
 
-            # 调用支付宝网关
-            notify_url = getattr(settings, "alipay_notify_url", "")
+            # 调用支付网关
+            if payment_channel == PaymentChannel.ALIPAY:
+                notify_url = getattr(settings, "alipay_notify_url", "")
+            elif payment_channel == PaymentChannel.WECHAT:
+                notify_url = getattr(settings, "wechat_notify_url", "")
+            else:
+                notify_url = ""
+
             result = await self._gateway.create_native_pay(
                 out_trade_no=order_number,
                 total_amount=str(amount),
@@ -144,7 +169,7 @@ class PaymentService:
             order.payment_url = qr_code
             await self.db.commit()
 
-            logger.info(f"Created alipay payment order: {order_number}, tenant={tenant_id}")
+            logger.info(f"Created {payment_channel.value} payment order: {order_number}, tenant={tenant_id}")
             return order, qr_code
 
         except (TenantNotFoundException, PaymentException):
@@ -235,6 +260,98 @@ class PaymentService:
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error handling alipay notify: {e}")
+            return False
+
+    async def handle_wechat_notify(self, notify_data: dict, headers: dict) -> bool:
+        """
+        处理微信支付异步回调
+
+        Args:
+            notify_data: 回调请求体（JSON）
+            headers: 回调请求头
+
+        Returns:
+            是否处理成功
+        """
+        try:
+            if not self._gateway:
+                logger.error("Payment gateway not initialized")
+                return False
+
+            # 验证签名并解密数据
+            from services.wechat_pay_client import WechatPayClient
+            if not isinstance(self._gateway, WechatPayClient):
+                logger.error("Gateway is not WechatPayClient")
+                return False
+
+            verified, decrypted_data = self._gateway.verify_notify(notify_data, headers)
+            if not verified:
+                logger.error("Wechat notify signature verification failed")
+                return False
+
+            out_trade_no = decrypted_data.get("out_trade_no")
+            transaction_id = decrypted_data.get("transaction_id", "")
+            trade_state = decrypted_data.get("trade_state", "")
+            amount_info = decrypted_data.get("amount", {})
+            total_fen = amount_info.get("total", 0)
+            total_yuan = Decimal(total_fen) / 100
+
+            logger.info(
+                f"Processing wechat notify: out_trade_no={out_trade_no}, "
+                f"transaction_id={transaction_id}, state={trade_state}"
+            )
+
+            # 只处理支付成功的通知
+            if trade_state != "SUCCESS":
+                logger.info(f"Ignoring non-success trade state: {trade_state}")
+                return True
+
+            stmt = select(PaymentOrder).where(PaymentOrder.order_number == out_trade_no)
+            result = await self.db.execute(stmt)
+            order = result.scalar_one_or_none()
+
+            if not order:
+                logger.error(f"Order not found: {out_trade_no}")
+                return False
+
+            if order.status == OrderStatus.PAID:
+                logger.info(f"Order already paid: {out_trade_no}")
+                return True
+
+            # 验证金额
+            if abs(order.amount - total_yuan) > Decimal("0.01"):
+                logger.error(f"Amount mismatch: order={order.amount}, notify={total_yuan}")
+                return False
+
+            order.status = OrderStatus.PAID
+            order.trade_no = transaction_id
+            order.paid_at = datetime.now()
+            order.callback_data = json.dumps(decrypted_data, ensure_ascii=False)
+            order.callback_count += 1
+
+            transaction = PaymentTransaction(
+                order_id=order.id,
+                transaction_no=f"TXN{datetime.now().strftime('%Y%m%d%H%M%S')}{secrets.token_hex(4).upper()}",
+                transaction_type=TransactionType.PAYMENT,
+                transaction_status=TransactionStatus.SUCCESS,
+                amount=total_yuan,
+                currency="CNY",
+                third_party_trade_no=transaction_id,
+                payment_channel=PaymentChannel.WECHAT,
+                transaction_data=json.dumps(decrypted_data, ensure_ascii=False),
+                transaction_time=datetime.now(),
+            )
+            self.db.add(transaction)
+
+            await self._activate_subscription(order)
+            await self.db.commit()
+
+            logger.info(f"Wechat payment success: {out_trade_no}")
+            return True
+
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error handling wechat notify: {e}")
             return False
 
     async def _activate_subscription(self, order: PaymentOrder) -> None:

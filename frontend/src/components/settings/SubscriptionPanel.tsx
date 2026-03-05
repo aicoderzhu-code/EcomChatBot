@@ -26,6 +26,7 @@ export default function SubscriptionPanel() {
 
   // 购买流程状态
   const [selectedPlan, setSelectedPlan] = useState<string>('monthly');
+  const [paymentChannel, setPaymentChannel] = useState<'alipay' | 'wechat'>('alipay');
   const [ordering, setOrdering] = useState(false);
   const [order, setOrder] = useState<CreateOrderResponse | null>(null);
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -78,6 +79,7 @@ export default function SubscriptionPanel() {
       const res = await subscriptionApi.createOrder({
         plan_type: selectedPlan,
         subscription_type: 'new',
+        payment_channel: paymentChannel,
       });
       if (res.success && res.data) {
         setOrder(res.data);
@@ -153,6 +155,17 @@ export default function SubscriptionPanel() {
           </div>
         </Radio.Group>
 
+        {/* 支付方式选择 */}
+        <Title level={5} className="mb-3">支付方式</Title>
+        <Radio.Group
+          value={paymentChannel}
+          onChange={e => setPaymentChannel(e.target.value)}
+          className="mb-4"
+        >
+          <Radio value="alipay">支付宝</Radio>
+          <Radio value="wechat">微信支付</Radio>
+        </Radio.Group>
+
         {/* 支付按钮 */}
         <Button
           type="primary"
@@ -162,13 +175,13 @@ export default function SubscriptionPanel() {
           onClick={handlePay}
           disabled={!selectedPlan}
         >
-          支付宝扫码支付 ¥{selectedPlanInfo?.price ?? '--'}
+          {paymentChannel === 'alipay' ? '支付宝' : '微信'}扫码支付 ¥{selectedPlanInfo?.price ?? '--'}
         </Button>
       </Spin>
 
       {/* 二维码弹窗 */}
       <Modal
-        title={`支付宝扫码支付 - ${selectedPlanInfo?.name}`}
+        title={`${paymentChannel === 'alipay' ? '支付宝' : '微信'}扫码支付 - ${selectedPlanInfo?.name}`}
         open={qrModalOpen}
         onCancel={handleCloseModal}
         footer={null}
@@ -195,14 +208,14 @@ export default function SubscriptionPanel() {
               <>
                 <Image
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(order.qr_code_url)}`}
-                  alt="支付宝支付二维码"
+                  alt={`${paymentChannel === 'alipay' ? '支付宝' : '微信'}支付二维码`}
                   className="mx-auto mb-3"
                   width={200}
                   height={200}
                   unoptimized
                 />
                 <div className="text-gray-500 text-sm mb-2">
-                  请使用支付宝扫码支付
+                  请使用{paymentChannel === 'alipay' ? '支付宝' : '微信"扫一扫"'}扫码支付
                 </div>
                 <Text strong className="text-lg text-red-500">
                   ¥{order.amount}
