@@ -23,8 +23,10 @@ from models.invoice import Invoice, InvoiceTitle, InvoiceType, InvoiceStatus
 from models.tenant import Bill, Subscription, Tenant
 from models.webhook import WebhookConfig, WebhookLog, WebhookEventType
 from models.notification import InAppNotification, NotificationPreference
+from models.after_sale import AfterSaleRecord
 from models.platform import PlatformConfig
 from models.platform_app import PlatformApp
+from models.webhook_event import WebhookEvent
 from models.product import (
     Product, PlatformSyncTask, ProductSyncSchedule,
     ProductStatus, SyncTarget, SyncType, SyncTaskStatus,
@@ -89,6 +91,8 @@ __all__ = [
     # Platform
     "PlatformConfig",
     "PlatformApp",
+    "AfterSaleRecord",
+    "WebhookEvent",
     # Product
     "Product",
     "PlatformSyncTask",
