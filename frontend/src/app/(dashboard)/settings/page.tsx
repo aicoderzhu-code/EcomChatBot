@@ -11,6 +11,7 @@ import { settingsApi } from '@/lib/api/settings';
 import { subscriptionApi } from '@/lib/api/subscription';
 import PlatformConfigCard from '@/components/settings/PlatformConfigCard';
 import PlatformConfigModal from '@/components/settings/PlatformConfigModal';
+import PlatformManager from '@/components/settings/PlatformManager';
 
 const { Title, Text } = Typography;
 
@@ -243,7 +244,12 @@ export default function SettingsPage() {
 
         return (
           <>
-            <Title level={5} className="mb-4">平台对接管理</Title>
+            {/* ISV 模式：五大平台统一管理 */}
+            <PlatformManager />
+
+            <div className="mt-8">
+              <Title level={5} className="mb-4">手动配置（兼容模式）</Title>
+            </div>
 
             <Tabs
               activeKey={selectedPlatform}
@@ -251,8 +257,6 @@ export default function SettingsPage() {
               items={[
                 { key: 'pinduoduo', label: '拼多多' },
                 { key: 'douyin', label: '抖音抖店' },
-                { key: 'taobao', label: '淘宝（即将支持）', disabled: true },
-                { key: 'jd', label: '京东（即将支持）', disabled: true },
               ]}
             />
 
