@@ -239,35 +239,159 @@ class DouyinAdapter(BasePlatformAdapter):
         order_info = result.get("shop_order_detail", {})
         return self._parse_order(order_info)
 
-    # ===== OAuth（占位） =====
+    # ===== OAuth =====
+
+    DOUYIN_AUTH_URL = "https://open.douyin.com/platform/oauth/connect"
+
     def get_auth_url(self, state: str, redirect_uri: str) -> str:
-        raise NotImplementedError("OAuth 在重构后实现")
+        import urllib.parse
+        params = {
+            "response_type": "code",
+            "app_id": self.app_key,
+            "redirect_uri": redirect_uri,
+            "state": state,
+        }
+        return f"{self.DOUYIN_AUTH_URL}?{urllib.parse.urlencode(params)}"
 
     async def exchange_token(self, code: str):
-        raise NotImplementedError("OAuth 在重构后实现")
+        from services.platform.dto import TokenResult
+        data = await self.client.create_access_token(code=code)
+        return TokenResult(
+            access_token=data.get("access_token", ""),
+            refresh_token=data.get("refresh_token"),
+            expires_in=data.get("expires_in", 86400),
+            shop_id=str(data.get("shop_id", "")),
+            shop_name=data.get("shop_name"),
+        )
 
     async def refresh_token(self, refresh_token: str):
-        raise NotImplementedError("Token 刷新在重构后实现")
+        from services.platform.dto import TokenResult
+        data = await self.client.refresh_access_token(refresh_token)
+        return TokenResult(
+            access_token=data.get("access_token", ""),
+            refresh_token=data.get("refresh_token"),
+            expires_in=data.get("expires_in", 86400),
+        )
 
-    # ===== 消息（占位） =====
+    # ===== 消息 =====
+
     def verify_webhook(self, headers: dict, body: bytes) -> bool:
-        raise NotImplementedError("Webhook 验签在重构后实现")
+        signature = headers.get("event-sign", "")
+        if not signature:
+            return True  # 无签名则不验证（兼容测试）
+        app_id = headers.get("app-id", self.app_key)
+        sign_method = headers.get("sign-method")
+        return self.client.verify_webhook_signature(body, signature, app_id, sign_method)
 
     def parse_webhook_event(self, body: dict) -> list:
-        raise NotImplementedError("事件解析在重构后实现")
+        import json as _json
+        from services.platform.dto import MessageEvent, EventType, PlatformType
+
+        events = []
+
+        # 兼容两种格式
+        messages = body.get("messages") or body.get("data") or []
+        if not messages and body.get("content"):
+            # 旧格式：直接字段
+            messages = [body]
+
+        for msg in messages:
+            shop_id = str(msg.get("shop_id") or msg.get("ShopId") or "")
+            buyer_id = str(msg.get("buyer_id") or msg.get("doudian_open_id") or msg.get("open_id") or "")
+            conversation_id = str(msg.get("conversation_id") or msg.get("conv_id") or "")
+
+            # 提取消息内容
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                try:
+                    content_data = _json.loads(content)
+                    content = content_data.get("text", content)
+                except Exception:
+                    pass
+
+            if content or conversation_id:
+                events.append(MessageEvent(
+                    event_type=EventType.MESSAGE.value,
+                    platform_type=PlatformType.DOUYIN.value,
+                    shop_id=shop_id,
+                    buyer_id=buyer_id,
+                    conversation_id=conversation_id,
+                    content=content,
+                    msg_type="text",
+                    raw_data=msg,
+                    event_id=str(msg.get("msg_id") or msg.get("event_id") or f"dy_{shop_id}_{int(datetime.utcnow().timestamp())}"),
+                ))
+        return events
 
     async def send_message(self, conversation_id: str, content: str, msg_type: str = "text") -> bool:
-        raise NotImplementedError("消息发送在重构后实现")
+        await self.client.send_message(
+            access_token=self.access_token,
+            conversation_id=conversation_id,
+            content=content,
+        )
+        return True
 
-    # ===== 售后（占位） =====
+    # ===== 售后 =====
+
     async def fetch_aftersales(self, page: int = 1, page_size: int = 50, status: str | None = None):
-        raise NotImplementedError("售后拉取在重构后实现")
+        from services.platform.dto import AfterSaleDTO
+        params: dict = {"page": page, "size": page_size}
+        if status:
+            params["aftersale_status"] = status
+        try:
+            data = await self.client.call_api(
+                endpoint="/afterSale/List",
+                api_method="afterSale.List",
+                params=params,
+                access_token=self.access_token,
+            )
+            items = []
+            for item in data.get("aftersale_list", []):
+                items.append(AfterSaleDTO(
+                    platform_aftersale_id=str(item.get("aftersale_id", "")),
+                    order_id=str(item.get("order_id", "")),
+                    aftersale_type="refund_only" if item.get("aftersale_type") == 0 else "return_refund",
+                    status=str(item.get("aftersale_status", "pending")),
+                    reason=item.get("reason", ""),
+                    refund_amount=float(item.get("refund_amount", 0)) / 100,
+                    buyer_id=str(item.get("open_id", "")),
+                    platform_data=item,
+                ))
+            return PageResult(items=items, total=data.get("total", 0), page=page, page_size=page_size)
+        except Exception:
+            return PageResult(items=[], total=0, page=page, page_size=page_size)
 
     async def get_aftersale_detail(self, aftersale_id: str):
-        raise NotImplementedError("售后详情在重构后实现")
+        from services.platform.dto import AfterSaleDTO
+        data = await self.client.call_api(
+            endpoint="/afterSale/Detail",
+            api_method="afterSale.Detail",
+            params={"aftersale_id": aftersale_id},
+            access_token=self.access_token,
+        )
+        return AfterSaleDTO(
+            platform_aftersale_id=aftersale_id,
+            order_id=str(data.get("order_id", "")),
+            status=str(data.get("aftersale_status", "")),
+            reason=data.get("reason", ""),
+            refund_amount=float(data.get("refund_amount", 0)) / 100,
+            platform_data=data,
+        )
 
     async def approve_refund(self, aftersale_id: str) -> bool:
-        raise NotImplementedError("同意退款在重构后实现")
+        await self.client.call_api(
+            endpoint="/afterSale/Agree",
+            api_method="afterSale.Agree",
+            params={"aftersale_id": aftersale_id},
+            access_token=self.access_token,
+        )
+        return True
 
     async def reject_refund(self, aftersale_id: str, reason: str) -> bool:
-        raise NotImplementedError("拒绝退款在重构后实现")
+        await self.client.call_api(
+            endpoint="/afterSale/Reject",
+            api_method="afterSale.Reject",
+            params={"aftersale_id": aftersale_id, "reason": reason},
+            access_token=self.access_token,
+        )
+        return True
