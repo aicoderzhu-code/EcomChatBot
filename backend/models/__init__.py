@@ -24,6 +24,7 @@ from models.tenant import Bill, Subscription, Tenant
 from models.webhook import WebhookConfig, WebhookLog, WebhookEventType
 from models.notification import InAppNotification, NotificationPreference
 from models.platform import PlatformConfig
+from models.platform_app import PlatformApp
 from models.product import (
     Product, PlatformSyncTask, ProductSyncSchedule,
     ProductStatus, SyncTarget, SyncType, SyncTaskStatus,
@@ -87,6 +88,7 @@ __all__ = [
     "NotificationPreference",
     # Platform
     "PlatformConfig",
+    "PlatformApp",
     # Product
     "Product",
     "PlatformSyncTask",
