@@ -1,65 +1,62 @@
 """电商平台适配器抽象基类"""
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from datetime import datetime
 
-
-@dataclass
-class ProductDTO:
-    """商品数据传输对象"""
-    platform_product_id: str
-    title: str
-    price: float
-    original_price: float | None = None
-    description: str | None = None
-    category: str | None = None
-    images: list[str] = field(default_factory=list)
-    videos: list[str] = field(default_factory=list)
-    attributes: dict | None = None
-    sales_count: int = 0
-    stock: int = 0
-    status: str = "active"
-    platform_data: dict | None = None
-
-
-@dataclass
-class OrderDTO:
-    """订单数据传输对象"""
-    platform_order_id: str
-    product_id: str | None = None
-    product_title: str = ""
-    buyer_id: str = ""
-    quantity: int = 1
-    unit_price: float = 0.0
-    total_amount: float = 0.0
-    status: str = "pending"
-    paid_at: datetime | None = None
-    shipped_at: datetime | None = None
-    completed_at: datetime | None = None
-    refund_amount: float | None = None
-    platform_data: dict | None = None
-
-
-@dataclass
-class PageResult:
-    """分页结果"""
-    items: list
-    total: int
-    page: int
-    page_size: int
+from services.platform.dto import (
+    ProductDTO, OrderDTO, PageResult, TokenResult, AfterSaleDTO,
+    PlatformEvent,
+)
 
 
 class BasePlatformAdapter(ABC):
     """电商平台适配器抽象基类
 
     所有电商平台（拼多多、淘宝、京东等）的适配器都继承此类，
-    实现统一的商品/订单操作接口。
+    实现统一的 OAuth + 消息 + 商品 + 订单 + 售后 接口。
     """
 
     def __init__(self, app_key: str, app_secret: str, access_token: str | None = None):
         self.app_key = app_key
         self.app_secret = app_secret
         self.access_token = access_token
+
+    # ===== OAuth 授权 =====
+
+    @abstractmethod
+    def get_auth_url(self, state: str, redirect_uri: str) -> str:
+        """生成平台 OAuth 授权跳转 URL"""
+        ...
+
+    @abstractmethod
+    async def exchange_token(self, code: str) -> TokenResult:
+        """用授权码换取 access_token"""
+        ...
+
+    @abstractmethod
+    async def refresh_token(self, refresh_token: str) -> TokenResult:
+        """刷新 access_token"""
+        ...
+
+    # ===== 消息收发 =====
+
+    @abstractmethod
+    def verify_webhook(self, headers: dict, body: bytes) -> bool:
+        """验证 Webhook 签名"""
+        ...
+
+    @abstractmethod
+    def parse_webhook_event(self, body: dict) -> list[PlatformEvent]:
+        """解析 Webhook 载荷为标准事件列表"""
+        ...
+
+    @abstractmethod
+    async def send_message(
+        self, conversation_id: str, content: str, msg_type: str = "text"
+    ) -> bool:
+        """向买家发送消息"""
+        ...
+
+    # ===== 商品 =====
 
     @abstractmethod
     async def fetch_products(self, page: int = 1, page_size: int = 50) -> PageResult:
@@ -91,6 +88,8 @@ class BasePlatformAdapter(ABC):
         """更新商品信息"""
         ...
 
+    # ===== 订单 =====
+
     @abstractmethod
     async def fetch_orders(
         self,
@@ -106,4 +105,31 @@ class BasePlatformAdapter(ABC):
     @abstractmethod
     async def fetch_order_detail(self, order_id: str) -> OrderDTO:
         """获取订单详情"""
+        ...
+
+    # ===== 售后 =====
+
+    @abstractmethod
+    async def fetch_aftersales(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        status: str | None = None,
+    ) -> PageResult:
+        """分页拉取售后列表"""
+        ...
+
+    @abstractmethod
+    async def get_aftersale_detail(self, aftersale_id: str) -> AfterSaleDTO:
+        """获取售后详情"""
+        ...
+
+    @abstractmethod
+    async def approve_refund(self, aftersale_id: str) -> bool:
+        """同意退款"""
+        ...
+
+    @abstractmethod
+    async def reject_refund(self, aftersale_id: str, reason: str) -> bool:
+        """拒绝退款"""
         ...

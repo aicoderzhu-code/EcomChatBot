@@ -2,9 +2,8 @@
 import logging
 from datetime import datetime
 
-from services.platform.base_adapter import (
-    BasePlatformAdapter, OrderDTO, PageResult, ProductDTO,
-)
+from services.platform.base_adapter import BasePlatformAdapter
+from services.platform.dto import OrderDTO, PageResult, ProductDTO
 from services.platform.pinduoduo_client import PinduoduoClient
 
 logger = logging.getLogger(__name__)
@@ -200,3 +199,36 @@ class PddAdapter(BasePlatformAdapter):
         )
         order_info = result.get("order_information_get_response", {}).get("order_info", {})
         return self._parse_order(order_info)
+
+    # ===== OAuth（占位） =====
+    def get_auth_url(self, state: str, redirect_uri: str) -> str:
+        raise NotImplementedError("OAuth 在重构后实现")
+
+    async def exchange_token(self, code: str):
+        raise NotImplementedError("OAuth 在重构后实现")
+
+    async def refresh_token(self, refresh_token: str):
+        raise NotImplementedError("Token 刷新在重构后实现")
+
+    # ===== 消息（占位） =====
+    def verify_webhook(self, headers: dict, body: bytes) -> bool:
+        raise NotImplementedError("Webhook 验签在重构后实现")
+
+    def parse_webhook_event(self, body: dict) -> list:
+        raise NotImplementedError("事件解析在重构后实现")
+
+    async def send_message(self, conversation_id: str, content: str, msg_type: str = "text") -> bool:
+        raise NotImplementedError("消息发送在重构后实现")
+
+    # ===== 售后（占位） =====
+    async def fetch_aftersales(self, page: int = 1, page_size: int = 50, status: str | None = None):
+        raise NotImplementedError("售后拉取在重构后实现")
+
+    async def get_aftersale_detail(self, aftersale_id: str):
+        raise NotImplementedError("售后详情在重构后实现")
+
+    async def approve_refund(self, aftersale_id: str) -> bool:
+        raise NotImplementedError("同意退款在重构后实现")
+
+    async def reject_refund(self, aftersale_id: str, reason: str) -> bool:
+        raise NotImplementedError("拒绝退款在重构后实现")
