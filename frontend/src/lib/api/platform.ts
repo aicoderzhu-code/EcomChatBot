@@ -17,6 +17,9 @@ export interface PlatformConfigLegacy {
   updated_at: string;
 }
 
+// 向后兼容别名
+export type PlatformConfig = PlatformConfigLegacy;
+
 export interface PlatformConfigUpdate {
   app_key: string;
   app_secret: string;
