@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AdminSidebar, AdminHeader } from '@/components/admin/layout';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAdminStore, useUIStore } from '@/store';
 import { setupApi } from '@/lib/api/admin';
 
@@ -112,7 +113,9 @@ export default function AdminLayout({
       >
         <AdminHeader />
         <main className="animate-fade-in p-5 px-4 bg-neutral-100 min-h-[calc(100vh-64px)]">
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

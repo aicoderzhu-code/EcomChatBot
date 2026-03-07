@@ -68,6 +68,12 @@ class DouyinClient:
             ).hexdigest()
         return hashlib.md5(sign_source.encode("utf-8")).hexdigest()
 
+    @retry(
+        retry=retry_if_exception_type((httpx.HTTPError,)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
     async def call_api(
         self,
         endpoint: str,
@@ -77,7 +83,7 @@ class DouyinClient:
         sign_method: str = "hmac-sha256",
         api_version: str = "2",
     ) -> dict[str, Any]:
-        """通用 API 调用。"""
+        """通用 API 调用（含指数退避重试）。"""
         biz_params = params or {}
         param_json = self._normalize_param_json(biz_params)
         method_name = api_method or endpoint.strip("/").replace("/", ".")

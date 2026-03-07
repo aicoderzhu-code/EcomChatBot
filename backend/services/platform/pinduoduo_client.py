@@ -41,13 +41,19 @@ class PinduoduoClient:
         sign_str += self.app_secret
         return hashlib.md5(sign_str.encode("utf-8")).hexdigest().upper()
 
+    @retry(
+        retry=retry_if_exception_type((httpx.HTTPError,)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
     async def call_api(
         self,
         method: str,
         params: dict[str, Any],
         access_token: str | None = None,
     ) -> dict[str, Any]:
-        """通用 POP API 调用"""
+        """通用 POP API 调用（含指数退避重试）"""
         request_params: dict[str, Any] = {
             "type": method,
             "client_id": self.app_key,

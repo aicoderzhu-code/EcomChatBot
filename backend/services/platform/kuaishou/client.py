@@ -33,10 +33,11 @@ class KuaishouClient:
         sign_str += self.app_secret
         return hashlib.sha256(sign_str.encode("utf-8")).hexdigest()
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def call_api(
         self, method: str, params: dict | None = None, access_token: str | None = None
     ) -> dict:
-        """调用快手开放平台 API"""
+        """调用快手开放平台 API（含指数退避重试）"""
         sys_params = {
             "appkey": self.app_key,
             "method": method,
@@ -63,8 +64,9 @@ class KuaishouClient:
 
         return data.get("data", data)
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def get_access_token(self, code: str) -> dict:
-        """用授权码换取 access_token"""
+        """用授权码换取 access_token（含指数退避重试）"""
         url = "https://open.kuaishou.com/oauth2/access_token"
         params = {
             "grant_type": "authorization_code",
@@ -77,8 +79,9 @@ class KuaishouClient:
             resp.raise_for_status()
             return resp.json()
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def refresh_access_token(self, refresh_token: str) -> dict:
-        """刷新 access_token"""
+        """刷新 access_token（含指数退避重试）"""
         url = "https://open.kuaishou.com/oauth2/refresh_token"
         params = {
             "grant_type": "refresh_token",

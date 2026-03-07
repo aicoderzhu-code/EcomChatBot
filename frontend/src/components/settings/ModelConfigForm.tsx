@@ -1,151 +1,96 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Card,
-  Select,
   Input,
   Button,
   Typography,
   message,
   Space,
-  Alert,
-  Tag,
   Divider,
   Collapse,
   Row,
   Col,
 } from 'antd';
-import {
-  SaveOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  LoadingOutlined,
-  SettingOutlined,
-  SearchOutlined,
-  ThunderboltOutlined,
-} from '@ant-design/icons';
+import { SaveOutlined, SettingOutlined } from '@ant-design/icons';
 import { settingsApi, DiscoveredModel } from '@/lib/api/settings';
 import { ModelProvider, ModelType } from '@/types';
 import Skeleton from '@/components/ui/Loading/Skeleton';
+import ProviderCard from './ProviderCard';
+import ApiKeyValidator, { type ValidationStatus } from './ApiKeyValidator';
+import DiscoveredModelsList from './DiscoveredModelsList';
+import ModelSelector from './ModelSelector';
 
 const { Title, Text, Paragraph } = Typography;
-const { Option } = Select;
 
-// ── 平台目录：各提供商支持的模型列表 ──────────────────────────────────────────
+// ── 平台目录 ──────────────────────────────────────────────────────────────
+
 interface PlatformInfo {
   name: string;
   description: string;
-  llm: string[];
-  embedding: string[];
-  rerank: string[];
-  image_generation: string[];
-  video_generation: string[];
-  supportedTypes: ModelType[]; // 静态声明支持的类型，用于卡片 tag
-  needsApiBase?: boolean; // 是否支持自定义 API Base
+  supportedTypes: ModelType[];
+  needsApiBase?: boolean;
 }
 
 const PLATFORM_CATALOG: Record<string, PlatformInfo> = {
   openai: {
     name: 'OpenAI',
     description: 'GPT-4o / GPT-3.5 等',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: ['llm', 'embedding'],
     needsApiBase: true,
   },
   qwen: {
     name: '通义千问',
     description: 'Qwen-Max / Plus / Turbo',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: ['llm', 'embedding', 'rerank'],
     needsApiBase: true,
   },
   deepseek: {
     name: 'DeepSeek',
     description: 'DeepSeek-Chat / Reasoner',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: ['llm'],
     needsApiBase: true,
   },
   zhipuai: {
     name: '智谱 AI',
     description: 'GLM-4 系列',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: ['llm', 'embedding'],
   },
   google: {
     name: 'Google Gemini',
     description: 'Gemini 2.0 / 1.5 系列',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: ['llm', 'embedding'],
   },
   meta: {
     name: 'Meta (自定义)',
     description: 'Llama 系列，自定义 base URL',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: ['llm'],
     needsApiBase: true,
   },
   siliconflow: {
     name: '硅基流动',
     description: 'SiliconFlow 开源模型',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: ['llm', 'embedding', 'rerank', 'image_generation', 'video_generation'],
     needsApiBase: true,
   },
   private: {
     name: '私有部署',
     description: '私有/自托管模型',
-    llm: [],
-    embedding: [],
-    rerank: [],
-    image_generation: [],
-    video_generation: [],
     supportedTypes: [],
     needsApiBase: true,
   },
 };
 
-const MODEL_TYPE_LABELS: Record<ModelType, string> = {
-  llm: '大语言模型',
-  embedding: '嵌入模型',
-  rerank: '重排模型',
-  image_generation: '图像生成',
-  video_generation: '视频生成',
-};
-
-// 支持自动发现模型的提供商
 const DISCOVER_CAPABLE_PROVIDERS = new Set(['openai', 'qwen', 'deepseek', 'zhipuai', 'google', 'meta', 'siliconflow']);
 
-// 每个平台的配置状态
+const ALL_MODEL_TYPES: ModelType[] = ['llm', 'embedding', 'rerank', 'image_generation', 'video_generation'];
+
+// 显示"无可用模型"提示的类型
+const SHOW_EMPTY_TYPES: ModelType[] = ['embedding', 'rerank'];
+
+// ── 配置类型 ──────────────────────────────────────────────────────────────
+
 interface PlatformConfig {
   api_key: string;
   api_base: string;
@@ -154,7 +99,6 @@ interface PlatformConfig {
   rerank_model: string;
   image_generation_model: string;
   video_generation_model: string;
-  // 已保存的记录 ID（用于更新）
   llm_id?: number;
   embedding_id?: number;
   rerank_id?: number;
@@ -162,7 +106,15 @@ interface PlatformConfig {
   video_generation_id?: number;
 }
 
-type ValidationStatus = 'idle' | 'validating' | 'valid' | 'invalid';
+const MODEL_TYPE_USE_CASE: Record<ModelType, { use_case: string; temperature: number; max_tokens: number }> = {
+  llm: { use_case: 'chat', temperature: 0.7, max_tokens: 2000 },
+  embedding: { use_case: 'embedding', temperature: 0, max_tokens: 8192 },
+  rerank: { use_case: 'rerank', temperature: 0, max_tokens: 0 },
+  image_generation: { use_case: 'image_generation', temperature: 0, max_tokens: 0 },
+  video_generation: { use_case: 'video_generation', temperature: 0, max_tokens: 0 },
+};
+
+// ── 主组件 ────────────────────────────────────────────────────────────────
 
 export default function ModelConfigForm() {
   const [loading, setLoading] = useState(true);
@@ -171,67 +123,56 @@ export default function ModelConfigForm() {
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>('idle');
   const [validationMsg, setValidationMsg] = useState('');
   const [saving, setSaving] = useState(false);
-
-  // 模型发现相关状态
   const [discoveredModels, setDiscoveredModels] = useState<DiscoveredModel[]>([]);
   const [discovering, setDiscovering] = useState(false);
   const [batchSaving, setBatchSaving] = useState(false);
-  // 已保存的发现模型（按 provider 存储，用于填充下方选择器）
   const [providerDiscoveredModels, setProviderDiscoveredModels] = useState<Record<string, DiscoveredModel[]>>({});
 
-  // 初始化：从后端加载已有配置
-  const loadConfigs = async (silent = false) => {
+  // ── 配置加载 ──
+
+  const loadConfigs = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       const resp = await settingsApi.getModelConfigs();
       if (resp.success && resp.data) {
         const merged: Record<string, PlatformConfig> = {};
+        const discoveredFromSaved: Record<string, DiscoveredModel[]> = {};
+
         for (const cfg of resp.data) {
           const provider = cfg.provider;
+
+          // 初始化 provider 配置
           if (!merged[provider]) {
             merged[provider] = {
-              api_key: cfg.api_key || '',
-              api_base: cfg.api_base || '',
-              llm_model: '',
-              embedding_model: '',
-              rerank_model: '',
-              image_generation_model: '',
-              video_generation_model: '',
+              api_key: '', api_base: '',
+              llm_model: '', embedding_model: '', rerank_model: '',
+              image_generation_model: '', video_generation_model: '',
             };
           }
-          // 用已有 api_key（同一 provider 共享）
           if (cfg.api_key) merged[provider].api_key = cfg.api_key;
           if (cfg.api_base) merged[provider].api_base = cfg.api_base;
 
-          if (cfg.model_type === 'llm') {
-            merged[provider].llm_model = cfg.model_name;
-            merged[provider].llm_id = cfg.id;
-          } else if (cfg.model_type === 'embedding') {
-            merged[provider].embedding_model = cfg.model_name;
-            merged[provider].embedding_id = cfg.id;
-          } else if (cfg.model_type === 'rerank') {
-            merged[provider].rerank_model = cfg.model_name;
-            merged[provider].rerank_id = cfg.id;
-          } else if (cfg.model_type === 'image_generation') {
-            merged[provider].image_generation_model = cfg.model_name;
-            merged[provider].image_generation_id = cfg.id;
-          } else if (cfg.model_type === 'video_generation') {
-            merged[provider].video_generation_model = cfg.model_name;
-            merged[provider].video_generation_id = cfg.id;
+          // 按类型分配
+          const modelField = `${cfg.model_type}_model` as keyof PlatformConfig;
+          const idField = `${cfg.model_type}_id` as keyof PlatformConfig;
+          if (modelField in merged[provider]) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (merged[provider] as any)[modelField] = cfg.model_name;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (merged[provider] as any)[idField] = cfg.id;
           }
-        }
-        setConfigs(merged);
 
-        // 从已保存配置重建 providerDiscoveredModels，使选择器在刷新后仍可显示
-        const discoveredFromSaved: Record<string, DiscoveredModel[]> = {};
-        for (const cfg of resp.data) {
-          const provider = cfg.provider;
+          // 重建 discovered models
           if (!discoveredFromSaved[provider]) discoveredFromSaved[provider] = [];
-          discoveredFromSaved[provider].push({ name: cfg.model_name, model_type: cfg.model_type as 'llm' | 'embedding' | 'rerank' });
+          discoveredFromSaved[provider].push({
+            name: cfg.model_name,
+            model_type: cfg.model_type as 'llm' | 'embedding' | 'rerank',
+          });
         }
+
+        setConfigs(merged);
         setProviderDiscoveredModels(prev => ({ ...prev, ...discoveredFromSaved }));
 
-        // 自动展开第一个已有配置的平台（仅初始加载时）
         if (!silent) {
           const firstConfigured = Object.keys(merged)[0];
           if (firstConfigured) setSelectedProvider(firstConfigured);
@@ -242,20 +183,17 @@ export default function ModelConfigForm() {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadConfigs();
   }, []);
 
+  useEffect(() => { loadConfigs(); }, [loadConfigs]);
+
+  // ── 配置操作 ──
+
   const getConfig = (provider: string): PlatformConfig => {
-    const catalog = PLATFORM_CATALOG[provider];
     return configs[provider] ?? {
-      api_key: '',
-      api_base: '',
-      llm_model: catalog?.llm[0] || '',
-      embedding_model: catalog?.embedding[0] || '',
-      rerank_model: catalog?.rerank[0] || '',
+      api_key: '', api_base: '',
+      llm_model: '', embedding_model: '', rerank_model: '',
+      image_generation_model: '', video_generation_model: '',
     };
   };
 
@@ -266,7 +204,6 @@ export default function ModelConfigForm() {
     }));
   };
 
-  // 选择平台时重置验证状态
   const handleSelectProvider = (provider: string) => {
     setSelectedProvider(prev => prev === provider ? null : provider);
     setValidationStatus('idle');
@@ -274,18 +211,53 @@ export default function ModelConfigForm() {
     setDiscoveredModels([]);
   };
 
-  // 自动发现可用模型
+  // ── API Key 验证 ──
+
+  const handleValidate = async () => {
+    if (!selectedProvider) return;
+    const cfg = getConfig(selectedProvider);
+
+    if (selectedProvider === 'private' && !cfg.api_key.trim()) {
+      if (!cfg.api_base?.trim()) {
+        message.warning('请先填写 API Base URL');
+        return;
+      }
+      setValidationStatus('valid');
+      setValidationMsg('私有部署无需验证');
+      return;
+    }
+
+    if (!cfg.api_key.trim()) {
+      message.warning('请先输入 API Key');
+      return;
+    }
+
+    setValidationStatus('validating');
+    setValidationMsg('');
+    try {
+      const resp = await settingsApi.validateApiKey(selectedProvider, cfg.api_key, cfg.api_base || undefined);
+      if (resp.success && resp.data) {
+        setValidationStatus(resp.data.valid ? 'valid' : 'invalid');
+        setValidationMsg(resp.data.message);
+      } else {
+        setValidationStatus('invalid');
+        setValidationMsg(resp.error?.message || '验证请求失败');
+      }
+    } catch {
+      setValidationStatus('invalid');
+      setValidationMsg('网络请求失败，请检查连接');
+    }
+  };
+
+  // ── 模型发现 ──
+
   const handleDiscover = async () => {
     if (!selectedProvider) return;
     const cfg = getConfig(selectedProvider);
     setDiscovering(true);
     setDiscoveredModels([]);
     try {
-      const resp = await settingsApi.discoverModels(
-        selectedProvider,
-        cfg.api_key,
-        cfg.api_base || undefined
-      );
+      const resp = await settingsApi.discoverModels(selectedProvider, cfg.api_key, cfg.api_base || undefined);
       if (resp.success && resp.data) {
         setDiscoveredModels(resp.data.models);
         if (resp.data.models.length === 0) {
@@ -301,7 +273,6 @@ export default function ModelConfigForm() {
     }
   };
 
-  // 批量保存已发现的模型
   const handleBatchSave = async () => {
     if (!selectedProvider || discoveredModels.length === 0) return;
     const cfg = getConfig(selectedProvider);
@@ -317,13 +288,8 @@ export default function ModelConfigForm() {
       const resp = await settingsApi.batchSaveModels(items);
       if (resp.success) {
         message.success(`已保存 ${discoveredModels.length} 个模型配置`);
-        // 持久化已发现模型，用于填充下方选择器
-        setProviderDiscoveredModels(prev => ({
-          ...prev,
-          [selectedProvider]: discoveredModels,
-        }));
+        setProviderDiscoveredModels(prev => ({ ...prev, [selectedProvider]: discoveredModels }));
         setDiscoveredModels([]);
-        // 重新加载配置以获取保存后的 ID
         await loadConfigs(true);
       } else {
         message.error('批量保存失败，请重试');
@@ -335,75 +301,22 @@ export default function ModelConfigForm() {
     }
   };
 
-  // 验证 API Key
-  const handleValidate = async () => {
-    if (!selectedProvider) return;
-    const cfg = getConfig(selectedProvider);
+  // ── 保存配置 ──
 
-    // 私有部署：若无 API Key 但有 API Base，直接标记为有效
-    if (selectedProvider === 'private' && !cfg.api_key.trim()) {
-      if (!cfg.api_base?.trim()) {
-        message.warning('请先填写 API Base URL');
-        return;
-      }
-      setValidationStatus('valid');
-      setValidationMsg('私有部署无需验证');
-      return;
-    }
-
-    if (!cfg.api_key.trim()) {
-      message.warning('请先输入 API Key');
-      return;
-    }
-    setValidationStatus('validating');
-    setValidationMsg('');
-    try {
-      const resp = await settingsApi.validateApiKey(
-        selectedProvider,
-        cfg.api_key,
-        cfg.api_base || undefined
-      );
-      if (resp.success && resp.data) {
-        setValidationStatus(resp.data.valid ? 'valid' : 'invalid');
-        setValidationMsg(resp.data.message);
-      } else {
-        setValidationStatus('invalid');
-        setValidationMsg(resp.error?.message || '验证请求失败');
-      }
-    } catch {
-      setValidationStatus('invalid');
-      setValidationMsg('网络请求失败，请检查连接');
-    }
-  };
-
-  // 保存当前平台配置
   const handleSave = async () => {
     if (!selectedProvider) return;
     const cfg = getConfig(selectedProvider);
 
-    // 私有部署：API Key 可选，API Base 必填，无需验证
     if (selectedProvider === 'private') {
       if (!cfg.api_base?.trim()) {
         message.warning('私有部署需要填写 API Base URL');
         return;
       }
     } else {
-      if (!cfg.api_key.trim()) {
-        message.warning('请输入 API Key');
-        return;
-      }
-      if (validationStatus === 'idle') {
-        message.warning('请先验证 API Key 有效性');
-        return;
-      }
-      if (validationStatus === 'invalid') {
-        message.error('API Key 无效，请更正后重试');
-        return;
-      }
-      if (validationStatus === 'validating') {
-        message.warning('正在验证中，请稍候');
-        return;
-      }
+      if (!cfg.api_key.trim()) { message.warning('请输入 API Key'); return; }
+      if (validationStatus === 'idle') { message.warning('请先验证 API Key 有效性'); return; }
+      if (validationStatus === 'invalid') { message.error('API Key 无效，请更正后重试'); return; }
+      if (validationStatus === 'validating') { message.warning('正在验证中，请稍候'); return; }
     }
 
     setSaving(true);
@@ -416,112 +329,33 @@ export default function ModelConfigForm() {
         priority: 1,
       };
 
-      // 保存 LLM 模型配置
-      const llmOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'llm').map(m => m.name);
-      const llmModel = cfg.llm_model || llmOptions[0] || '';
-      if (llmModel) {
-        const llmPayload = {
-          ...basePayload,
-          model_name: llmModel,
-          model_type: 'llm' as ModelType,
-          use_case: 'chat',
-          temperature: 0.7,
-          max_tokens: 2000,
-        };
-        if (cfg.llm_id) {
-          await settingsApi.updateModelConfig(cfg.llm_id, llmPayload);
-        } else {
-          const res = await settingsApi.createModelConfig(llmPayload);
-          if (res.success && res.data) {
-            updateConfig(selectedProvider, { llm_id: res.data.id });
-          }
-        }
-      }
+      const discovered = providerDiscoveredModels[selectedProvider] || [];
 
-      // 保存 Embedding 模型配置
-      const embOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'embedding').map(m => m.name);
-      const embModel = cfg.embedding_model || embOptions[0] || '';
-      if (embModel) {
-        const embPayload = {
-          ...basePayload,
-          model_name: embModel,
-          model_type: 'embedding' as ModelType,
-          use_case: 'embedding',
-          temperature: 0,
-          max_tokens: 8192,
-        };
-        if (cfg.embedding_id) {
-          await settingsApi.updateModelConfig(cfg.embedding_id, embPayload);
-        } else {
-          const res = await settingsApi.createModelConfig(embPayload);
-          if (res.success && res.data) {
-            updateConfig(selectedProvider, { embedding_id: res.data.id });
-          }
-        }
-      }
+      for (const modelType of ALL_MODEL_TYPES) {
+        const modelField = `${modelType}_model` as keyof PlatformConfig;
+        const idField = `${modelType}_id` as keyof PlatformConfig;
+        const options = discovered.filter(m => m.model_type === modelType).map(m => m.name);
+        const selectedModel = (cfg[modelField] as string) || options[0] || '';
 
-      // 保存 Rerank 模型配置
-      const rerankOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'rerank').map(m => m.name);
-      const rerankModel = cfg.rerank_model || rerankOptions[0] || '';
-      if (rerankModel) {
-        const rerankPayload = {
-          ...basePayload,
-          model_name: rerankModel,
-          model_type: 'rerank' as ModelType,
-          use_case: 'rerank',
-          temperature: 0,
-          max_tokens: 0,
-        };
-        if (cfg.rerank_id) {
-          await settingsApi.updateModelConfig(cfg.rerank_id, rerankPayload);
-        } else {
-          const res = await settingsApi.createModelConfig(rerankPayload);
-          if (res.success && res.data) {
-            updateConfig(selectedProvider, { rerank_id: res.data.id });
-          }
-        }
-      }
+        if (!selectedModel) continue;
 
-      // 保存图像生成模型配置
-      const imageOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'image_generation').map(m => m.name);
-      const imageModel = cfg.image_generation_model || imageOptions[0] || '';
-      if (imageModel) {
-        const imagePayload = {
+        const { use_case, temperature, max_tokens } = MODEL_TYPE_USE_CASE[modelType];
+        const payload = {
           ...basePayload,
-          model_name: imageModel,
-          model_type: 'image_generation' as ModelType,
-          use_case: 'image_generation',
-          temperature: 0,
-          max_tokens: 0,
+          model_name: selectedModel,
+          model_type: modelType,
+          use_case,
+          temperature,
+          max_tokens,
         };
-        if (cfg.image_generation_id) {
-          await settingsApi.updateModelConfig(cfg.image_generation_id, imagePayload);
-        } else {
-          const res = await settingsApi.createModelConfig(imagePayload);
-          if (res.success && res.data) {
-            updateConfig(selectedProvider, { image_generation_id: res.data.id });
-          }
-        }
-      }
 
-      // 保存视频生成模型配置
-      const videoOptions = (providerDiscoveredModels[selectedProvider] || []).filter(m => m.model_type === 'video_generation').map(m => m.name);
-      const videoModel = cfg.video_generation_model || videoOptions[0] || '';
-      if (videoModel) {
-        const videoPayload = {
-          ...basePayload,
-          model_name: videoModel,
-          model_type: 'video_generation' as ModelType,
-          use_case: 'video_generation',
-          temperature: 0,
-          max_tokens: 0,
-        };
-        if (cfg.video_generation_id) {
-          await settingsApi.updateModelConfig(cfg.video_generation_id, videoPayload);
+        const existingId = cfg[idField] as number | undefined;
+        if (existingId) {
+          await settingsApi.updateModelConfig(existingId, payload);
         } else {
-          const res = await settingsApi.createModelConfig(videoPayload);
+          const res = await settingsApi.createModelConfig(payload);
           if (res.success && res.data) {
-            updateConfig(selectedProvider, { video_generation_id: res.data.id });
+            updateConfig(selectedProvider, { [idField]: res.data.id } as Partial<PlatformConfig>);
           }
         }
       }
@@ -533,6 +367,17 @@ export default function ModelConfigForm() {
       setSaving(false);
     }
   };
+
+  // ── 辅助函数 ──
+
+  const getModelOptions = (type: ModelType): string[] => {
+    if (!selectedProvider) return [];
+    return (providerDiscoveredModels[selectedProvider] || [])
+      .filter(m => m.model_type === type)
+      .map(m => m.name);
+  };
+
+  // ── 渲染 ──
 
   if (loading) {
     return (
@@ -557,14 +402,6 @@ export default function ModelConfigForm() {
   const currentCatalog = selectedProvider ? PLATFORM_CATALOG[selectedProvider] : null;
   const currentConfig = selectedProvider ? getConfig(selectedProvider) : null;
 
-  // 只从已发现模型中取选项（不使用静态目录）
-  const getModelOptions = (type: 'llm' | 'embedding' | 'rerank' | 'image_generation' | 'video_generation'): string[] => {
-    if (!selectedProvider) return [];
-    return (providerDiscoveredModels[selectedProvider] || [])
-      .filter(m => m.model_type === type)
-      .map(m => m.name);
-  };
-
   return (
     <div className="space-y-4">
       {/* 平台选择 */}
@@ -574,49 +411,19 @@ export default function ModelConfigForm() {
           选择您的 AI 服务提供商，然后配置对应的模型和 API Key。
         </Paragraph>
         <Row gutter={[12, 12]}>
-          {Object.entries(PLATFORM_CATALOG).map(([provider, info]) => {
-            const isSelected = selectedProvider === provider;
-            const hasConfig = !!configs[provider]?.api_key;
-            const supportedTypes = info.supportedTypes;
-
-            return (
-              <Col key={provider} xs={12} sm={8} md={6}>
-                <Card
-                  hoverable
-                  size="small"
-                  onClick={() => handleSelectProvider(provider)}
-                  style={{
-                    border: isSelected ? '2px solid var(--primary)' : '1px solid #d9d9d9',
-                    background: isSelected ? 'var(--brand-50)' : undefined,
-                    cursor: 'pointer',
-                    minHeight: 110,
-                  }}
-                  styles={{ body: { padding: '12px' } }}
-                >
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                      <Text strong style={{ fontSize: 14 }}>{info.name}</Text>
-                      {hasConfig && (
-                        <CheckCircleOutlined className="text-success-500 text-sm" />
-                      )}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: 11 }}>{info.description}</Text>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {supportedTypes.map(t => (
-                        <Tag
-                          key={t}
-                          color={t === 'llm' ? 'blue' : t === 'embedding' ? 'green' : 'orange'}
-                          style={{ fontSize: 10, padding: '0 4px', margin: 0 }}
-                        >
-                          {MODEL_TYPE_LABELS[t]}
-                        </Tag>
-                      ))}
-                    </div>
-                  </div>
-                </Card>
-              </Col>
-            );
-          })}
+          {Object.entries(PLATFORM_CATALOG).map(([provider, info]) => (
+            <Col key={provider} xs={12} sm={8} md={6}>
+              <ProviderCard
+                provider={provider}
+                name={info.name}
+                description={info.description}
+                supportedTypes={info.supportedTypes}
+                isSelected={selectedProvider === provider}
+                hasConfig={!!configs[provider]?.api_key}
+                onClick={() => handleSelectProvider(provider)}
+              />
+            </Col>
+          ))}
         </Row>
       </Card>
 
@@ -630,162 +437,34 @@ export default function ModelConfigForm() {
             </Space>
           }
           extra={
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              loading={saving}
-              onClick={handleSave}
-            >
+            <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
               保存配置
             </Button>
           }
         >
-          {/* API Key */}
-          <div className="mb-4">
-            <Text strong className="block mb-1">
-              API Key{' '}
-              {selectedProvider === 'private'
-                ? <Text type="secondary">（可选）</Text>
-                : <Text type="danger">*</Text>
-              }
-            </Text>
-            <Space.Compact style={{ width: '100%' }}>
-              <Input.Password
-                value={currentConfig.api_key}
-                onChange={e => {
-                  updateConfig(selectedProvider, { api_key: e.target.value });
-                  setValidationStatus('idle');
-                  setValidationMsg('');
-                }}
-                placeholder="输入 API Key..."
-                style={{ flex: 1 }}
-              />
-              <Button
-                onClick={handleValidate}
-                loading={validationStatus === 'validating'}
-                icon={
-                  validationStatus === 'valid' ? (
-                    <CheckCircleOutlined className="text-success-500" />
-                  ) : validationStatus === 'invalid' ? (
-                    <CloseCircleOutlined className="text-error-500" />
-                  ) : validationStatus === 'validating' ? (
-                    <LoadingOutlined />
-                  ) : undefined
-                }
-              >
-                {validationStatus === 'validating' ? '验证中' : '验证'}
-              </Button>
-            </Space.Compact>
+          <ApiKeyValidator
+            apiKey={currentConfig.api_key}
+            onApiKeyChange={v => {
+              updateConfig(selectedProvider, { api_key: v });
+              setValidationStatus('idle');
+              setValidationMsg('');
+            }}
+            validationStatus={validationStatus}
+            validationMsg={validationMsg}
+            onValidate={handleValidate}
+            canDiscover={DISCOVER_CAPABLE_PROVIDERS.has(selectedProvider)}
+            discovering={discovering}
+            onDiscover={handleDiscover}
+            optional={selectedProvider === 'private'}
+          />
 
-            {validationStatus === 'valid' && (
-              <Alert
-                className="mt-2"
-                type="success"
-                message={validationMsg}
-                showIcon
-                banner
-              />
-            )}
-            {validationStatus === 'invalid' && (
-              <Alert
-                className="mt-2"
-                type="error"
-                message={validationMsg}
-                showIcon
-                banner
-              />
-            )}
+          <DiscoveredModelsList
+            models={discoveredModels}
+            saving={batchSaving}
+            onBatchSave={handleBatchSave}
+          />
 
-            {/* 自动发现模型（仅支持特定 provider） */}
-            {validationStatus === 'valid' && selectedProvider && DISCOVER_CAPABLE_PROVIDERS.has(selectedProvider) && (
-              <div className="mt-3">
-                <Button
-                  icon={<SearchOutlined />}
-                  loading={discovering}
-                  onClick={handleDiscover}
-                >
-                  {discovering ? '检测中...' : '检测可用模型'}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* 已发现的模型列表 */}
-          {discoveredModels.length > 0 && (() => {
-            const llmModels = discoveredModels.filter(m => m.model_type === 'llm');
-            const embModels = discoveredModels.filter(m => m.model_type === 'embedding');
-            const rerankModels = discoveredModels.filter(m => m.model_type === 'rerank');
-            const imageModels = discoveredModels.filter(m => m.model_type === 'image_generation');
-            const videoModels = discoveredModels.filter(m => m.model_type === 'video_generation');
-            return (
-              <div className="mb-4 p-3 rounded bg-neutral-50 border border-neutral-200">
-                <div className="flex items-center justify-between mb-3">
-                  <Text strong>检测到以下可用模型</Text>
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<ThunderboltOutlined />}
-                    loading={batchSaving}
-                    onClick={handleBatchSave}
-                  >
-                    一键保存全部模型
-                  </Button>
-                </div>
-                {llmModels.length > 0 && (
-                  <div className="mb-2">
-                    <Tag color="blue">大语言模型</Tag>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {llmModels.map(m => (
-                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {embModels.length > 0 && (
-                  <div className="mb-2">
-                    <Tag color="green">嵌入模型</Tag>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {embModels.map(m => (
-                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {rerankModels.length > 0 && (
-                  <div className="mb-2">
-                    <Tag color="orange">重排模型</Tag>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {rerankModels.map(m => (
-                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {imageModels.length > 0 && (
-                  <div className="mb-2">
-                    <Tag color="purple">图像生成</Tag>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {imageModels.map(m => (
-                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {videoModels.length > 0 && (
-                  <div className="mb-2">
-                    <Tag color="magenta">视频生成</Tag>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {videoModels.map(m => (
-                        <Tag key={m.name} style={{ fontSize: 11 }}>{m.name}</Tag>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-
-          {/* 自定义 API Base（私有部署必填，其他平台可折叠） */}
+          {/* API Base URL */}
           {selectedProvider === 'private' ? (
             <div className="mb-4">
               <Text strong className="block mb-1">
@@ -802,147 +481,34 @@ export default function ModelConfigForm() {
               ghost
               size="small"
               className="mb-4"
-              items={[
-                {
-                  key: 'apibase',
-                  label: <Text type="secondary" style={{ fontSize: 13 }}>自定义 API Base URL（可选，用于代理或兼容接口）</Text>,
-                  children: (
-                    <Input
-                      value={currentConfig.api_base}
-                      onChange={e => updateConfig(selectedProvider, { api_base: e.target.value })}
-                      placeholder="例如：https://your-proxy.com/v1"
-                    />
-                  ),
-                },
-              ]}
+              items={[{
+                key: 'apibase',
+                label: <Text type="secondary" style={{ fontSize: 13 }}>自定义 API Base URL（可选，用于代理或兼容接口）</Text>,
+                children: (
+                  <Input
+                    value={currentConfig.api_base}
+                    onChange={e => updateConfig(selectedProvider, { api_base: e.target.value })}
+                    placeholder="例如：https://your-proxy.com/v1"
+                  />
+                ),
+              }]}
             />
           ) : null}
 
           <Divider style={{ margin: '12px 0' }} />
 
-          {/* 大语言模型 */}
-          {(() => {
-            const llmOptions = getModelOptions('llm');
-            return llmOptions.length > 0 ? (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag color="blue">大语言模型</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>用于对话和文本生成</Text>
-                </div>
-                <Select
-                  value={currentConfig.llm_model || llmOptions[0]}
-                  onChange={v => updateConfig(selectedProvider, { llm_model: v })}
-                  style={{ width: '100%' }}
-                >
-                  {llmOptions.map(m => (
-                    <Option key={m} value={m}>{m}</Option>
-                  ))}
-                </Select>
-              </div>
-            ) : null;
-          })()}
-
-          {/* 嵌入模型 */}
-          {(() => {
-            const embOptions = getModelOptions('embedding');
-            return embOptions.length > 0 ? (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag color="green">嵌入模型</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>用于知识库向量化检索</Text>
-                </div>
-                <Select
-                  value={currentConfig.embedding_model || embOptions[0]}
-                  onChange={v => updateConfig(selectedProvider, { embedding_model: v })}
-                  style={{ width: '100%' }}
-                >
-                  {embOptions.map(m => (
-                    <Option key={m} value={m}>{m}</Option>
-                  ))}
-                </Select>
-              </div>
-            ) : (
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag color="default">嵌入模型</Tag>
-                </div>
-                <Text type="secondary" style={{ fontSize: 12 }}>当前平台不提供嵌入模型</Text>
-              </div>
-            );
-          })()}
-
-          {/* 重排模型 */}
-          {(() => {
-            const rerankOptions = getModelOptions('rerank');
-            return rerankOptions.length > 0 ? (
-              <div className="mb-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag color="orange">重排模型</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>用于 RAG 检索结果重新排序</Text>
-                </div>
-                <Select
-                  value={currentConfig.rerank_model || rerankOptions[0]}
-                  onChange={v => updateConfig(selectedProvider, { rerank_model: v })}
-                  style={{ width: '100%' }}
-                >
-                  {rerankOptions.map(m => (
-                    <Option key={m} value={m}>{m}</Option>
-                  ))}
-                </Select>
-              </div>
-            ) : (
-              <div className="mb-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag color="default">重排模型</Tag>
-                </div>
-                <Text type="secondary" style={{ fontSize: 12 }}>当前平台不提供重排模型</Text>
-              </div>
-            );
-          })()}
-
-          {/* 图像生成模型 */}
-          {(() => {
-            const imageOptions = getModelOptions('image_generation');
-            return imageOptions.length > 0 ? (
-              <div className="mb-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag color="purple">图像生成</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>用于海报和图片生成</Text>
-                </div>
-                <Select
-                  value={currentConfig.image_generation_model || imageOptions[0]}
-                  onChange={v => updateConfig(selectedProvider, { image_generation_model: v })}
-                  style={{ width: '100%' }}
-                >
-                  {imageOptions.map(m => (
-                    <Option key={m} value={m}>{m}</Option>
-                  ))}
-                </Select>
-              </div>
-            ) : null;
-          })()}
-
-          {/* 视频生成模型 */}
-          {(() => {
-            const videoOptions = getModelOptions('video_generation');
-            return videoOptions.length > 0 ? (
-              <div className="mb-2">
-                <div className="flex items-center gap-2 mb-1">
-                  <Tag color="magenta">视频生成</Tag>
-                  <Text type="secondary" style={{ fontSize: 12 }}>用于视频内容生成</Text>
-                </div>
-                <Select
-                  value={currentConfig.video_generation_model || videoOptions[0]}
-                  onChange={v => updateConfig(selectedProvider, { video_generation_model: v })}
-                  style={{ width: '100%' }}
-                >
-                  {videoOptions.map(m => (
-                    <Option key={m} value={m}>{m}</Option>
-                  ))}
-                </Select>
-              </div>
-            ) : null;
-          })()}
+          {/* 模型选择器 */}
+          {ALL_MODEL_TYPES.map(type => (
+            <ModelSelector
+              key={type}
+              modelType={type}
+              options={getModelOptions(type)}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              value={(currentConfig as any)[`${type}_model`] || ''}
+              onChange={v => updateConfig(selectedProvider, { [`${type}_model`]: v } as Partial<PlatformConfig>)}
+              showEmpty={SHOW_EMPTY_TYPES.includes(type)}
+            />
+          ))}
         </Card>
       )}
     </div>

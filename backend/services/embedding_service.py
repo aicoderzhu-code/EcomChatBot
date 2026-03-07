@@ -1,6 +1,7 @@
 """
 Embedding 服务 - 文本向量化
 """
+import logging
 from typing import Any
 
 import httpx
@@ -8,6 +9,9 @@ from langchain_openai import OpenAIEmbeddings
 
 from core.config import settings
 from core.http_client import get_http_client
+from core.resilience import retry_async, with_timeout, with_fallback
+
+logger = logging.getLogger(__name__)
 
 
 class _ZhipuAIEmbeddings:
@@ -18,12 +22,16 @@ class _ZhipuAIEmbeddings:
         self.model = model
         self._base_url = "https://open.bigmodel.cn/api/paas/v4/embeddings"
 
+    @retry_async(max_attempts=3, base_delay=1.0, max_delay=10.0,
+                 retriable_exceptions=(httpx.HTTPStatusError, httpx.ConnectError, TimeoutError),
+                 service_name="ZhipuAI-Embedding")
     async def aembed_query(self, text: str) -> list[float]:
         client = get_http_client()
         resp = await client.post(
                 self._base_url,
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={"model": self.model, "input": text},
+                timeout=30.0,
             )
         resp.raise_for_status()
         return resp.json()["data"][0]["embedding"]
@@ -46,6 +54,9 @@ class _QwenEmbeddings:
             "text-embedding/text-embedding"
         )
 
+    @retry_async(max_attempts=3, base_delay=1.0, max_delay=10.0,
+                 retriable_exceptions=(httpx.HTTPStatusError, httpx.ConnectError, TimeoutError),
+                 service_name="Qwen-Embedding")
     async def aembed_query(self, text: str) -> list[float]:
         client = get_http_client()
         resp = await client.post(
@@ -59,6 +70,7 @@ class _QwenEmbeddings:
                     "input": {"texts": [text]},
                     "parameters": {"text_type": "query"},
                 },
+                timeout=30.0,
             )
         resp.raise_for_status()
         data = resp.json()
@@ -155,7 +167,7 @@ class EmbeddingService:
 
     async def embed_text(self, text: str) -> list[float]:
         """
-        将文本转换为向量
+        将文本转换为向量（含超时保护）
 
         Args:
             text: 文本内容
@@ -163,12 +175,20 @@ class EmbeddingService:
         Returns:
             向量（浮点数列表）
         """
-        vector = await self.embeddings.aembed_query(text)
-        return vector
+        try:
+            vector = await with_timeout(
+                self.embeddings.aembed_query(text),
+                timeout=30.0,
+                service_name="Embedding",
+            )
+            return vector
+        except Exception as exc:
+            logger.error("[Embedding] embed_text 失败 (tenant=%s): %s", self.tenant_id, exc)
+            raise
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """
-        批量向量化文本
+        批量向量化文本（含超时保护）
 
         Args:
             texts: 文本列表
@@ -176,8 +196,17 @@ class EmbeddingService:
         Returns:
             向量列表
         """
-        vectors = await self.embeddings.aembed_documents(texts)
-        return vectors
+        try:
+            vectors = await with_timeout(
+                self.embeddings.aembed_documents(texts),
+                timeout=120.0,
+                service_name="Embedding",
+            )
+            return vectors
+        except Exception as exc:
+            logger.error("[Embedding] embed_documents 失败 (tenant=%s, count=%d): %s",
+                         self.tenant_id, len(texts), exc)
+            raise
 
     async def get_dimension_from_model(self) -> int:
         """通过实际调用 embedding 模型获取向量维度"""

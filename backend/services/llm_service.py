@@ -10,8 +10,12 @@ from langchain_openai import ChatOpenAI
 
 from api.content_filter import filter_llm_output
 from core.config import settings
+from core.resilience import CircuitBreaker, with_timeout
 
 logger = logging.getLogger(__name__)
+
+# 全局 LLM 断路器：连续 5 次失败 → 打开 60s
+_llm_circuit_breaker = CircuitBreaker("LLM", failure_threshold=5, recovery_timeout=60.0)
 
 
 class LLMService:
@@ -99,6 +103,7 @@ class LLMService:
     ) -> AsyncIterator[dict]:
         """
         Real streaming generation via LangChain's astream().
+        含断路器保护：连续失败时快速拒绝，避免雪崩。
 
         Yields:
             {"type": "chunk", "content": "token text"}
@@ -109,11 +114,12 @@ class LLMService:
         lc_messages = self._build_lc_messages(messages, system_prompt)
 
         full_content = ""
-        async for chunk in streaming_llm.astream(lc_messages):
-            token = chunk.content or ""
-            if token:
-                full_content += token
-                yield {"type": "chunk", "content": token}
+        async with _llm_circuit_breaker:
+            async for chunk in streaming_llm.astream(lc_messages):
+                token = chunk.content or ""
+                if token:
+                    full_content += token
+                    yield {"type": "chunk", "content": token}
 
         if enable_safety_filter:
             filtered = filter_llm_output(full_content)
@@ -142,7 +148,7 @@ class LLMService:
         enable_safety_filter: bool = True,
     ) -> str:
         """
-        生成回复
+        生成回复（含断路器保护 + 超时 120s）
 
         Args:
             messages: 对话历史 [{"role": "user/assistant", "content": "..."}]
@@ -154,7 +160,12 @@ class LLMService:
         """
         langchain_messages = self._build_lc_messages(messages, system_prompt)
 
-        response = await self.llm.ainvoke(langchain_messages)
+        async with _llm_circuit_breaker:
+            response = await with_timeout(
+                self.llm.ainvoke(langchain_messages),
+                timeout=120.0,
+                service_name="LLM",
+            )
         content = response.content
 
         if enable_safety_filter:
@@ -203,8 +214,13 @@ class LLMService:
         # 绑定函数
         llm_with_functions = self.llm.bind_functions(functions)
 
-        # 调用
-        response = await llm_with_functions.ainvoke(langchain_messages)
+        # 调用（含断路器 + 超时）
+        async with _llm_circuit_breaker:
+            response = await with_timeout(
+                llm_with_functions.ainvoke(langchain_messages),
+                timeout=120.0,
+                service_name="LLM",
+            )
 
         # 解析响应
         content = response.content

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar, Header } from '@/components/layout';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuthStore, useUIStore } from '@/store';
 
 export default function DashboardLayout({
@@ -54,7 +55,9 @@ export default function DashboardLayout({
       >
         <Header />
         <main className="animate-fade-in p-5 px-4 bg-neutral-100 min-h-[calc(100vh-64px)]">
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

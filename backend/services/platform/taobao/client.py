@@ -37,10 +37,11 @@ class TaobaoClient:
         sign_str += self.app_secret
         return hashlib.md5(sign_str.encode("utf-8")).hexdigest().upper()
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def call_api(
         self, method: str, params: dict | None = None, session_key: str | None = None
     ) -> dict:
-        """调用淘宝 TOP API"""
+        """调用淘宝 TOP API（含指数退避重试）"""
         sys_params = {
             "app_key": self.app_key,
             "method": method,
@@ -70,8 +71,9 @@ class TaobaoClient:
         response_key = method.replace(".", "_") + "_response"
         return data.get(response_key, data)
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def get_access_token(self, code: str) -> dict:
-        """用授权码换取 access_token"""
+        """用授权码换取 access_token（含指数退避重试）"""
         url = "https://oauth.taobao.com/token"
         params = {
             "grant_type": "authorization_code",
@@ -85,8 +87,9 @@ class TaobaoClient:
             resp.raise_for_status()
             return resp.json()
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
     async def refresh_access_token(self, refresh_token: str) -> dict:
-        """刷新 access_token"""
+        """刷新 access_token（含指数退避重试）"""
         url = "https://oauth.taobao.com/token"
         params = {
             "grant_type": "refresh_token",
