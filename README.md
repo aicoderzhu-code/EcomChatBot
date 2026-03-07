@@ -16,14 +16,14 @@
 
 本项目是一个**生产级**多租户电商智能客服 SaaS 平台，包含完整的前后端实现：
 
-- **用户端（租户工作台）**：AI 对话、商品管理、AI 内容生成（海报/视频/文案）、知识库、智能定价、订单分析、LLM Playground、订阅支付
+- **用户端（租户工作台）**：AI 对话、商品管理、AI 内容生成（海报/视频/文案）、知识库、智能定价、订单分析、订阅支付
 - **管理后台（超管后台）**：租户管理、订阅计费、平台统计、审计日志、平台配置
 
 核心能力：
 
 - ✅ **多租户架构**：`tenant_id` 逻辑隔离，支持海量租户接入
-- ✅ **多 LLM 支持**：DeepSeek（默认）、OpenAI、智谱 AI、Anthropic、Moonshot、Qwen 等，运行时可切换
-- ✅ **AI 内容生成**：海报（图像）生成、短视频生成、商品标题 & 描述文案生成，支持多 Provider（OpenAI / 智谱 AI / SiliconFlow）
+- ✅ **AI 模型集成**：基于火山引擎提供的 LLM、Embedding、图像生成、视频生成模型
+- ✅ **AI 内容生成**：海报（图像）生成、短视频生成、商品标题 & 描述文案生成
 - ✅ **商品管理**：电商平台商品同步（全量/增量）、商品提示词管理、生命周期管理
 - ✅ **智能定价**：竞品监控、多策略定价分析（竞争/高端/渗透/动态）、AI 定价建议
 - ✅ **订单分析**：订单同步、热销商品排行、买家统计、AI 分析报告
@@ -50,8 +50,7 @@
 | ORM | SQLAlchemy 2.0（异步）、Alembic（迁移） |
 | 数据验证 | Pydantic v2 |
 | AI 框架 | LangChain 0.1、LangGraph、Sentence Transformers |
-| LLM 提供商 | DeepSeek（默认）、OpenAI、智谱 AI、Anthropic、Moonshot、Qwen |
-| 图像/视频生成 | OpenAI DALL-E、智谱 AI CogView/CogVideoX、SiliconFlow |
+| AI 模型服务 | 火山引擎（LLM、Embedding、图像生成、视频生成） |
 | 后台任务 | Celery 5.3 + Flower 监控界面 |
 | 消息队列 | RabbitMQ（任务分发）、Redis（Broker/Result） |
 | WebSocket | FastAPI WebSocket |
@@ -222,7 +221,6 @@ ecom-chat-bot/
 │   │   │   │   ├── knowledge/ # 知识库管理
 │   │   │   │   ├── pricing/   # 智能定价
 │   │   │   │   ├── analytics/ # 数据分析（订单/报告）
-│   │   │   │   ├── playground/# LLM Playground
 │   │   │   │   └── settings/  # 租户设置
 │   │   │   └── (admin)/       # 管理后台（超管）
 │   │   │       ├── admins/    # 管理员账号管理
@@ -328,21 +326,21 @@ curl "http://localhost:8000/api/v1/products" \
 
 ### 6. AI 内容生成
 
-基于多 Provider 的 AI 内容生成系统，支持海报、视频、文案的一站式生成与管理。
+基于火山引擎的 AI 内容生成系统，支持海报、视频、文案的一站式生成与管理。
 
 #### 海报生成（图像）
 
 - **商品关联**：选择商品并使用其提示词生成海报
-- **多 Provider 支持**：OpenAI DALL-E、智谱 AI CogView、SiliconFlow
-- **参数配置**：图片尺寸、批量数量等参数根据 Provider 能力动态渲染
+- **火山引擎模型**：使用 doubao-seedream 系列模型生成高质量图像
+- **参数配置**：图片尺寸、批量数量等参数
 - **批量生成**：单次可生成多张图片
 - **任务跟踪**：异步生成，实时查看任务状态与进度
 
 #### 视频生成
 
 - **文生视频 / 图生视频**：支持纯文本描述或参考图片生成视频
-- **多 Provider 支持**：智谱 AI CogVideoX、SiliconFlow
-- **参数配置**：视频时长等参数根据 Provider 能力动态渲染
+- **火山引擎模型**：使用 doubao-seedance 系列模型生成视频
+- **参数配置**：视频时长等参数
 - **任务跟踪**：异步生成，实时查看任务状态
 
 #### 素材库
@@ -365,14 +363,8 @@ curl -X POST "http://localhost:8000/api/v1/content/generate" \
   -d '{
     "product_id": "PRODUCT_ID",
     "generation_type": "poster",
-    "prompt": "高端电商产品海报，白色背景",
-    "provider": "zhipuai",
-    "model": "cogview-4"
+    "prompt": "高端电商产品海报，白色背景"
   }'
-
-# 查询 Provider 能力（动态参数）
-curl "http://localhost:8000/api/v1/content/providers/image/capabilities" \
-  -H "X-API-Key: YOUR_API_KEY"
 ```
 
 ### 7. 智能定价
@@ -402,46 +394,7 @@ curl -X POST "http://localhost:8000/api/v1/pricing/analyze" \
 - **买家统计**：买家购买频次、消费金额分析
 - **分析报告**：AI 生成日/周/月/自定义周期分析报告
 
-### 9. LLM Playground
-
-- **模型选择**：从已配置的模型中选择进行测试
-- **System Prompt**：自定义系统提示词
-- **RAG 开关**：可选开启知识库检索，配置 Top-K 参数
-- **流式对话**：实时流式输出
-- **Token 统计**：显示输入/输出 Token 数量
-- **响应时间**：监控模型响应延迟
-
-### 10. 设置
-
-#### 模型配置
-
-租户可自定义 LLM 提供商与参数，支持五种模型类型：LLM、Embedding、Rerank、图像生成、视频生成。
-
-支持多 Provider、多 Model 配置，含 API Key 验证与模型发现功能：
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/models" \
-  -H "X-API-Key: YOUR_API_KEY" \
-  -d '{
-    "provider": "zhipuai",
-    "model_name": "glm-4-flash",
-    "api_key": "YOUR_ZHIPUAI_API_KEY",
-    "temperature": 0.7,
-    "max_tokens": 2000,
-    "use_case": "chat",
-    "is_default": true
-  }'
-```
-
-支持的提供商：
-
-| 类型 | 提供商 |
-|------|--------|
-| LLM | DeepSeek（默认）、OpenAI、智谱 AI、Anthropic、Moonshot、Qwen、Azure OpenAI、Local LLM |
-| Embedding | OpenAI、Cohere、Jina |
-| Rerank | Cohere |
-| 图像生成 | OpenAI（DALL-E）、智谱 AI（CogView）、SiliconFlow |
-| 视频生成 | 智谱 AI（CogVideoX）、SiliconFlow |
+### 9. 设置
 
 #### 平台对接（拼多多）
 
@@ -589,10 +542,8 @@ curl -X POST "http://localhost:8000/api/v1/admin/login" \
 | 分析报告 | `/api/v1/reports` | 日/周/月报告生成与管理 |
 | 意图 | `/api/v1/intent` | 意图分类、实体提取 |
 | 平台对接 | `/api/v1/platform` | 拼多多 OAuth、消息回复 |
-| Playground | `/api/v1/playground` | 模型测试沙盒 |
 | 监控 | `/api/v1/monitor` | 统计、趋势、Dashboard |
 | 质量 | `/api/v1/quality` | 对话质量评估 |
-| 模型配置 | `/api/v1/models` | LLM/Embedding/Rerank/图像/视频 Provider 配置 |
 | Webhook | `/api/v1/webhooks` | 创建、测试、列表 |
 | 支付 | `/api/v1/payment` | 订单、回调 |
 | 管理员 | `/api/v1/admin` | 租户管理、统计报表 |
@@ -617,17 +568,6 @@ REDIS_URL=redis://redis:6379/0
 MILVUS_HOST=milvus
 MILVUS_PORT=19530
 
-# LLM（默认 DeepSeek）
-LLM_PROVIDER=deepseek
-DEEPSEEK_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
-DEEPSEEK_MODEL=deepseek-chat
-DEEPSEEK_BASE_URL=https://api.deepseek.com
-
-# 其他 LLM Provider（可选）
-OPENAI_API_KEY=sk-xxx
-ZHIPUAI_API_KEY=xxx
-ANTHROPIC_API_KEY=sk-ant-xxx
-
 # JWT
 JWT_SECRET=change-this-in-production
 JWT_ACCESS_TOKEN_EXPIRE_HOURS=8
@@ -644,6 +584,37 @@ MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_BUCKET=ecom-chatbot
 ```
+
+### 火山引擎模型配置
+
+系统使用火山引擎提供的 AI 模型服务，需要配置以下环境变量：
+
+```env
+# 火山引擎 API 配置
+VOLCENGINE_API_KEY=your-api-key-here
+VOLCENGINE_API_BASE=https://ark.cn-beijing.volces.com/api/v3
+
+# LLM 大语言模型
+LLM_PROVIDER=volcengine
+LLM_MODEL=deepseek-v3-2-251201
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=2000
+
+# Embedding 向量模型
+EMBEDDING_PROVIDER=volcengine
+EMBEDDING_MODEL=doubao-embedding-vision-251215
+EMBEDDING_DIMENSION=2048
+
+# 图片生成模型
+IMAGE_GEN_PROVIDER=volcengine
+IMAGE_GEN_MODEL=doubao-seedream-5-0-260128
+
+# 视频生成模型
+VIDEO_GEN_PROVIDER=volcengine
+VIDEO_GEN_MODEL=doubao-seedance-1-5-pro-251215
+```
+
+请在 `.env.local` 文件中配置实际的 API Key。
 
 ## 🧪 测试
 
