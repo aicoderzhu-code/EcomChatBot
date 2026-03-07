@@ -21,6 +21,7 @@ celery_app = Celery(
         "tasks.platform_tasks",
         "tasks.product_sync_tasks",
         "tasks.generation_tasks",
+        "tasks.outreach_tasks",
     ],
 )
 
@@ -60,6 +61,7 @@ celery_app.conf.update(
         "tasks.platform_tasks.*": {"queue": "default"},
         "tasks.product_sync_tasks.*": {"queue": "data_processing"},
         "tasks.generation_tasks.*": {"queue": "data_processing"},
+        "tasks.outreach_tasks.*": {"queue": "notifications"},
     },
 
     # 默认队列
@@ -122,6 +124,24 @@ celery_app.conf.beat_schedule = {
     "refresh-platform-tokens": {
         "task": "tasks.platform_tasks.refresh_expiring_tokens",
         "schedule": 1800.0,
+    },
+    # 每10分钟评估自动触发规则
+    "evaluate-outreach-rules": {
+        "task": "tasks.outreach_tasks.evaluate_auto_rules",
+        "schedule": 600.0,
+        "options": {"queue": "notifications"},
+    },
+    # 每5分钟处理到期跟进计划
+    "process-follow-ups": {
+        "task": "tasks.outreach_tasks.process_follow_ups",
+        "schedule": 300.0,
+        "options": {"queue": "notifications"},
+    },
+    # 每小时刷新动态分群
+    "refresh-dynamic-segments": {
+        "task": "tasks.outreach_tasks.refresh_dynamic_segments",
+        "schedule": 3600.0,
+        "options": {"queue": "notifications"},
     },
 }
 

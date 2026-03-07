@@ -47,7 +47,7 @@
 | 类别 | 技术 |
 |------|------|
 | 框架 | FastAPI 0.109、Uvicorn（ASGI） |
-| ORM | SQLAlchemy 2.0（异步）、Alembic（迁移） |
+| ORM | SQLAlchemy 2.0（异步） |
 | 数据验证 | Pydantic v2 |
 | AI 框架 | LangChain 0.1、LangGraph、Sentence Transformers |
 | AI 模型服务 | 火山引擎（LLM、Embedding、图像生成、视频生成） |
@@ -170,6 +170,22 @@ uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
 cd frontend
 npm install
 npm run dev                    # 访问 http://localhost:3000
+```
+
+### 数据库初始化说明
+
+本项目使用 `init_db.py` 进行数据库初始化，**不需要运行数据库迁移**：
+
+- **自动建表**：`init_db.py` 使用 SQLAlchemy 的 `Base.metadata.create_all()` 自动创建所有 47 张表
+- **初始数据**：自动创建默认超级管理员（admin/admin123456）、系统内容模板、平台媒体规范
+- **幂等性**：可重复运行，已存在的数据不会重复创建
+- **Docker 部署**：`db-init` 容器会在启动时自动运行 `init_db.py`
+
+**重新部署时**：
+```bash
+# 完全清空数据库重新初始化
+docker compose down -v  # 删除所有容器和数据卷
+docker compose up -d    # 重新启动，自动初始化数据库
 ```
 
 详细部署说明：[快速开始指南](./docs/QUICKSTART.md) | [生产部署指南](./docs/README-DEPLOYMENT.md) | [域名部署指南](./docs/DEPLOYMENT.md) | [Jenkins CI/CD](./docs/JENKINS_SETUP.md)

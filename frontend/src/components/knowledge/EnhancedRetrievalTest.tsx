@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Card, Input, Button, Typography, Empty, Select, Form,
   Tabs, Slider, Collapse, Tag, Space, Descriptions,

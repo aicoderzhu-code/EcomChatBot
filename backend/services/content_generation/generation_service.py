@@ -11,7 +11,6 @@ from services.content_generation.video_model_router import VideoModelRouter
 from services.content_generation.product_prompt_service import ProductPromptService
 from services.content_generation.template_service import TemplateService
 from services.content_generation.platform_spec_service import PlatformSpecService
-from services.model_config_service import ModelConfigService
 from services.storage_service import StorageService
 
 logger = logging.getLogger(__name__)
@@ -33,27 +32,9 @@ class GenerationService:
     async def _resolve_model_config_id(
         self, task_type: str, model_config_id: int | None
     ) -> int | None:
-        """如果未指定 model_config_id，尝试按 task_type 查找默认模型"""
-        if model_config_id:
-            return model_config_id
-
-        model_type = self._TASK_MODEL_TYPE_MAP.get(task_type)
-        if not model_type:
-            return None
-
-        svc = ModelConfigService(self.db, self.tenant_id)
-        configs = await svc.list_model_configs(
-            model_type=model_type, is_active=True
-        )
-        if not configs:
-            return None
-
-        # 优先返回 is_default=True 的
-        for c in configs:
-            if c.is_default:
-                return c.id
-        # 否则返回优先级最高的第一个（已按 priority desc 排序）
-        return configs[0].id
+        """模型配置已改用环境变量，此方法保留以兼容旧接口"""
+        # 模型配置现在从环境变量读取，不再需要 model_config_id
+        return None
 
     async def create_task(
         self,

@@ -6,7 +6,6 @@ from sqlalchemy import select
 
 from api.dependencies import DBDep, TenantFlexDep
 from api.middleware import StorageQuotaDep, ApiQuotaDep
-from models.model_config import ModelConfig
 from schemas import (
     ApiResponse,
     KnowledgeBaseCreate,

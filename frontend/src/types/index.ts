@@ -136,8 +136,6 @@ export interface KnowledgeSearchResult {
   source: string;
 }
 
-// Knowledge Types
-export interface KnowledgeDocument {
 export interface DashboardStats {
   today_conversations: number;
   today_conversations_change: number;

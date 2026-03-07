@@ -9,7 +9,6 @@ from sqlalchemy import select
 
 from api.dependencies import DBDep, TenantDep, TenantFlexDep
 from api.middleware import ApiQuotaDep, StorageQuotaDep
-from models.model_config import ModelConfig
 from schemas import ApiResponse
 from services import RAGService
 from services.knowledge_service import KnowledgeService

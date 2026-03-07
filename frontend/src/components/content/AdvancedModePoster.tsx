@@ -13,7 +13,6 @@ import {
 import {
   contentApi,
   type ProductPrompt,
-  type ImageProviderCapability,
 } from '@/lib/api/content';
 import { productApi } from '@/lib/api/product';
 import { usePlatformUpload } from '@/hooks/usePlatformUpload';
@@ -40,7 +39,6 @@ export default function AdvancedModePoster() {
   const [prompts, setPrompts] = useState<ProductPrompt[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
-  const [capabilities, setCapabilities] = useState<Record<string, ImageProviderCapability>>({});
 
   const sizeOptions = useMemo(() => {
     return [
@@ -61,16 +59,14 @@ export default function AdvancedModePoster() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksResp, assetsResp, productsResp, capsResp] = await Promise.all([
+      const [tasksResp, assetsResp, productsResp] = await Promise.all([
         contentApi.listTasks({ task_type: 'poster', size: 10 }),
         contentApi.listAssets({ asset_type: 'image', size: 20 }),
         productApi.listProducts({ status: 'active', size: 100 }),
-        contentApi.getProviderCapabilities<Record<string, ImageProviderCapability>>('poster'),
       ]);
       if (tasksResp.success && tasksResp.data) setTasks(tasksResp.data.items);
       if (assetsResp.success && assetsResp.data) setAssets(assetsResp.data.items);
       if (productsResp.success && productsResp.data) setProducts(productsResp.data.items);
-      if (capsResp.success && capsResp.data) setCapabilities(capsResp.data);
     } catch {
       // ignore
     } finally {
