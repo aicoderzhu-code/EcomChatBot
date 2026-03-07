@@ -143,7 +143,7 @@ class GenerationService:
 
     async def _execute_image_or_text(self, task: GenerationTask) -> None:
         """执行图像或文案生成"""
-        if task.task_type == "poster" and task.model_config_id:
+        if task.task_type == "poster":
             # 图像生成
             router = ImageModelRouter()
             urls = await router.generate_image(

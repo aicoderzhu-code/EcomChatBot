@@ -1,5 +1,6 @@
 """图像生成模型路由器 - 使用环境变量配置"""
 import logging
+import asyncio
 import httpx
 
 from core.config import settings
@@ -35,25 +36,65 @@ class ImageModelRouter:
         """生成图像，返回图像URL列表"""
         params = params or {}
 
-        # 构建请求体
+        # 火山引擎图片生成使用 OpenAI 兼容的接口
         body: dict = {
             "model": self.model,
             "prompt": prompt,
         }
 
-        # 添加可选参数
+        # 处理尺寸参数
+        # 火山引擎要求图片至少 3686400 像素（约 1920x1920）
         if "size" in params:
-            body["size"] = params["size"]
+            size_str = params["size"]
+            try:
+                # 解析尺寸字符串 "WxH"
+                width, height = map(int, size_str.split("x"))
+                total_pixels = width * height
+
+                # 如果尺寸太小，使用默认尺寸 2048x2048
+                if total_pixels < 3686400:
+                    logger.warning(f"Requested size {size_str} is too small (min 3686400 pixels), using 2048x2048")
+                    body["size"] = "2048x2048"
+                else:
+                    body["size"] = size_str
+            except (ValueError, AttributeError):
+                # 如果解析失败，使用默认尺寸
+                logger.warning(f"Invalid size format: {size_str}, using 2048x2048")
+                body["size"] = "2048x2048"
+        else:
+            # 没有指定尺寸，使用默认值
+            body["size"] = "2048x2048"
+
+        # 生成数量
         if "n" in params:
             body["n"] = params["n"]
+        else:
+            body["n"] = 1  # 默认生成 1 张图片
 
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=180) as client:
+            # 火山引擎图片生成 API
             resp = await client.post(
                 f"{self.api_base}/images/generations",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json=body,
             )
+
+            # 记录响应以便调试
+            logger.info(f"Image generation response status: {resp.status_code}")
+            if resp.status_code != 200:
+                logger.error(f"Image generation failed: {resp.text}")
+
             resp.raise_for_status()
             data = resp.json()
-            # 解析响应
-            return [item["url"] for item in data.get("data", [])]
+
+            # 解析响应 - OpenAI 格式
+            urls = []
+            if "data" in data:
+                for item in data["data"]:
+                    if "url" in item:
+                        urls.append(item["url"])
+
+            if not urls:
+                raise ValueError("No image URLs in response")
+
+            return urls
