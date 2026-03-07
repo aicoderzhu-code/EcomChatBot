@@ -164,10 +164,9 @@ class GenerationService:
         """执行图像或文案生成"""
         if task.task_type == "poster" and task.model_config_id:
             # 图像生成
-            router = ImageModelRouter(self.db, self.tenant_id)
+            router = ImageModelRouter()
             urls = await router.generate_image(
                 prompt=task.prompt,
-                model_config_id=task.model_config_id,
                 params=task.params,
             )
             for url in urls:
@@ -216,10 +215,9 @@ class GenerationService:
         if not task.model_config_id:
             raise ValueError("视频生成需要指定模型配置")
 
-        router = VideoModelRouter(self.db, self.tenant_id)
+        router = VideoModelRouter()
         video_url = await router.generate_video(
             prompt=task.prompt,
-            model_config_id=task.model_config_id,
             params=task.params,
         )
         # 下载到 TOS 持久化存储
