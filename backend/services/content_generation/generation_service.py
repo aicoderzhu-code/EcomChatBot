@@ -9,6 +9,8 @@ from models.generation import GeneratedAsset, GenerationTask, GenerationTaskStat
 from services.content_generation.image_model_router import ImageModelRouter
 from services.content_generation.video_model_router import VideoModelRouter
 from services.content_generation.product_prompt_service import ProductPromptService
+from services.content_generation.template_service import TemplateService
+from services.content_generation.platform_spec_service import PlatformSpecService
 from services.model_config_service import ModelConfigService
 from services.storage_service import StorageService
 
@@ -61,13 +63,34 @@ class GenerationService:
         prompt_id: int | None = None,
         model_config_id: int | None = None,
         params: dict | None = None,
+        template_id: int | None = None,
+        scene_type: str | None = None,
+        target_platform: str | None = None,
+        generation_mode: str = "advanced",
     ) -> GenerationTask:
         """创建生成任务"""
         # 解析模型配置：未指定时自动回退到默认模型
         model_config_id = await self._resolve_model_config_id(task_type, model_config_id)
 
-        # 如果指定了提示词，使用其内容
+        # 如果使用模板，渲染模板
         final_prompt = prompt
+        if template_id:
+            template_svc = TemplateService(self.db, self.tenant_id)
+            render_result = await template_svc.render_template(
+                template_id=template_id,
+                product_id=product_id,
+                overrides=None,  # 可以从 params 中提取
+                target_platform=target_platform,
+            )
+            final_prompt = render_result["rendered_prompt"]
+            # 合并渲染后的参数
+            if params is None:
+                params = {}
+            params.update(render_result["resolved_params"])
+            # 增加模板使用次数
+            await template_svc.increment_usage(template_id)
+
+        # 如果指定了提示词，使用其内容
         if prompt_id:
             prompt_svc = ProductPromptService(self.db, self.tenant_id)
             product_prompt = await prompt_svc.get_prompt(prompt_id)
@@ -79,6 +102,17 @@ class GenerationService:
                 # 增加使用次数
                 await prompt_svc.increment_usage(prompt_id)
 
+        # 如果指定了目标平台，从平台规范获取尺寸
+        if target_platform and not template_id:
+            platform_svc = PlatformSpecService(self.db)
+            # 根据 task_type 推断 media_type
+            media_type = "main_image" if task_type == "poster" else "main_video"
+            spec = await platform_svc.get_spec(target_platform, media_type)
+            if spec and params is None:
+                params = {}
+            if spec:
+                params["size"] = f"{spec.width}x{spec.height}"
+
         task = GenerationTask(
             tenant_id=self.tenant_id,
             product_id=product_id,
@@ -88,6 +122,10 @@ class GenerationService:
             model_config_id=model_config_id,
             prompt_id=prompt_id,
             params=params,
+            template_id=template_id,
+            scene_type=scene_type,
+            target_platform=target_platform,
+            generation_mode=generation_mode,
         )
         self.db.add(task)
         await self.db.commit()
@@ -218,6 +256,7 @@ class GenerationService:
         task_type: str | None = None,
         product_id: int | None = None,
         status: str | None = None,
+        scene_type: str | None = None,
         page: int = 1,
         size: int = 20,
     ) -> tuple[list[GenerationTask], int]:
@@ -228,6 +267,8 @@ class GenerationService:
             conditions.append(GenerationTask.product_id == product_id)
         if status:
             conditions.append(GenerationTask.status == status)
+        if scene_type:
+            conditions.append(GenerationTask.scene_type == scene_type)
 
         count_stmt = select(func.count(GenerationTask.id)).where(and_(*conditions))
         total = (await self.db.execute(count_stmt)).scalar() or 0
@@ -246,7 +287,9 @@ class GenerationService:
     async def list_assets(
         self, task_id: int | None = None, product_id: int | None = None,
         asset_type: str | None = None, keyword: str | None = None,
-        is_selected: bool | None = None, page: int = 1, size: int = 20,
+        is_selected: bool | None = None, scene_type: str | None = None,
+        target_platform: str | None = None, review_status: str | None = None,
+        page: int = 1, size: int = 20,
     ) -> tuple[list[GeneratedAsset], int]:
         conditions = [GeneratedAsset.tenant_id == self.tenant_id]
         if task_id:
@@ -259,6 +302,12 @@ class GenerationService:
             conditions.append(GeneratedAsset.content.ilike(f"%{keyword}%"))
         if is_selected is not None:
             conditions.append(GeneratedAsset.is_selected == (1 if is_selected else 0))
+        if scene_type:
+            conditions.append(GeneratedAsset.scene_type == scene_type)
+        if target_platform:
+            conditions.append(GeneratedAsset.target_platform == target_platform)
+        if review_status:
+            conditions.append(GeneratedAsset.review_status == review_status)
 
         count_stmt = select(func.count(GeneratedAsset.id)).where(and_(*conditions))
         total = (await self.db.execute(count_stmt)).scalar() or 0
@@ -318,3 +367,54 @@ class GenerationService:
         await self.db.commit()
         await self.db.refresh(task)
         return task
+
+    async def batch_generate(
+        self,
+        template_id: int,
+        product_ids: list[int],
+        target_platform: str | None = None,
+        params: dict | None = None,
+    ) -> list[GenerationTask]:
+        """为多个商品使用同一模板批量创建生成任务"""
+        template_svc = TemplateService(self.db, self.tenant_id)
+        template = await template_svc.get_template(template_id)
+        if not template:
+            raise ValueError(f"Template {template_id} not found")
+
+        tasks = []
+        for product_id in product_ids:
+            task = await self.create_task(
+                task_type=template.category,
+                prompt="",  # 将由模板渲染
+                product_id=product_id,
+                template_id=template_id,
+                scene_type=template.scene_type,
+                target_platform=target_platform,
+                generation_mode="simple",
+                params=params,
+            )
+            tasks.append(task)
+
+        return tasks
+
+    async def review_asset(
+        self,
+        asset_id: int,
+        review_status: str,
+        note: str | None = None,
+    ) -> GeneratedAsset | None:
+        """审核素材"""
+        asset = await self.get_asset(asset_id)
+        if not asset:
+            return None
+
+        asset.review_status = review_status
+        if note:
+            if not asset.meta_info:
+                asset.meta_info = {}
+            asset.meta_info["review_note"] = note
+
+        await self.db.commit()
+        await self.db.refresh(asset)
+        return asset
+

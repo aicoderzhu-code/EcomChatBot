@@ -1,5 +1,18 @@
 import apiClient from './client';
-import type { ApiResponse, PaginatedResponse } from '@/types';
+import type {
+  ApiResponse,
+  PaginatedResponse,
+  ContentTemplate,
+  PlatformMediaSpec,
+  TemplateRenderRequest,
+  TemplateRenderResponse,
+  GenerationTask,
+  GeneratedAsset,
+  GenerateRequest,
+  BatchGenerateRequest,
+  ReviewAssetRequest,
+  BatchUploadAssetsRequest,
+} from '@/types';
 
 // ===== 内容生成类型 =====
 
@@ -15,39 +28,8 @@ export interface ProductPrompt {
   updated_at: string;
 }
 
-export interface GenerationTask {
-  id: number;
-  tenant_id: string;
-  product_id: number | null;
-  task_type: 'poster' | 'video' | 'title' | 'description';
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  prompt: string;
-  model_config_id: number | null;
-  prompt_id: number | null;
-  params: Record<string, unknown> | null;
-  result_count: number;
-  error_message: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface GeneratedAsset {
-  id: number;
-  tenant_id: string;
-  task_id: number;
-  product_id: number | null;
-  asset_type: 'image' | 'video' | 'text';
-  file_url: string | null;
-  content: string | null;
-  thumbnail_url: string | null;
-  metadata: Record<string, unknown> | null;
-  platform_url: string | null;
-  is_selected: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// 从 types/index.ts 重新导出，保持向后兼容
+export type { GenerationTask, GeneratedAsset } from '@/types';
 
 // ===== Provider 能力类型 =====
 
@@ -81,6 +63,57 @@ export interface VideoProviderCapability {
 // ===== API 函数 =====
 
 export const contentApi = {
+  // ===== 场景模板 =====
+
+  async listTemplates(params?: {
+    category?: 'poster' | 'video';
+    scene_type?: string;
+    platform?: string;
+    page?: number;
+    size?: number;
+  }): Promise<ApiResponse<PaginatedResponse<ContentTemplate>>> {
+    const { data } = await apiClient.get('/content/templates', { params });
+    return data;
+  },
+
+  async createTemplate(body: {
+    name: string;
+    category: 'poster' | 'video';
+    scene_type: string;
+    prompt_template: string;
+    variables?: Array<{ key: string; label: string; source: string; required: boolean; default?: string }>;
+    style_options?: string[];
+    platform_presets?: Record<string, { size: string }>;
+    default_params?: Record<string, unknown>;
+    thumbnail_url?: string;
+  }): Promise<ApiResponse<ContentTemplate>> {
+    const { data } = await apiClient.post('/content/templates', body);
+    return data;
+  },
+
+  async getTemplate(templateId: number): Promise<ApiResponse<ContentTemplate>> {
+    const { data } = await apiClient.get(`/content/templates/${templateId}`);
+    return data;
+  },
+
+  async renderTemplate(
+    templateId: number,
+    body: TemplateRenderRequest,
+  ): Promise<ApiResponse<TemplateRenderResponse>> {
+    const { data } = await apiClient.post(`/content/templates/${templateId}/render`, body);
+    return data;
+  },
+
+  // ===== 平台规范 =====
+
+  async listPlatformSpecs(params?: {
+    platform_type?: string;
+    media_type?: string;
+  }): Promise<ApiResponse<PlatformMediaSpec[]>> {
+    const { data } = await apiClient.get('/content/platform-specs', { params });
+    return data;
+  },
+
   // ===== 商品提示词 =====
 
   async listPrompts(params?: {
@@ -118,15 +151,13 @@ export const contentApi = {
 
   // ===== 生成任务 =====
 
-  async createGeneration(body: {
-    product_id?: number;
-    task_type: string;
-    prompt: string;
-    prompt_id?: number;
-    model_config_id?: number;
-    params?: Record<string, unknown>;
-  }): Promise<ApiResponse<GenerationTask>> {
+  async createGeneration(body: GenerateRequest): Promise<ApiResponse<GenerationTask>> {
     const { data } = await apiClient.post('/content/generate', body);
+    return data;
+  },
+
+  async batchGenerate(body: BatchGenerateRequest): Promise<ApiResponse<GenerationTask[]>> {
+    const { data } = await apiClient.post('/content/batch-generate', body);
     return data;
   },
 
@@ -134,6 +165,7 @@ export const contentApi = {
     task_type?: string;
     product_id?: number;
     status?: string;
+    scene_type?: string;
     page?: number;
     size?: number;
   }): Promise<ApiResponse<PaginatedResponse<GenerationTask>>> {
@@ -159,6 +191,9 @@ export const contentApi = {
     asset_type?: string;
     keyword?: string;
     is_selected?: boolean;
+    scene_type?: string;
+    target_platform?: string;
+    review_status?: string;
     page?: number;
     size?: number;
   }): Promise<ApiResponse<PaginatedResponse<GeneratedAsset>>> {
@@ -176,6 +211,11 @@ export const contentApi = {
     return data;
   },
 
+  async reviewAsset(assetId: number, body: ReviewAssetRequest): Promise<ApiResponse<GeneratedAsset>> {
+    const { data } = await apiClient.put(`/content/assets/${assetId}/review`, body);
+    return data;
+  },
+
   getAssetDownloadUrl(assetId: number): string {
     return `/api/v1/content/assets/${assetId}/download`;
   },
@@ -185,6 +225,14 @@ export const contentApi = {
     platform_config_id: number;
   }): Promise<ApiResponse<{ platform_url: string }>> {
     const { data } = await apiClient.post('/content/assets/upload', body);
+    return data;
+  },
+
+  async batchUploadAssets(body: BatchUploadAssetsRequest): Promise<ApiResponse<{
+    success: Array<{ asset_id: number; platform_url: string }>;
+    failed: Array<{ asset_id: number; error: string }>;
+  }>> {
+    const { data } = await apiClient.post('/content/assets/batch-upload', body);
     return data;
   },
 

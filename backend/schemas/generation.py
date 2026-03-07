@@ -14,6 +14,10 @@ class GenerateRequest(BaseModel):
     prompt_id: int | None = Field(None, description="提示词ID")
     model_config_id: int | None = Field(None, description="模型配置ID")
     params: dict | None = Field(None, description="生成参数")
+    template_id: int | None = Field(None, description="模板ID")
+    scene_type: str | None = Field(None, description="场景类型")
+    target_platform: str | None = Field(None, description="目标平台")
+    generation_mode: str = Field("advanced", pattern="^(simple|advanced)$", description="生成模式")
 
 
 class GenerationTaskResponse(TimestampSchema):
@@ -31,6 +35,10 @@ class GenerationTaskResponse(TimestampSchema):
     error_message: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    template_id: int | None = None
+    scene_type: str | None = None
+    target_platform: str | None = None
+    generation_mode: str = "advanced"
 
 
 class GeneratedAssetResponse(TimestampSchema):
@@ -46,9 +54,33 @@ class GeneratedAssetResponse(TimestampSchema):
     meta_info: dict | None = Field(None, alias="meta_info", serialization_alias="metadata")
     platform_url: str | None = None
     is_selected: bool
+    scene_type: str | None = None
+    target_platform: str | None = None
+    review_status: str = "pending"
 
 
 class UploadAssetRequest(BaseModel):
     """上传资产到平台"""
     asset_id: int = Field(..., description="资产ID")
     platform_config_id: int = Field(..., description="平台配置ID")
+
+
+class BatchGenerateRequest(BaseModel):
+    """批量生成请求"""
+    template_id: int = Field(..., description="模板ID")
+    product_ids: list[int] = Field(..., min_length=1, description="商品ID列表")
+    target_platform: str | None = Field(None, description="目标平台")
+    params: dict | None = Field(None, description="生成参数")
+
+
+class ReviewAssetRequest(BaseModel):
+    """审核资产请求"""
+    review_status: str = Field(..., pattern="^(approved|rejected)$", description="审核状态")
+    note: str | None = Field(None, description="审核备注")
+
+
+class BatchUploadAssetsRequest(BaseModel):
+    """批量上传资产请求"""
+    asset_ids: list[int] = Field(..., min_length=1, description="资产ID列表")
+    platform_config_id: int = Field(..., description="平台配置ID")
+

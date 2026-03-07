@@ -36,6 +36,7 @@ from models.generation import (
     GenerationTask, GeneratedAsset,
     GenerationTaskType, GenerationTaskStatus, AssetType,
 )
+from models.content_template import ContentTemplate, PlatformMediaSpec
 from models.pricing import CompetitorProduct, PricingAnalysis, PricingStrategy
 from models.order import (
     Order, AnalysisReport,
@@ -110,6 +111,9 @@ __all__ = [
     "GenerationTaskType",
     "GenerationTaskStatus",
     "AssetType",
+    # Content Template
+    "ContentTemplate",
+    "PlatformMediaSpec",
     # Pricing
     "CompetitorProduct",
     "PricingAnalysis",

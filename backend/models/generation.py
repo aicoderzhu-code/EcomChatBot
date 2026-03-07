@@ -76,6 +76,18 @@ class GenerationTask(TenantBaseModel):
     completed_at: Mapped[str | None] = mapped_column(
         DateTime, comment="完成时间"
     )
+    template_id: Mapped[int | None] = mapped_column(
+        Integer, comment="使用的模板ID"
+    )
+    scene_type: Mapped[str | None] = mapped_column(
+        String(64), comment="场景类型"
+    )
+    target_platform: Mapped[str | None] = mapped_column(
+        String(32), comment="目标平台"
+    )
+    generation_mode: Mapped[str] = mapped_column(
+        String(16), default="advanced", comment="生成模式(simple/advanced)"
+    )
 
     def __repr__(self) -> str:
         return f"<GenerationTask {self.task_type} ({self.status})>"
@@ -118,6 +130,15 @@ class GeneratedAsset(TenantBaseModel):
     )
     is_selected: Mapped[int] = mapped_column(
         Integer, default=0, comment="是否被选中使用"
+    )
+    scene_type: Mapped[str | None] = mapped_column(
+        String(64), comment="场景类型"
+    )
+    target_platform: Mapped[str | None] = mapped_column(
+        String(32), comment="目标平台"
+    )
+    review_status: Mapped[str] = mapped_column(
+        String(16), default="pending", comment="审核状态(pending/approved/rejected)"
     )
 
     def __repr__(self) -> str:

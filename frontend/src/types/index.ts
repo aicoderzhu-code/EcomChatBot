@@ -299,3 +299,142 @@ export interface AfterSaleRecord {
   buyer_id: string | null;
   created_at: string;
 }
+
+// ===== 内容生成 =====
+
+export type SceneType =
+  | 'main_image'
+  | 'detail_image'
+  | 'promo_poster'
+  | 'main_video'
+  | 'short_video'
+  | 'detail_video';
+
+export type GenerationMode = 'simple' | 'advanced';
+
+export type ReviewStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ContentTemplate {
+  id: number;
+  tenant_id: string | null;
+  name: string;
+  category: 'poster' | 'video';
+  scene_type: SceneType;
+  prompt_template: string;
+  variables: TemplateVariable[] | null;
+  style_options: string[] | null;
+  platform_presets: Record<string, { size: string }> | null;
+  default_params: Record<string, unknown> | null;
+  thumbnail_url: string | null;
+  is_system: boolean;
+  is_active: boolean;
+  sort_order: number;
+  usage_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TemplateVariable {
+  key: string;
+  label: string;
+  source: string;
+  required: boolean;
+  default?: string;
+}
+
+export interface PlatformMediaSpec {
+  id: number;
+  platform_type: string;
+  media_type: string;
+  spec_name: string;
+  width: number;
+  height: number;
+  max_file_size: number | null;
+  format: string | null;
+  duration_range: { min: number; max: number } | null;
+  extra_rules: Record<string, unknown> | null;
+}
+
+export interface TemplateRenderRequest {
+  product_id?: number;
+  overrides?: Record<string, string>;
+  target_platform?: string;
+}
+
+export interface TemplateRenderResponse {
+  rendered_prompt: string;
+  resolved_params: Record<string, unknown>;
+  variables_used: Record<string, string>;
+}
+
+export interface GenerationTask {
+  id: number;
+  tenant_id: string;
+  product_id: number | null;
+  task_type: 'poster' | 'video' | 'title' | 'description';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  prompt: string;
+  model_config_id: number | null;
+  prompt_id: number | null;
+  params: Record<string, unknown> | null;
+  result_count: number;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  template_id: number | null;
+  scene_type: SceneType | null;
+  target_platform: string | null;
+  generation_mode: GenerationMode;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GeneratedAsset {
+  id: number;
+  tenant_id: string;
+  task_id: number;
+  product_id: number | null;
+  asset_type: 'image' | 'video' | 'text';
+  file_url: string | null;
+  content: string | null;
+  thumbnail_url: string | null;
+  metadata: Record<string, unknown> | null;
+  platform_url: string | null;
+  is_selected: boolean;
+  scene_type: SceneType | null;
+  target_platform: string | null;
+  review_status: ReviewStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GenerateRequest {
+  product_id?: number;
+  task_type: 'poster' | 'video' | 'title' | 'description';
+  prompt: string;
+  prompt_id?: number;
+  model_config_id?: number;
+  params?: Record<string, unknown>;
+  template_id?: number;
+  scene_type?: SceneType;
+  target_platform?: string;
+  generation_mode?: GenerationMode;
+}
+
+export interface BatchGenerateRequest {
+  template_id: number;
+  product_ids: number[];
+  target_platform?: string;
+  params?: Record<string, unknown>;
+}
+
+export interface ReviewAssetRequest {
+  review_status: 'approved' | 'rejected';
+  note?: string;
+}
+
+export interface BatchUploadAssetsRequest {
+  asset_ids: number[];
+  platform_config_id: number;
+}
+
