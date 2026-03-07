@@ -51,16 +51,8 @@ class DialogGraphService:
         from services.prompt_service import PromptService
         from services.memory_service import MemoryService
 
-        # 从数据库加载默认 LLM 配置（优先于环境变量）
-        model_config = None
-        try:
-            from services.model_config_service import ModelConfigService
-            model_config = await ModelConfigService(self.db, self.tenant_id).get_default_model(use_case="dialogue")
-        except Exception:
-            pass
-
         # 创建服务实例（修复：不再将 db 误传为 tenant_id）
-        llm_service = LLMService(self.tenant_id, model_config=model_config)
+        llm_service = LLMService(self.tenant_id)
         intent_service = IntentService(self.db, self.tenant_id)
         rag_service = RAGService(self.db, self.tenant_id)
         prompt_service = PromptService()
