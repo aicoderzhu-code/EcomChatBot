@@ -48,13 +48,8 @@ class PlaygroundChatResponse(BaseModel):
 
 
 async def _load_llm_service(db, tenant_id: str, model_config_id: int | None) -> LLMService:
-    """Load LLMService from DB model config or fall back to default."""
-    svc = ModelConfigService(db, tenant_id)
-    if model_config_id:
-        mc = await svc.get_model_config(model_config_id)
-    else:
-        mc = await svc.get_default_model(use_case="dialogue")
-    return LLMService(tenant_id, model_config=mc)
+    """Load LLMService using environment variables."""
+    return LLMService(tenant_id)
 
 
 @router.post("/chat", response_model=ApiResponse[PlaygroundChatResponse])
