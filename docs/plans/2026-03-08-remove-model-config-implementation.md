@@ -409,55 +409,53 @@ git commit -m "refactor: 删除前端模型配置相关代码"
 
 ---
 
-## Task 10: 创建数据库迁移删除 model_configs 表
+## Task 10: 确保数据库初始化不包含 model_configs 表
 
 **Files:**
-- Create: `backend/migrations/versions/005_remove_model_configs.py`
+- Verify: `backend/models/__init__.py` (已在 Task 7 修改)
+- Verify: `backend/init_db.py`
 
-**Step 1: 创建迁移文件**
+**Step 1: 验证 models/__init__.py 已移除 ModelConfig 导入**
+
+确认 `backend/models/__init__.py` 中已删除：
 
 ```python
-"""remove model_configs table
-
-Revision ID: 005
-Revises: 004
-Create Date: 2026-03-08
-"""
-from alembic import op
-
-# revision identifiers
-revision = '005'
-down_revision = '004'
-branch_labels = None
-depends_on = None
-
-
-def upgrade():
-    # 删除 knowledge_base_settings 表中的外键字段（如果存在）
-    op.execute("ALTER TABLE knowledge_base_settings DROP COLUMN IF EXISTS embedding_model_id CASCADE")
-
-    # 删除 model_configs 表
-    op.execute("DROP TABLE IF EXISTS model_configs CASCADE")
-
-
-def downgrade():
-    # 不支持回滚
-    pass
+from models.model_config import ModelConfig, LLMProvider, ModelType
 ```
 
-**Step 2: 运行迁移（在开发环境测试）**
+以及 `__all__` 列表中的相关导出。
+
+**Step 2: 验证 init_db.py 使用 Base.metadata.create_all**
+
+确认 `backend/init_db.py` 中使用：
+
+```python
+async with engine.begin() as conn:
+    await conn.run_sync(Base.metadata.create_all)
+```
+
+这样在重新部署时，`model_configs` 表不会被创建。
+
+**Step 3: 删除旧的迁移文件（可选）**
+
+如果存在 `backend/migrations/versions/` 中关于 `model_configs` 的迁移文件，可以删除：
 
 ```bash
-cd backend
-alembic upgrade head
+# 查找包含 model_config 的迁移文件
+find backend/migrations/versions/ -name "*.py" -exec grep -l "model_config" {} \;
+
+# 删除相关迁移文件（根据实际情况）
+git rm backend/migrations/versions/004_add_model_type.py
 ```
 
-**Step 3: 提交迁移文件**
+**Step 4: 提交验证结果**
 
 ```bash
-git add backend/migrations/versions/005_remove_model_configs.py
-git commit -m "migration: 删除 model_configs 表"
+git add backend/models/__init__.py
+git commit -m "verify: 确保数据库初始化不包含 model_configs 表"
 ```
+
+**注意**: 由于你会完全重新部署项目，不需要创建删除表的迁移文件。只需确保 `ModelConfig` 模型不再被导入，`Base.metadata.create_all` 就不会创建该表。
 
 ---
 
