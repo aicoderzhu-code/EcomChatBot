@@ -31,8 +31,18 @@ class LLMService:
         self.tenant_id = tenant_id
         self.model_name = settings.llm_model
         self._provider = settings.llm_provider
-        self._api_key = settings.volcengine_api_key
-        self._api_base = settings.volcengine_api_base
+
+        # 根据 provider 选择正确的配置
+        if self._provider == "volcengine":
+            self._api_key = settings.volcengine_api_key
+            self._api_base = settings.volcengine_api_base
+        else:
+            raise ValueError(f"Unsupported LLM provider: {self._provider}")
+
+        # 验证必需配置
+        if not self._api_key:
+            raise ValueError(f"API key not configured for provider: {self._provider}")
+
         self._temperature = settings.llm_temperature
         self._max_tokens = settings.llm_max_tokens
 
