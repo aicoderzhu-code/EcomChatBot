@@ -305,17 +305,17 @@ class KnowledgeService:
             await rag.delete_knowledge_vectors([knowledge_id])
 
             # 检查是否还有 active 文档
-                count_result = await self.db.execute(
-                    select(func.count()).where(
-                        and_(
-                            KnowledgeBase.tenant_id == self.tenant_id,
-                            KnowledgeBase.status == "active",
-                        )
+            count_result = await self.db.execute(
+                select(func.count()).where(
+                    and_(
+                        KnowledgeBase.tenant_id == self.tenant_id,
+                        KnowledgeBase.status == "active",
                     )
                 )
-                remaining = count_result.scalar()
-                if remaining == 0:
-                    MilvusService(self.tenant_id).drop_tenant_partition()
+            )
+            remaining = count_result.scalar()
+            if remaining == 0:
+                MilvusService(self.tenant_id).drop_tenant_partition()
 
     async def search_knowledge(
         self,

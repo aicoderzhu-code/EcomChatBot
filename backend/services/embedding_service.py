@@ -126,48 +126,23 @@ class EmbeddingService:
         self.tenant_id = tenant_id
         self.provider = settings.embedding_provider
         self.model = settings.embedding_model
+
+        # 验证 provider（项目统一使用火山引擎）
+        if self.provider != "volcengine":
+            raise ValueError(f"Unsupported embedding provider: {self.provider}. Only 'volcengine' is supported.")
+
         self.api_key = settings.volcengine_api_key
         self.api_base = settings.volcengine_api_base
         self.dimension = settings.embedding_dimension
 
         # 验证必需配置
         if not self.api_key:
-            raise ValueError(f"API key not configured for provider: {self.provider}")
+            raise ValueError("volcengine_api_key is required")
+        if not self.model:
+            raise ValueError("embedding_model is required")
 
-        # 根据 provider 初始化对应的 embedding 实例
-        if self.provider == "volcengine":
-            self.embeddings = self._init_volcengine_embeddings()
-        elif self.provider == "zhipuai":
-            # ZhipuAI 不兼容 LangChain 的 tiktoken 分词，直接用 httpx 调用
-            self.embeddings = _ZhipuAIEmbeddings(
-                api_key=self.api_key,
-                model=self.model,
-            )
-        elif self.provider == "qwen":
-            # Qwen: v3 支持 OpenAI 兼容格式，v2 及以下需要 DashScope 原生 API
-            if self.model in QWEN_OPENAI_COMPATIBLE_MODELS:
-                self.embeddings = OpenAIEmbeddings(
-                    model=self.model,
-                    openai_api_key=self.api_key,
-                    openai_api_base=self.api_base or PROVIDER_DEFAULT_BASE["qwen"],
-                )
-            else:
-                # text-embedding-v2 等需要 DashScope 原生 API
-                self.embeddings = _QwenEmbeddings(
-                    api_key=self.api_key,
-                    model=self.model,
-                )
-        elif self.provider in OPENAI_COMPATIBLE:
-            base = self.api_base or PROVIDER_DEFAULT_BASE.get(
-                self.provider, "https://api.openai.com/v1"
-            )
-            self.embeddings = OpenAIEmbeddings(
-                model=self.model,
-                openai_api_key=self.api_key,
-                openai_api_base=base,
-            )
-        else:
-            raise ValueError(f"Unsupported embedding provider: {self.provider}")
+        # 初始化 embedding 实例
+        self.embeddings = self._init_volcengine_embeddings()
 
     def _init_volcengine_embeddings(self):
         """初始化火山引擎 embedding（兼容 OpenAI 接口）"""
