@@ -252,14 +252,8 @@ class DialogGraphService:
                 "total_tokens": int
             }
         """
-        # 从数据库加载默认 LLM 配置（优先于环境变量）
-        try:
-            from services.model_config_service import ModelConfigService
-            model_config = await ModelConfigService(self.db, self.tenant_id).get_default_model(use_case="dialogue")
-            if model_config:
-                self.llm_service = LLMService(self.tenant_id, model_config=model_config)
-        except Exception:
-            pass
+        # LLM 配置已通过环境变量加载，无需重新初始化
+        pass
 
         # 初始化状态
         initial_state: DialogState = {
