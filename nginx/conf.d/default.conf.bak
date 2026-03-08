@@ -1,0 +1,6 @@
+# 默认 server 块：拒绝非域名直接 IP 访问（安全加固）
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
