@@ -15,7 +15,7 @@ import { Conversation } from '@/types';
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardSummary | null>(null);
-  const [trendData, setTrendData] = useState<Array<{ date: string; value: number }>>([]);
+  const [trendData, setTrendData] = useState<Array<{ date: string; value: number; type: string }>>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [quota, setQuota] = useState<QuotaUsage | null>(null);
 
@@ -39,10 +39,10 @@ export default function DashboardPage() {
 
         // Transform hourly trend data
         if (trendRes.success && trendRes.data) {
-          const transformed = (trendRes.data as HourlyTrend[]).map((item) => ({
-            date: item.hour,
-            value: item.count,
-          }));
+          const transformed = (trendRes.data as HourlyTrend[]).flatMap((item) => [
+            { date: item.hour, value: item.conversations, type: '对话数' },
+            { date: item.hour, value: item.messages, type: '消息数' },
+          ]);
           setTrendData(transformed);
         }
 
@@ -156,22 +156,39 @@ export default function DashboardPage() {
         <Card size="small" title="本月配额使用">
           <Row gutter={[16, 8]}>
             {[
-              { label: 'AI 回复', used: quota.reply_used, total: quota.reply_quota, color: '#1677ff' },
-              { label: '图片生成', used: quota.image_gen_used, total: quota.image_gen_quota, color: '#722ed1' },
-              { label: '视频生成', used: quota.video_gen_used, total: quota.video_gen_quota, color: '#13c2c2' },
+              { label: 'AI 回复', used: quota.reply_used, total: 0, unlimited: true, color: '#1677ff' },
+              { label: '图片生成', used: quota.image_gen_used, total: quota.image_gen_quota + (quota.image_gen_addon_balance || 0), unlimited: false, color: '#722ed1' },
+              { label: '视频生成', used: quota.video_gen_used, total: quota.video_gen_quota + (quota.video_gen_addon_balance || 0), unlimited: false, color: '#13c2c2' },
             ].map((item) => (
               <Col xs={24} sm={8} key={item.label}>
                 <div className="text-center">
-                  <Progress
-                    type="dashboard"
-                    size={80}
-                    percent={item.total > 0 ? Math.round((item.used / item.total) * 100) : 0}
-                    strokeColor={item.color}
-                    format={() => `${item.used}/${item.total}`}
-                  />
-                  <div className="mt-1">
-                    <Typography.Text className="text-xs">{item.label}</Typography.Text>
-                  </div>
+                  {item.unlimited ? (
+                    <>
+                      <Progress
+                        type="dashboard"
+                        size={80}
+                        percent={0}
+                        strokeColor={item.color}
+                        format={() => '不限量'}
+                      />
+                      <div className="mt-1">
+                        <Typography.Text className="text-xs">{item.label} (已用 {item.used})</Typography.Text>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Progress
+                        type="dashboard"
+                        size={80}
+                        percent={item.total > 0 ? Math.round((item.used / item.total) * 100) : 0}
+                        strokeColor={item.color}
+                        format={() => `${item.used}/${item.total}`}
+                      />
+                      <div className="mt-1">
+                        <Typography.Text className="text-xs">{item.label}</Typography.Text>
+                      </div>
+                    </>
+                  )}
                 </div>
               </Col>
             ))}

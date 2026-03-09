@@ -1,12 +1,12 @@
 'use client';
 
 import { Card, Typography } from 'antd';
-import { Line } from '@ant-design/charts';
+import { Area } from '@ant-design/charts';
 
 const { Title } = Typography;
 
 interface TrendChartProps {
-  data: { date: string; value: number }[];
+  data: { date: string; value: number; type: string }[];
   title: string;
 }
 
@@ -17,22 +17,33 @@ export default function TrendChart({ data, title }: TrendChartProps) {
     data,
     xField: 'date',
     yField: 'value',
+    seriesField: 'type',
     smooth: true,
+    color: ['#2563eb', '#06b6d4'],
+    areaStyle: (datum: { type: string }) => {
+      if (datum.type === '对话数') {
+        return {
+          fill: 'l(270) 0:rgba(37,99,235,0.01) 1:rgba(37,99,235,0.25)',
+        };
+      }
+      return {
+        fill: 'l(270) 0:rgba(6,182,212,0.01) 1:rgba(6,182,212,0.25)',
+      };
+    },
     point: {
-      size: 4,
+      size: 3,
       shape: 'circle',
     },
-    color: '#2563eb',
     xAxis: {
       label: {
         autoHide: true,
-        autoRotate: true,
+        autoRotate: false,
         formatter: (v: string) => {
           const timePart = v.split(' ').pop() || v;
           return timePart.slice(0, 5);
         },
       },
-      tickCount: 12,
+      tickCount: 8,
     },
     yAxis: {
       min: 0,
@@ -42,10 +53,16 @@ export default function TrendChart({ data, title }: TrendChartProps) {
       },
     },
     tooltip: {
-      formatter: (datum: { date: string; value: number }) => {
-        return { name: '对话数', value: datum.value };
+      shared: true,
+      showCrosshairs: true,
+      crosshairs: {
+        type: 'x' as const,
       },
     },
+    legend: {
+      position: 'top-right' as const,
+    },
+    interactions: [{ type: 'element-highlight' }],
   };
 
   return (
@@ -53,8 +70,8 @@ export default function TrendChart({ data, title }: TrendChartProps) {
       <Title level={5} className="mb-4">
         {title}
       </Title>
-      <div style={{ height: 200 }}>
-        <Line {...config} />
+      <div style={{ height: 280 }}>
+        <Area {...config} />
       </div>
     </Card>
   );

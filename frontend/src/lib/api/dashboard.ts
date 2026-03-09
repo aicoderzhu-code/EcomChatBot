@@ -52,7 +52,8 @@ export interface DashboardSummary {
 
 export interface HourlyTrend {
   hour: string;
-  count: number;
+  conversations: number;
+  messages: number;
 }
 
 export const dashboardApi = {
