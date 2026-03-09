@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Row, Col, Card, Button, Statistic, message, Typography, Form, Alert } from 'antd';
+import { Row, Col, Card, Button, Statistic, message, Typography } from 'antd';
 import Skeleton from '@/components/ui/Loading/Skeleton';
 import { PlusOutlined, FileTextOutlined, AppstoreOutlined, CloudOutlined } from '@ant-design/icons';
 import {
@@ -9,7 +9,7 @@ import {
   UploadModal,
   EnhancedRetrievalTest,
 } from '@/components/knowledge';
-import { knowledgeApi, KnowledgeItem, KnowledgeSettings } from '@/lib/api/knowledge';
+import { knowledgeApi, KnowledgeItem } from '@/lib/api/knowledge';
 import { KnowledgeDocument, KnowledgeSearchResult } from '@/types';
 
 const { Title } = Typography;
@@ -49,10 +49,6 @@ export default function KnowledgePage() {
     totalChunks: 0,
     storageUsed: 0,
   });
-
-  // Knowledge settings
-  const [knowledgeSettings, setKnowledgeSettings] = useState<KnowledgeSettings | null>(null);
-  const [savingSettings, setSavingSettings] = useState(false);
 
   // Load stats from dedicated endpoint
   const loadStats = useCallback(async () => {
@@ -147,18 +143,6 @@ export default function KnowledgePage() {
     }
   }, []);
 
-  // Load settings and model configs
-  const loadSettings = useCallback(async () => {
-    try {
-      const settingsResp = await knowledgeApi.getSettings();
-      if (settingsResp.success && settingsResp.data) {
-        setKnowledgeSettings(settingsResp.data);
-      }
-    } catch (err) {
-      console.error('Failed to load knowledge settings:', err);
-    }
-  }, []);
-
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchValue);
@@ -169,31 +153,8 @@ export default function KnowledgePage() {
   useEffect(() => {
     loadDocuments(pagination.current, pagination.pageSize, debouncedSearch);
     loadStats();
-    loadSettings();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadDocuments, loadStats, loadSettings, pagination.current, pagination.pageSize, debouncedSearch]);
-
-  const handleSaveSettings = async () => {
-    if (!knowledgeSettings) return;
-    setSavingSettings(true);
-    try {
-      const resp = await knowledgeApi.updateSettings({
-        embedding_model_id: knowledgeSettings.embedding_model_id,
-        rerank_model_id: knowledgeSettings.rerank_model_id,
-      });
-      if (resp.success && resp.data) {
-        setKnowledgeSettings(resp.data);
-        message.success('设置已保存');
-      } else {
-        message.error('保存失败');
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : '保存失败';
-      message.error(errMsg);
-    } finally {
-      setSavingSettings(false);
-    }
-  };
+  }, [loadDocuments, loadStats, pagination.current, pagination.pageSize, debouncedSearch]);
 
   const handleUpload = async (files: File[]) => {
     setUploading(true);
@@ -282,39 +243,6 @@ export default function KnowledgePage() {
           上传新文档
         </Button>
       </div>
-
-      {/* Knowledge Settings */}
-      <Card title="知识库设置" className="mb-4">
-        <Alert
-          message="模型配置已迁移至环境变量"
-          description="嵌入模型和重排模型现在通过环境变量配置，无需在界面中选择。"
-          type="info"
-          showIcon
-          className="mb-4"
-        />
-        <Form layout="inline">
-          <Form.Item>
-            <Button type="primary" loading={savingSettings} onClick={handleSaveSettings}>
-              保存设置
-            </Button>
-          </Form.Item>
-        </Form>
-        {knowledgeSettings?.has_indexed_documents && (
-          <Alert
-            className="mt-3"
-            message="嵌入模型已锁定"
-            description="知识库已有文档。若需更换嵌入模型，请先删除所有文档。"
-            type="warning"
-            showIcon
-          />
-        )}
-        <Alert
-          className="mt-3"
-          message="请先保存设置后再上传文档，否则刷新页面后模型选择将丢失。"
-          type="info"
-          showIcon
-        />
-      </Card>
 
       {/* Stats */}
       <Row gutter={[16, 16]}>

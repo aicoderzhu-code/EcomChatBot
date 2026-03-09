@@ -90,6 +90,7 @@ from schemas.setup import (
     SetupStatus,
     InitialAdminCreate,
 )
+from schemas.quota import QuotaUsageResponse
 
 __all__ = [
     # Base
@@ -177,4 +178,6 @@ __all__ = [
     # Setup
     "SetupStatus",
     "InitialAdminCreate",
+    # Quota
+    "QuotaUsageResponse",
 ]

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Alert, Button, Card, Modal, Radio, Tag, Typography } from 'antd';
 import Skeleton from '@/components/ui/Loading/Skeleton';
 import { subscriptionApi, SubscriptionStatus, CreateOrderResponse } from '@/lib/api/subscription';
+import QuotaUsagePanel from './QuotaUsagePanel';
 
 const { Title, Text } = Typography;
 
@@ -104,6 +105,8 @@ export default function SubscriptionPanel() {
   const selectedPlanInfo = PLAN_PRICES.find(p => p.key === selectedPlan);
 
   return (
+    <>
+    <QuotaUsagePanel />
     <Card>
       <Title level={5} className="mb-4">订阅管理</Title>
       {loading ? (
@@ -250,5 +253,6 @@ export default function SubscriptionPanel() {
         )}
       </Modal>
     </Card>
+    </>
   );
 }

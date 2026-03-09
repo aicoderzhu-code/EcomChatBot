@@ -40,6 +40,7 @@ from services.statistics_service import StatisticsService
 from services.analytics_service import AnalyticsService
 from services.metrics_service import MetricsService
 from services.setup_service import SetupService
+from services.quota_service import QuotaService, QuotaExceededError
 
 __all__ = [
     "AdminService",
@@ -96,4 +97,7 @@ __all__ = [
     "MetricsService",
     # Setup
     "SetupService",
+    # Quota
+    "QuotaService",
+    "QuotaExceededError",
 ]

@@ -92,6 +92,12 @@ celery_app.conf.beat_schedule = {
         "task": "tasks.billing_tasks.generate_monthly_bills",
         "schedule": crontab(hour=3, day_of_month=1),  # 每月1号3点
     },
+    # 每月1号凌晨0点重置配额
+    "reset-monthly-quotas": {
+        "task": "tasks.billing_tasks.reset_monthly_quotas",
+        "schedule": crontab(hour=0, minute=0, day_of_month=1),
+        "options": {"queue": "billing"},
+    },
     # 每5分钟重试失败的 Webhook
     "retry-failed-webhooks": {
         "task": "tasks.webhook_tasks.retry_failed_webhooks",

@@ -933,6 +933,41 @@ async def send_subscription_expired_notification(tenant_id: str, subscription: S
 
 
 @celery_app.task
+async def reset_monthly_quotas() -> Dict[str, Any]:
+    """
+    每月1号重置所有租户配额
+
+    Returns:
+        重置结果
+    """
+    try:
+        period = datetime.utcnow().strftime("%Y-%m")
+        logger.info(f"开始重置月度配额: period={period}")
+
+        async with get_async_session() as db:
+            from services.quota_service import QuotaService
+
+            quota_service = QuotaService(db)
+            count = await quota_service.reset_all_quotas(period)
+            await db.commit()
+
+            logger.info(f"月度配额重置完成: 创建了 {count} 条配额记录")
+            return {
+                "success": True,
+                "period": period,
+                "created_count": count,
+                "message": f"月度配额重置完成，创建了 {count} 条记录",
+            }
+
+    except Exception as e:
+        logger.error(f"月度配额重置失败: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@celery_app.task
 async def check_service_degradation() -> Dict[str, Any]:
     """
     检查服务降级

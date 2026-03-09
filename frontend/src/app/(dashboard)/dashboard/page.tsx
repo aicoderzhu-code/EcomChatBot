@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Row, Col, message, Card, Empty } from 'antd';
+import { Row, Col, message, Card, Empty, Progress, Typography } from 'antd';
 import Skeleton from '@/components/ui/Loading/Skeleton';
 import {
   StatCard,
@@ -9,6 +9,7 @@ import {
   RecentConversations,
 } from '@/components/dashboard';
 import { dashboardApi, DashboardSummary, HourlyTrend } from '@/lib/api/dashboard';
+import { subscriptionApi, QuotaUsage } from '@/lib/api/subscription';
 import { Conversation } from '@/types';
 
 export default function DashboardPage() {
@@ -16,6 +17,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardSummary | null>(null);
   const [trendData, setTrendData] = useState<Array<{ date: string; value: number }>>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [quota, setQuota] = useState<QuotaUsage | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -23,10 +25,11 @@ export default function DashboardPage() {
         setLoading(true);
 
         // Fetch dashboard data in parallel
-        const [summaryRes, trendRes, convRes] = await Promise.all([
+        const [summaryRes, trendRes, convRes, quotaRes] = await Promise.all([
           dashboardApi.getSummary('24h').catch(() => ({ success: false, data: null })),
           dashboardApi.getHourlyTrend(24).catch(() => ({ success: false, data: [] })),
           dashboardApi.getRecentConversations(10).catch(() => ({ success: false, data: null })),
+          subscriptionApi.getQuotaUsage().catch(() => ({ success: false, data: null })),
         ]);
 
         // Set stats
@@ -46,6 +49,11 @@ export default function DashboardPage() {
         // Set conversations
         if (convRes.success && convRes.data) {
           setConversations(convRes.data.items || []);
+        }
+
+        // Set quota
+        if (quotaRes.success && quotaRes.data) {
+          setQuota(quotaRes.data);
         }
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
@@ -142,6 +150,34 @@ export default function DashboardPage() {
           />
         </Col>
       </Row>
+
+      {/* Quota Overview */}
+      {quota && (
+        <Card size="small" title="本月配额使用">
+          <Row gutter={[16, 8]}>
+            {[
+              { label: 'AI 回复', used: quota.reply_used, total: quota.reply_quota, color: '#1677ff' },
+              { label: '图片生成', used: quota.image_gen_used, total: quota.image_gen_quota, color: '#722ed1' },
+              { label: '视频生成', used: quota.video_gen_used, total: quota.video_gen_quota, color: '#13c2c2' },
+            ].map((item) => (
+              <Col xs={24} sm={8} key={item.label}>
+                <div className="text-center">
+                  <Progress
+                    type="dashboard"
+                    size={80}
+                    percent={item.total > 0 ? Math.round((item.used / item.total) * 100) : 0}
+                    strokeColor={item.color}
+                    format={() => `${item.used}/${item.total}`}
+                  />
+                  <div className="mt-1">
+                    <Typography.Text className="text-xs">{item.label}</Typography.Text>
+                  </div>
+                </div>
+              </Col>
+            ))}
+          </Row>
+        </Card>
+      )}
 
       {/* Trend Chart */}
       <Row gutter={[16, 16]}>

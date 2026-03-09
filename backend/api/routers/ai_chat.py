@@ -11,6 +11,7 @@ from api.middleware import ConversationQuotaDep, ApiQuotaDep
 from schemas import ApiResponse
 from services import ConversationChainService, simple_chat
 from services.knowledge_service import KnowledgeService
+from services.quota_service import QuotaService, QuotaExceededError
 
 router = APIRouter(prefix="/ai-chat", tags=["AI 智能对话"])
 
@@ -54,6 +55,16 @@ async def ai_chat(
     - RAG 知识库检索
     """
     try:
+        # 检查AI回复配额
+        quota_service = QuotaService(db)
+        try:
+            await quota_service.check_reply_quota(tenant_id)
+        except QuotaExceededError as e:
+            return ApiResponse(
+                success=False,
+                error={"code": "QUOTA_EXCEEDED", "message": str(e)},
+            )
+
         knowledge_items = None
 
         # 如果使用 RAG，先检索知识库
@@ -98,8 +109,14 @@ async def ai_chat(
             sources=result.get("sources"),
         )
 
+        # 扣减配额
+        await quota_service.increment_reply(tenant_id)
+        await db.commit()
+
         return ApiResponse(data=response_data)
 
+    except QuotaExceededError:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"对话失败: {str(e)}")
 
@@ -117,6 +134,20 @@ async def ai_chat_stream(
 
     事件类型: chunk / sources / done / error
     """
+    # 检查AI回复配额（在生成器外部检查，尽早返回错误）
+    quota_service = QuotaService(db)
+    try:
+        await quota_service.check_reply_quota(tenant_id)
+    except QuotaExceededError as e:
+        async def quota_error_gen():
+            error_data = {"code": "QUOTA_EXCEEDED", "message": str(e)}
+            yield f"event: error\ndata: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+        return StreamingResponse(
+            quota_error_gen(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+        )
+
     async def sse_generator():
         try:
             # 1. RAG retrieval (if enabled)
@@ -184,6 +215,10 @@ async def ai_chat_stream(
             # 4. Persist messages and update memory (after stream completes)
             chain.memory.add_user_message(request.message)
             chain.memory.add_ai_message(full_response)
+
+            # 5. 扣减配额
+            await quota_service.increment_reply(tenant_id)
+            await db.commit()
 
         except Exception as e:
             error_data = {"code": "INTERNAL_ERROR", "message": str(e)}

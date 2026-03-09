@@ -113,6 +113,37 @@ SUBSCRIPTION_PLANS = {
     "annual":      {"name": "年付版", "price": 1699, "days": 365},
 }
 
+# 配额常量定义
+QUOTA_CONFIGS = {
+    # 正式套餐配额（月度）
+    "standard": {
+        "reply_quota": 3000,
+        "image_gen_quota": 100,
+        "video_gen_quota": 10,
+    },
+    # 试用版配额（减半）
+    "trial": {
+        "reply_quota": 1500,
+        "image_gen_quota": 50,
+        "video_gen_quota": 5,
+    },
+}
+
+# 加量包定义
+ADDON_PACKAGES = {
+    "reply_addon": {"price": 29, "reply_quota": 1000},
+    "image_addon": {"price": 19, "image_gen_quota": 50},
+    "video_addon": {"price": 49, "video_gen_quota": 10},
+}
+
+
+def get_quota_config(plan_type: str) -> dict:
+    """根据套餐类型获取配额配置"""
+    if plan_type == "trial":
+        return QUOTA_CONFIGS["trial"]
+    return QUOTA_CONFIGS["standard"]
+
+
 # 套餐配置
 PLAN_CONFIGS = {
     "free": {

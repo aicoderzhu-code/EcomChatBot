@@ -31,6 +31,7 @@ from api.routers import (
     content_generation,
     pricing,
     quality,
+    quota,
     rag,
     recommendation,
     segment,
@@ -282,6 +283,7 @@ app.include_router(outreach.router, prefix=settings.api_v1_prefix)
 app.include_router(segment.router, prefix=settings.api_v1_prefix)
 app.include_router(follow_up.router, prefix=settings.api_v1_prefix)
 app.include_router(recommendation.router, prefix=settings.api_v1_prefix)
+app.include_router(quota.router, prefix=settings.api_v1_prefix)
 app.include_router(pdd_webhook.router)
 
 

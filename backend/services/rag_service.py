@@ -215,14 +215,15 @@ class RAGService:
         if not chunks:
             chunks = [knowledge.title or knowledge.content or knowledge_id]
 
-        # 3. 逐 chunk 生成向量，并准备 Milvus 插入数据
+        # 3. 批量生成向量
+        texts = [f"{knowledge.title}\n{chunk}" for chunk in chunks]
+        vectors = await self.embedding_service.embed_documents(texts)
+
+        # 4. 准备 Milvus 插入数据
         knowledge_items = []
-        vectors = []
         first_vector_id = None
 
         for chunk in chunks:
-            text = f"{knowledge.title}\n{chunk}"
-            vector = await self.embedding_service.embed_text(text)
             vector_id = str(uuid.uuid4())
             if first_vector_id is None:
                 first_vector_id = vector_id
@@ -233,9 +234,8 @@ class RAGService:
                     "content": chunk,
                 }
             )
-            vectors.append(vector)
 
-        # 4. 批量插入 Milvus
+        # 5. 批量插入 Milvus
         dim = len(vectors[0]) if vectors else None
         await self.milvus_service.insert_vectors(
             knowledge_items=knowledge_items,
@@ -243,7 +243,7 @@ class RAGService:
             dimension=dim,
         )
 
-        # 5. 更新 DB 记录的向量 ID 和模型名称
+        # 6. 更新 DB 记录的向量 ID 和模型名称
         await self.db.execute(
             sa_update(KnowledgeBase)
             .where(KnowledgeBase.knowledge_id == knowledge_id)

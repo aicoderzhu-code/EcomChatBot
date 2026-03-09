@@ -32,6 +32,16 @@ export interface OrderStatus {
   created_at: string;
 }
 
+export interface QuotaUsage {
+  billing_period: string;
+  reply_quota: number;
+  reply_used: number;
+  image_gen_quota: number;
+  image_gen_used: number;
+  video_gen_quota: number;
+  video_gen_used: number;
+}
+
 export const subscriptionApi = {
   getStatus: async (): Promise<ApiResponse<SubscriptionStatus>> => {
     const response = await apiClient.get<ApiResponse<SubscriptionStatus>>(
@@ -55,6 +65,13 @@ export const subscriptionApi = {
   syncOrder: async (orderNumber: string): Promise<ApiResponse<{ order: OrderStatus }>> => {
     const response = await apiClient.post<ApiResponse<{ order: OrderStatus }>>(
       `/payment/orders/${orderNumber}/sync`
+    );
+    return response.data;
+  },
+
+  getQuotaUsage: async (): Promise<ApiResponse<QuotaUsage>> => {
+    const response = await apiClient.get<ApiResponse<QuotaUsage>>(
+      '/quota/usage'
     );
     return response.data;
   },

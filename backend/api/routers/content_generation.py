@@ -24,6 +24,7 @@ from services.content_generation.template_service import TemplateService
 from services.content_generation.platform_spec_service import PlatformSpecService
 from services.content_generation.provider_capabilities import get_capabilities
 from services.storage_service import StorageService
+from services.quota_service import QuotaService, QuotaExceededError
 from tasks.generation_tasks import run_generation
 
 router = APIRouter(prefix="/content", tags=["内容生成"])
@@ -219,6 +220,22 @@ async def create_generation(
     db: DBDep,
 ):
     """创建内容生成任务"""
+    # 检查配额
+    quota_service = QuotaService(db)
+    try:
+        if request.task_type == "poster":
+            await quota_service.check_image_quota(tenant_id)
+        elif request.task_type == "video":
+            await quota_service.check_video_quota(tenant_id)
+        else:
+            # title/description 使用 LLM，消耗回复配额
+            await quota_service.check_reply_quota(tenant_id)
+    except QuotaExceededError as e:
+        return ApiResponse(
+            success=False,
+            error={"code": "QUOTA_EXCEEDED", "message": str(e)},
+        )
+
     service = GenerationService(db, tenant_id)
     task = await service.create_task(
         task_type=request.task_type,
@@ -232,6 +249,16 @@ async def create_generation(
         target_platform=request.target_platform,
         generation_mode=request.generation_mode,
     )
+
+    # 扣减配额
+    if request.task_type == "poster":
+        await quota_service.increment_image(tenant_id)
+    elif request.task_type == "video":
+        await quota_service.increment_video(tenant_id)
+    else:
+        await quota_service.increment_reply(tenant_id)
+    await db.commit()
+
     # 异步执行
     run_generation.delay(task.id, tenant_id)
     return ApiResponse(data=task)

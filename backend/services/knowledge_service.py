@@ -13,10 +13,9 @@ from models import KnowledgeBase
 from models.knowledge_settings import KnowledgeSettings
 
 
-async def _embed_in_background(knowledge_id: str, tenant_id: str, embedding_model_id: int) -> None:
+async def _embed_in_background(knowledge_id: str, tenant_id: str) -> None:
     """后台向量化任务，使用独立的 DB session，不阻塞 HTTP 响应"""
     from db.session import AsyncSessionLocal
-    from models.model_config import ModelConfig
     from services.rag_service import RAGService
 
     # 先标记为"执行中"
@@ -82,10 +81,6 @@ class KnowledgeService:
         random_suffix = uuid.uuid4().hex[:8]
         knowledge_id = f"kb_{self.tenant_id}_{timestamp}_{random_suffix}"
 
-        # 提前查询 embedding 配置，决定初始状态
-        ks = await self.get_settings()
-        initial_embedding_status = "pending" if ks.embedding_model_id else "completed"
-
         knowledge = KnowledgeBase(
             tenant_id=self.tenant_id,
             knowledge_id=knowledge_id,
@@ -97,7 +92,7 @@ class KnowledgeService:
             source=source,
             priority=priority,
             status="active",
-            embedding_status=initial_embedding_status,
+            embedding_status="pending",
             chunk_count=chunk_count,
             file_size=file_size,
         )
@@ -106,11 +101,10 @@ class KnowledgeService:
         await self.db.commit()
         await self.db.refresh(knowledge)
 
-        # 触发向量化（如已配置 embedding 模型）—— 后台异步执行，不阻塞 HTTP 响应
-        if ks.embedding_model_id:
-            asyncio.create_task(
-                _embed_in_background(knowledge.knowledge_id, self.tenant_id, ks.embedding_model_id)
-            )
+        # 触发向量化 —— 后台异步执行，不阻塞 HTTP 响应
+        asyncio.create_task(
+            _embed_in_background(knowledge.knowledge_id, self.tenant_id)
+        )
 
         return knowledge
 
@@ -296,9 +290,7 @@ class KnowledgeService:
         await self.db.commit()
 
         # 删除 Milvus 向量
-        ks = await self.get_settings()
-        if ks.embedding_model_id:
-            from models.model_config import ModelConfig
+        try:
             from services.rag_service import RAGService
             from services.milvus_service import MilvusService
             rag = RAGService(self.db, self.tenant_id)
@@ -316,6 +308,9 @@ class KnowledgeService:
             remaining = count_result.scalar()
             if remaining == 0:
                 MilvusService(self.tenant_id).drop_tenant_partition()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("清理 Milvus 向量失败: %s", e)
 
     async def search_knowledge(
         self,

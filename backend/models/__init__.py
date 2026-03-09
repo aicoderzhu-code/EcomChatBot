@@ -49,6 +49,7 @@ from models.outreach import (
     CampaignType, CampaignStatus, ContentStrategy, OutreachTaskStatus, RuleType,
 )
 from models.follow_up import FollowUpPlan, FollowUpReason, FollowUpStatus
+from models.quota import TenantQuota
 from models.recommendation import (
     RecommendationRule, RecommendationLog,
     RecommendRuleType, RecommendTriggerType, RecommendStrategy,
@@ -155,4 +156,6 @@ __all__ = [
     "RecommendRuleType",
     "RecommendTriggerType",
     "RecommendStrategy",
+    # Quota
+    "TenantQuota",
 ]
