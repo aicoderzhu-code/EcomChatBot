@@ -22,6 +22,8 @@ celery_app = Celery(
         "tasks.product_sync_tasks",
         "tasks.generation_tasks",
         "tasks.outreach_tasks",
+        "tasks.conversation_tasks",
+        "tasks.knowledge_tasks",
     ],
 )
 

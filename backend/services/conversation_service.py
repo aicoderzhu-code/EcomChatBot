@@ -1,6 +1,7 @@
 """
 对话管理服务
 """
+import logging
 import uuid
 from datetime import datetime
 
@@ -10,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.exceptions import ConversationNotFoundException
 from core.security import generate_conversation_id
 from models import Conversation, Message, User
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationService:
@@ -240,6 +243,22 @@ class ConversationService:
             conversation.satisfaction_score = satisfaction_score
         if feedback:
             conversation.feedback = feedback
+
+        # 异步生成摘要（消息数 >= 5 时）
+        if conversation.message_count >= 5:
+            try:
+                from tasks.conversation_tasks import generate_conversation_summary
+                generate_conversation_summary.delay(self.tenant_id, conversation_id)
+            except Exception as e:
+                logger.warning("Failed to trigger summary generation: %s", e)
+
+        # 异步提取知识（消息数 >= 4 时）
+        if conversation.message_count >= 4:
+            try:
+                from tasks.knowledge_tasks import extract_knowledge_from_conversation
+                extract_knowledge_from_conversation.delay(self.tenant_id, conversation_id)
+            except Exception as e:
+                logger.warning("Failed to trigger knowledge extraction: %s", e)
 
         await self.db.commit()
         await self.db.refresh(conversation)

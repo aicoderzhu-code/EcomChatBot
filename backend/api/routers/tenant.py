@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from fastapi import APIRouter, Query, HTTPException, status
 
-from api.dependencies import DBDep, TenantDep, TenantTokenDep
+from api.dependencies import DBDep, TenantFlexDep, TenantTokenDep
 from core import create_access_token, settings
 from schemas import (
     ApiResponse,
@@ -96,10 +96,10 @@ async def login_tenant(
 
 @router.get("/info", response_model=ApiResponse[TenantResponse])
 async def get_tenant_info(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
-    """获取租户信息（支持API Key认证）"""
+    """获取租户信息（支持API Key和JWT Token认证）"""
     service = TenantService(db)
     tenant = await service.get_tenant(tenant_id)
     return ApiResponse(data=tenant)
@@ -139,10 +139,10 @@ async def reset_api_key(
 
 @router.get("/subscription", response_model=ApiResponse[SubscriptionResponse])
 async def get_subscription(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
-    """获取订阅信息（支持API Key认证）"""
+    """获取订阅信息（支持API Key和JWT Token认证）"""
     service = SubscriptionService(db)
     subscription = await service.get_subscription(tenant_id)
     return ApiResponse(data=subscription)

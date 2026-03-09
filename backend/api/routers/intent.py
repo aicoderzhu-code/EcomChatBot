@@ -4,7 +4,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from schemas import ApiResponse
 from services import IntentService, IntentType
 
@@ -40,7 +40,7 @@ class EntityExtractRequest(BaseModel):
 @router.post("/classify", response_model=ApiResponse[dict])
 async def classify_intent(
     request: IntentClassifyRequest,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -83,7 +83,7 @@ async def classify_intent(
 @router.post("/extract-entities", response_model=ApiResponse[dict])
 async def extract_entities(
     request: EntityExtractRequest,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -117,7 +117,7 @@ async def extract_entities(
 
 @router.get("/intents", response_model=ApiResponse[list[str]])
 async def get_available_intents(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """

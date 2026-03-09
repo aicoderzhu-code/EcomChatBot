@@ -1,13 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Row, Col, Card, Button, Statistic, message, Typography } from 'antd';
+import { Row, Col, Card, Button, Statistic, message, Typography, Tabs } from 'antd';
 import Skeleton from '@/components/ui/Loading/Skeleton';
-import { PlusOutlined, FileTextOutlined, AppstoreOutlined, CloudOutlined } from '@ant-design/icons';
+import {
+  PlusOutlined, FileTextOutlined, AppstoreOutlined, CloudOutlined,
+  QuestionCircleOutlined, BarChartOutlined, BulbOutlined,
+} from '@ant-design/icons';
 import {
   DocumentList,
   UploadModal,
   EnhancedRetrievalTest,
+  QAPairList,
+  RAGAnalyticsDashboard,
+  CandidateReviewQueue,
 } from '@/components/knowledge';
 import { knowledgeApi, KnowledgeItem } from '@/lib/api/knowledge';
 import { KnowledgeDocument, KnowledgeSearchResult } from '@/types';
@@ -29,6 +35,7 @@ const transformToDocument = (item: KnowledgeItem): KnowledgeDocument => ({
 });
 
 export default function KnowledgePage() {
+  const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -230,83 +237,125 @@ export default function KnowledgePage() {
     return matchesStatus;
   });
 
+  const tabItems = [
+    {
+      key: 'documents',
+      label: (
+        <span><FileTextOutlined /> 文档管理</span>
+      ),
+      children: (
+        <div className="space-y-6">
+          {/* Stats */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic
+                  title="总文档数"
+                  value={stats.totalDocuments}
+                  prefix={<FileTextOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic
+                  title="向量切片总数"
+                  value={stats.totalChunks}
+                  prefix={<AppstoreOutlined />}
+                  formatter={(value) => value?.toLocaleString()}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic
+                  title="存储占用"
+                  value={stats.storageUsed}
+                  suffix="MB"
+                  prefix={<CloudOutlined />}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Document List */}
+          <Card title="文档列表">
+            {loading && !searching ? (
+              <div className="py-4">
+                <Skeleton variant="table" rows={5} />
+              </div>
+            ) : (
+              <DocumentList
+                documents={filteredDocuments}
+                loading={searching}
+                searchValue={searchValue}
+                statusFilter={statusFilter}
+                onSearchChange={setSearchValue}
+                onStatusFilterChange={setStatusFilter}
+                onPreview={handlePreview}
+                onDelete={handleDelete}
+                pagination={{
+                  current: pagination.current,
+                  pageSize: pagination.pageSize,
+                  total: pagination.total,
+                  onChange: handlePaginationChange,
+                }}
+              />
+            )}
+          </Card>
+
+          {/* Enhanced Retrieval & RAG Test */}
+          <EnhancedRetrievalTest
+            onSearch={handleSearch}
+            rerankModels={[]}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'qa',
+      label: (
+        <span><QuestionCircleOutlined /> 问答对</span>
+      ),
+      children: <QAPairList />,
+    },
+    {
+      key: 'analytics',
+      label: (
+        <span><BarChartOutlined /> 检索分析</span>
+      ),
+      children: <RAGAnalyticsDashboard />,
+    },
+    {
+      key: 'extraction',
+      label: (
+        <span><BulbOutlined /> 智能提取</span>
+      ),
+      children: <CandidateReviewQueue />,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <Title level={4} className="mb-0">知识库管理</Title>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setUploadModalOpen(true)}
-        >
-          上传新文档
-        </Button>
+        {activeTab === 'documents' && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setUploadModalOpen(true)}
+          >
+            上传新文档
+          </Button>
+        )}
       </div>
 
-      {/* Stats */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="总文档数"
-              value={stats.totalDocuments}
-              prefix={<FileTextOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="向量切片总数"
-              value={stats.totalChunks}
-              prefix={<AppstoreOutlined />}
-              formatter={(value) => value?.toLocaleString()}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="存储占用"
-              value={stats.storageUsed}
-              suffix="MB"
-              prefix={<CloudOutlined />}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Document List */}
-      <Card title="文档列表">
-        {loading && !searching ? (
-          <div className="py-4">
-            <Skeleton variant="table" rows={5} />
-          </div>
-        ) : (
-          <DocumentList
-            documents={filteredDocuments}
-            loading={searching}
-            searchValue={searchValue}
-            statusFilter={statusFilter}
-            onSearchChange={setSearchValue}
-            onStatusFilterChange={setStatusFilter}
-            onPreview={handlePreview}
-            onDelete={handleDelete}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: pagination.total,
-              onChange: handlePaginationChange,
-            }}
-          />
-        )}
-      </Card>
-
-      {/* Enhanced Retrieval & RAG Test */}
-      <EnhancedRetrievalTest
-        onSearch={handleSearch}
-        rerankModels={[]}
+      {/* Tabs */}
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={tabItems}
       />
 
       {/* Upload Modal */}

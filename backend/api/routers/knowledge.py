@@ -262,6 +262,76 @@ async def rag_query(
     )
 
 
+# ============ 版本管理 - 固定路径 ============
+
+@router.get("/{knowledge_id}/versions", response_model=ApiResponse[PaginatedResponse])
+async def get_version_history(
+    knowledge_id: str,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+):
+    """获取版本历史列表"""
+    from services.knowledge_version_service import KnowledgeVersionService
+    from schemas.knowledge_version import KnowledgeVersionResponse
+
+    service = KnowledgeVersionService(db, tenant_id)
+    versions, total = await service.get_version_history(
+        knowledge_id, page=page, size=size,
+    )
+    paginated = PaginatedResponse.create(
+        items=versions, total=total, page=page, size=size,
+    )
+    return ApiResponse(data=paginated)
+
+
+@router.get("/{knowledge_id}/versions/{version_num}", response_model=ApiResponse[dict])
+async def get_version_detail(
+    knowledge_id: str,
+    version_num: int,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """查看特定版本内容"""
+    from services.knowledge_version_service import KnowledgeVersionService
+
+    service = KnowledgeVersionService(db, tenant_id)
+    version = await service.get_version_detail(knowledge_id, version_num)
+    return ApiResponse(data=version)
+
+
+@router.get("/{knowledge_id}/versions/{v1}/diff/{v2}", response_model=ApiResponse[dict])
+async def compare_versions(
+    knowledge_id: str,
+    v1: int,
+    v2: int,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """版本对比"""
+    from services.knowledge_version_service import KnowledgeVersionService
+
+    service = KnowledgeVersionService(db, tenant_id)
+    diff = await service.compare_versions(knowledge_id, v1, v2)
+    return ApiResponse(data=diff)
+
+
+@router.post("/{knowledge_id}/versions/{version_num}/rollback", response_model=ApiResponse[KnowledgeBaseResponse])
+async def rollback_version(
+    knowledge_id: str,
+    version_num: int,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """回滚到指定版本"""
+    from services.knowledge_version_service import KnowledgeVersionService
+
+    service = KnowledgeVersionService(db, tenant_id)
+    knowledge = await service.rollback_to_version(knowledge_id, version_num)
+    return ApiResponse(data=knowledge)
+
+
 # ============ 固定路径结束，参数路径在最后 ============
 
 @router.get("/{knowledge_id}", response_model=ApiResponse[KnowledgeBaseResponse])

@@ -24,9 +24,7 @@ def _collection_exists(name: str) -> bool:
 
 
 class MilvusService:
-    """Milvus 向量数据库服务"""
-
-    COLLECTION_NAME = "knowledge_base"
+    """Milvus 向量数据库服务（租户级 Collection 隔离）"""
 
     def __init__(self, tenant_id: str):
         """
@@ -36,6 +34,7 @@ class MilvusService:
             tenant_id: 租户 ID
         """
         self.tenant_id = tenant_id
+        self.collection_name = f"kb_{tenant_id.replace('-', '_')}"
         self._connect()
 
     def _connect(self) -> None:
@@ -87,12 +86,8 @@ class MilvusService:
         """
         dim = dimension or settings.embedding_dimension
 
-        if _collection_exists(self.COLLECTION_NAME):
-            collection = Collection(self.COLLECTION_NAME)
-            # 确保当前租户的分区存在
-            partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
-            if not collection.has_partition(partition_name):
-                collection.create_partition(partition_name)
+        if _collection_exists(self.collection_name):
+            collection = Collection(self.collection_name)
             collection.load()
             return collection
 
@@ -129,12 +124,12 @@ class MilvusService:
         # 创建 Schema
         schema = CollectionSchema(
             fields=fields,
-            description="知识库向量 Collection（多租户）",
+            description=f"知识库向量 Collection（租户: {self.tenant_id}）",
         )
 
         # 创建 Collection
         collection = Collection(
-            name=self.COLLECTION_NAME,
+            name=self.collection_name,
             schema=schema,
         )
 
@@ -146,15 +141,10 @@ class MilvusService:
         }
         collection.create_index(field_name="vector", index_params=index_params)
 
-        # 创建分区（按租户）
-        partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
-        if not collection.has_partition(partition_name):
-            collection.create_partition(partition_name)
-
         # 加载到内存
         collection.load()
 
-        print(f"✓ 创建 Collection: {self.COLLECTION_NAME}")
+        print(f"✓ 创建 Collection: {self.collection_name}")
         return collection
 
     async def insert_vectors(
@@ -182,9 +172,6 @@ class MilvusService:
         knowledge_ids = [item["knowledge_id"] for item in knowledge_items]
         contents = [item["content"][:65535] for item in knowledge_items]  # 限制长度
 
-        # 插入数据到租户分区
-        partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
-
         entities = [
             ids,
             tenant_ids,
@@ -193,7 +180,7 @@ class MilvusService:
             vectors,
         ]
 
-        collection.insert(entities, partition_name=partition_name)
+        collection.insert(entities)
         collection.flush()
 
         print(f"✓ 插入 {len(ids)} 条向量到 Milvus")
@@ -224,9 +211,6 @@ class MilvusService:
             "params": {"nprobe": 10},
         }
 
-        # 只搜索当前租户的分区
-        partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
-
         # 搜索
         results = collection.search(
             data=[query_vector],
@@ -235,7 +219,6 @@ class MilvusService:
             limit=top_k,
             expr=filter_expr,
             output_fields=["knowledge_id", "content", "tenant_id"],
-            partition_names=[partition_name],
         )
 
         # 格式化结果
@@ -267,9 +250,9 @@ class MilvusService:
         """
         collection = self.create_collection_if_not_exists()
 
-        # 构建删除表达式
+        # 构建删除表达式（collection 已按租户隔离，无需 tenant_id 过滤）
         ids_str = ", ".join([f"'{kid}'" for kid in knowledge_ids])
-        expr = f"knowledge_id in [{ids_str}] and tenant_id == '{self.tenant_id}'"
+        expr = f"knowledge_id in [{ids_str}]"
 
         # 删除
         collection.delete(expr)
@@ -278,22 +261,11 @@ class MilvusService:
         print(f"✓ 删除 {len(knowledge_ids)} 条向量")
         return len(knowledge_ids)
 
-    def drop_tenant_partition(self) -> None:
-        """删除当前租户分区；若 collection 无其他分区则删除整个 collection"""
-        if not _collection_exists(self.COLLECTION_NAME):
+    def drop_tenant_collection(self) -> None:
+        """删除当前租户的 Collection"""
+        if not _collection_exists(self.collection_name):
             return
-        collection = Collection(self.COLLECTION_NAME)
-        partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
-        if collection.has_partition(partition_name):
-            try:
-                collection.release()
-            except Exception:
-                pass
-            collection.drop_partition(partition_name)
-        # 若除 _default 外无其他分区，删除整个 collection
-        remaining = [p for p in collection.partitions if p.name != "_default"]
-        if not remaining:
-            utility.drop_collection(self.COLLECTION_NAME)
+        utility.drop_collection(self.collection_name)
 
     def get_collection_stats(self) -> dict[str, Any]:
         """
@@ -302,30 +274,18 @@ class MilvusService:
         Returns:
             统计信息
         """
-        if not _collection_exists(self.COLLECTION_NAME):
+        if not _collection_exists(self.collection_name):
             return {
                 "exists": False,
-                "name": self.COLLECTION_NAME,
+                "name": self.collection_name,
             }
 
-        collection = Collection(self.COLLECTION_NAME)
-
-        # 获取租户分区统计
-        partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
-        partition_stats = {}
-
-        if collection.has_partition(partition_name):
-            partition = collection.partition(partition_name)
-            partition_stats = {
-                "name": partition_name,
-                "num_entities": partition.num_entities,
-            }
+        collection = Collection(self.collection_name)
 
         return {
             "exists": True,
-            "name": self.COLLECTION_NAME,
+            "name": self.collection_name,
             "num_entities": collection.num_entities,
-            "tenant_partition": partition_stats,
         }
 
     @staticmethod

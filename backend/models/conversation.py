@@ -136,9 +136,14 @@ class Conversation(TenantBaseModel):
 
     # 对话摘要（长对话自动压缩）
     summary: Mapped[str | None] = mapped_column(Text, comment="对话摘要")
+    summary_updated_at: Mapped[datetime | None] = mapped_column(DateTime, comment="摘要更新时间")
 
     # 标签
     tags: Mapped[list | None] = mapped_column(Text, comment="标签(JSON数组)")
+
+    # 意图统计
+    primary_intent: Mapped[str | None] = mapped_column(String(64), comment="会话主要意图")
+    intent_distribution: Mapped[dict | None] = mapped_column(Text, comment="意图分布(JSON)")
 
     # 关联关系
     user: Mapped["User"] = relationship("User", back_populates="conversations")

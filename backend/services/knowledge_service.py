@@ -272,6 +272,15 @@ class KnowledgeService:
         if priority is not None:
             knowledge.priority = priority
 
+        # 保存版本快照
+        try:
+            from services.knowledge_version_service import KnowledgeVersionService
+            version_service = KnowledgeVersionService(self.db, self.tenant_id)
+            await version_service.create_snapshot(knowledge_id, change_type="update")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to create version snapshot: %s", e)
+
         knowledge.version += 1
 
         await self.db.commit()
@@ -286,6 +295,16 @@ class KnowledgeService:
     async def delete_knowledge(self, knowledge_id: str) -> None:
         """删除知识条目：软删除 DB + 清理 Milvus 向量"""
         knowledge = await self.get_knowledge(knowledge_id)
+
+        # 保存删除前的版本快照
+        try:
+            from services.knowledge_version_service import KnowledgeVersionService
+            version_service = KnowledgeVersionService(self.db, self.tenant_id)
+            await version_service.create_snapshot(knowledge_id, change_type="delete")
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Failed to create delete snapshot: %s", e)
+
         knowledge.status = "inactive"
         await self.db.commit()
 
@@ -307,7 +326,7 @@ class KnowledgeService:
             )
             remaining = count_result.scalar()
             if remaining == 0:
-                MilvusService(self.tenant_id).drop_tenant_partition()
+                MilvusService(self.tenant_id).drop_tenant_collection()
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning("清理 Milvus 向量失败: %s", e)

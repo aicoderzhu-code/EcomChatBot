@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from schemas.base import ApiResponse
 from schemas.webhook import (
     WebhookCreateRequest,
@@ -39,7 +39,7 @@ async def get_event_types():
 @router.post("", response_model=ApiResponse[WebhookResponse])
 async def create_webhook(
     webhook_data: WebhookCreateRequest,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """创建Webhook配置"""
@@ -55,7 +55,7 @@ async def create_webhook(
 
 @router.get("", response_model=ApiResponse[list[WebhookResponse]])
 async def list_webhooks(
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """列出所有Webhook配置"""
@@ -67,7 +67,7 @@ async def list_webhooks(
 @router.get("/{webhook_id}", response_model=ApiResponse[WebhookResponse])
 async def get_webhook(
     webhook_id: int,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """获取Webhook配置详情"""
@@ -80,7 +80,7 @@ async def get_webhook(
 async def update_webhook(
     webhook_id: int,
     webhook_data: WebhookUpdateRequest,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """更新Webhook配置"""
@@ -98,7 +98,7 @@ async def update_webhook(
 @router.delete("/{webhook_id}", response_model=ApiResponse[dict])
 async def delete_webhook(
     webhook_id: int,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """删除Webhook配置"""
@@ -111,7 +111,7 @@ async def delete_webhook(
 async def get_webhook_logs(
     webhook_id: int,
     limit: int = Query(50, ge=1, le=200),
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """获取Webhook调用日志"""
@@ -123,7 +123,7 @@ async def get_webhook_logs(
 @router.post("/test/{webhook_id}", response_model=ApiResponse[WebhookLogResponse])
 async def test_webhook(
     webhook_id: int,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """测试Webhook配置（发送测试事件）"""

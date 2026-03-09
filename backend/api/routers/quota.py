@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from schemas.base import ApiResponse
 from schemas.quota import QuotaUsageResponse
 from services.quota_service import QuotaService
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/quota", tags=["配额管理"])
 
 @router.get("/usage", response_model=ApiResponse[QuotaUsageResponse])
 async def get_quota_usage(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """获取当月配额使用情况"""

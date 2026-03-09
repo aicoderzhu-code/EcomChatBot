@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import KnowledgeBase
+from models import KnowledgeBase, KnowledgeUsageLog
 from services.embedding_service import EmbeddingService
 from services.knowledge_service import KnowledgeService
 from services.milvus_service import MilvusService
@@ -90,6 +90,24 @@ class RAGService:
                             "source": knowledge_item.source,
                             "tags": knowledge_item.tags,
                         })
+
+                # 记录检索日志
+                try:
+                    for result_item in results:
+                        usage_log = KnowledgeUsageLog(
+                            tenant_id=self.tenant_id,
+                            knowledge_id=result_item["knowledge_id"],
+                            conversation_id="retrieve",
+                            message_id="retrieve",
+                            query=query,
+                            match_score=result_item.get("score"),
+                            match_method="vector_search",
+                        )
+                        self.db.add(usage_log)
+                    await self.db.commit()
+                except Exception as log_err:
+                    import logging
+                    logging.getLogger(__name__).warning("Failed to log retrieval: %s", log_err)
 
                 return results
 

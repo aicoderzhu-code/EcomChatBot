@@ -20,6 +20,14 @@ class IntentType(str, Enum):
     COMPLAINT = "COMPLAINT"  # 投诉建议
     PROMOTION = "PROMOTION"  # 促销咨询
     ACCOUNT = "ACCOUNT"  # 账户问题
+    LOGISTICS_QUERY = "LOGISTICS_QUERY"  # 查物流
+    RETURN_EXCHANGE = "RETURN_EXCHANGE"  # 退换货
+    URGE_SHIPPING = "URGE_SHIPPING"  # 催发货
+    CHANGE_ADDRESS = "CHANGE_ADDRESS"  # 改地址
+    COUPON_INQUIRY = "COUPON_INQUIRY"  # 优惠咨询
+    PRODUCT_CONSULT = "PRODUCT_CONSULT"  # 商品咨询
+    PRICE_INQUIRY = "PRICE_INQUIRY"  # 价格咨询
+    SIZE_GUIDE = "SIZE_GUIDE"  # 尺码指南
     OTHER = "OTHER"  # 其他
 
 
@@ -113,6 +121,86 @@ class IntentService:
             "找回密码",
             "会员",
             "个人信息",
+        ],
+        IntentType.LOGISTICS_QUERY: [
+            "查物流",
+            "快递到哪了",
+            "物流进度",
+            "物流查询",
+            "快递进度",
+            "包裹到哪",
+            "运单查询",
+            "物流跟踪",
+        ],
+        IntentType.RETURN_EXCHANGE: [
+            "退换货",
+            "退货申请",
+            "换货",
+            "退货流程",
+            "换货流程",
+            "申请退货",
+            "申请换货",
+            "退换",
+            "怎么退货",
+        ],
+        IntentType.URGE_SHIPPING: [
+            "催发货",
+            "什么时候发货",
+            "催促发货",
+            "还没发货",
+            "赶紧发货",
+            "加急发货",
+            "尽快发货",
+            "几天发货",
+        ],
+        IntentType.CHANGE_ADDRESS: [
+            "改地址",
+            "修改地址",
+            "更换地址",
+            "修改收货地址",
+            "换地址",
+            "改收货地址",
+            "变更地址",
+        ],
+        IntentType.COUPON_INQUIRY: [
+            "优惠券怎么用",
+            "满减规则",
+            "优惠咨询",
+            "怎么用优惠券",
+            "有没有优惠",
+            "领券",
+            "红包",
+            "折扣码",
+        ],
+        IntentType.PRODUCT_CONSULT: [
+            "商品咨询",
+            "商品详情",
+            "功能介绍",
+            "产品介绍",
+            "有什么功能",
+            "材质",
+            "成分",
+            "保质期",
+        ],
+        IntentType.PRICE_INQUIRY: [
+            "多少钱",
+            "价格多少",
+            "什么价格",
+            "比价",
+            "降价",
+            "会不会降价",
+            "最低价",
+            "价格查询",
+        ],
+        IntentType.SIZE_GUIDE: [
+            "尺码",
+            "尺码推荐",
+            "尺码表",
+            "穿多大",
+            "选什么码",
+            "大小怎么选",
+            "尺寸",
+            "偏大还是偏小",
         ],
     }
 
@@ -375,6 +463,14 @@ class IntentService:
             IntentType.COMPLAINT,
             IntentType.PROMOTION,
             IntentType.ACCOUNT,
+            IntentType.LOGISTICS_QUERY,
+            IntentType.RETURN_EXCHANGE,
+            IntentType.URGE_SHIPPING,
+            IntentType.CHANGE_ADDRESS,
+            IntentType.COUPON_INQUIRY,
+            IntentType.PRODUCT_CONSULT,
+            IntentType.PRICE_INQUIRY,
+            IntentType.SIZE_GUIDE,
             IntentType.OTHER,
         ]
 

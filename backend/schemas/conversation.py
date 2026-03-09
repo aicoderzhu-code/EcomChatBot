@@ -102,6 +102,9 @@ class ConversationResponse(TimestampSchema):
     satisfaction_score: int | None
     message_count: int
     token_usage: int
+    primary_intent: str | None = None
+    intent_distribution: dict | None = None
+    summary: str | None = None
 
 
 class ConversationDetailResponse(ConversationResponse):

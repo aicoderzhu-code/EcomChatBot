@@ -7,6 +7,8 @@ from models.base import BaseModel, TenantBaseModel
 from models.conversation import Conversation, Message, User
 from models.knowledge import KnowledgeBase, KnowledgeUsageLog
 from models.knowledge_settings import KnowledgeSettings
+from models.knowledge_version import KnowledgeVersion
+from models.qa_pair import QAPair
 from models.payment import (
     OrderStatus,
     PaymentChannel,
@@ -50,6 +52,7 @@ from models.outreach import (
 )
 from models.follow_up import FollowUpPlan, FollowUpReason, FollowUpStatus
 from models.quota import TenantQuota
+from models.knowledge_candidate import KnowledgeCandidate
 from models.recommendation import (
     RecommendationRule, RecommendationLog,
     RecommendRuleType, RecommendTriggerType, RecommendStrategy,
@@ -79,6 +82,9 @@ __all__ = [
     "KnowledgeBase",
     "KnowledgeUsageLog",
     "KnowledgeSettings",
+    "KnowledgeVersion",
+    "QAPair",
+    "KnowledgeCandidate",
     # Payment
     "PaymentOrder",
     "PaymentTransaction",

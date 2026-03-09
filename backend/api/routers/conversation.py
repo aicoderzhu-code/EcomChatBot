@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
-from api.dependencies import DBDep, TenantDep, TenantFlexDep
+from api.dependencies import DBDep, TenantFlexDep
 from api.middleware import ConcurrentQuotaDep, ConversationQuotaDep
 from schemas import (
     ApiResponse,
@@ -126,15 +126,29 @@ async def send_message(
 
     ⚠️ 会检查对话次数配额
     """
-    from services import ConversationChainService
+    from services import ConversationChainService, IntentService
 
     service = ConversationService(db, tenant_id)
 
-    await service.add_message(
+    user_message = await service.add_message(
         conversation_id=conversation_id,
         role="user",
         content=message_data.content,
     )
+
+    # 意图识别
+    try:
+        intent_service = IntentService(db, tenant_id)
+        intent_result = await intent_service.classify_intent_hybrid(message_data.content)
+        # Update the user message with intent info
+        user_message.intent = intent_result["intent"]
+        user_message.intent_confidence = {
+            "high": 0.95, "medium": 0.7, "low": 0.3
+        }.get(intent_result["confidence"], 0.5)
+        user_message.entities = intent_service.extract_entities_by_rules(message_data.content)
+        await db.commit()
+    except Exception as e:
+        logger.warning("Intent classification failed: %s", e)
 
     try:
         chain = ConversationChainService(
@@ -185,6 +199,23 @@ async def update_conversation(
         conversation = await service.get_conversation(conversation_id)
 
     return ApiResponse(data=conversation)
+
+
+@router.post(
+    "/{conversation_id}/generate-summary",
+    response_model=ApiResponse[dict],
+)
+async def generate_summary(
+    conversation_id: str,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """手动触发生成对话摘要"""
+    from services.conversation_summary_service import ConversationSummaryService
+
+    service = ConversationSummaryService(db, tenant_id)
+    summary = await service.generate_summary(conversation_id)
+    return ApiResponse(data={"conversation_id": conversation_id, "summary": summary})
 
 
 @router.get(

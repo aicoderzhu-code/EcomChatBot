@@ -4,7 +4,9 @@
 from fastapi import APIRouter, Depends, Query
 import asyncio
 
-from api.dependencies import AdminDep, DBDep, TenantDep, require_admin_permission
+from sqlalchemy import select
+
+from api.dependencies import AdminDep, DBDep, TenantFlexDep, require_admin_permission
 from core import Permission
 from schemas.analytics import (
     ChurnAnalysisResponse,
@@ -25,7 +27,7 @@ router = APIRouter(prefix="/analytics", tags=["运营分析"])
 
 @router.get("", response_model=ApiResponse[dict])
 async def get_tenant_analytics(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -42,7 +44,7 @@ async def get_tenant_analytics(
 
 @router.get("/conversations", response_model=ApiResponse[dict])
 async def get_tenant_conversation_analytics(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -196,3 +198,90 @@ async def get_dashboard_data(
     )
     
     return ApiResponse(data=dashboard)
+
+
+@router.get("/intent-distribution", response_model=ApiResponse[dict])
+async def get_intent_distribution(
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+    days: int = Query(30, ge=1, le=365, description="统计天数"),
+):
+    """获取意图分布统计"""
+    from datetime import datetime, timedelta
+    from sqlalchemy import func, and_
+    from models import Message
+
+    start_date = datetime.utcnow() - timedelta(days=days)
+
+    stmt = (
+        select(Message.intent, func.count(Message.id).label("count"))
+        .where(
+            and_(
+                Message.tenant_id == tenant_id,
+                Message.role == "user",
+                Message.intent.isnot(None),
+                Message.created_at >= start_date,
+            )
+        )
+        .group_by(Message.intent)
+        .order_by(func.count(Message.id).desc())
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    distribution = {row.intent: row.count for row in rows}
+    total = sum(distribution.values())
+
+    return ApiResponse(data={
+        "distribution": distribution,
+        "total": total,
+        "days": days,
+    })
+
+
+@router.get("/intent-trends", response_model=ApiResponse[dict])
+async def get_intent_trends(
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+    days: int = Query(30, ge=1, le=365, description="统计天数"),
+):
+    """获取意图趋势变化"""
+    from datetime import datetime, timedelta
+    from sqlalchemy import func, and_, cast, Date
+    from models import Message
+
+    start_date = datetime.utcnow() - timedelta(days=days)
+
+    stmt = (
+        select(
+            cast(Message.created_at, Date).label("date"),
+            Message.intent,
+            func.count(Message.id).label("count"),
+        )
+        .where(
+            and_(
+                Message.tenant_id == tenant_id,
+                Message.role == "user",
+                Message.intent.isnot(None),
+                Message.created_at >= start_date,
+            )
+        )
+        .group_by(cast(Message.created_at, Date), Message.intent)
+        .order_by(cast(Message.created_at, Date))
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    trends = {}
+    for row in rows:
+        date_str = str(row.date)
+        if date_str not in trends:
+            trends[date_str] = {}
+        trends[date_str][row.intent] = row.count
+
+    return ApiResponse(data={
+        "trends": trends,
+        "days": days,
+    })

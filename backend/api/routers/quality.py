@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from schemas.base import ApiResponse
 from schemas.quality import (
     ConversationQualityResponse,
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/quality", tags=["质量评估"])
 @router.get("/conversation/{conversation_id}", response_model=ApiResponse[ConversationQualityResponse])
 async def evaluate_conversation(
     conversation_id: str,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """
@@ -38,7 +38,7 @@ async def evaluate_conversation(
 async def get_quality_summary(
     start_time: datetime | None = None,
     end_time: datetime | None = None,
-    tenant_id: TenantDep = None,
+    tenant_id: TenantFlexDep = None,
     db: DBDep = None,
 ):
     """

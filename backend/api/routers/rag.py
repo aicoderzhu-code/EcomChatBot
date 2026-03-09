@@ -3,11 +3,11 @@ RAG（检索增强生成）API 路由
 """
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from api.dependencies import DBDep, TenantDep, TenantFlexDep
+from api.dependencies import DBDep, TenantFlexDep
 from api.middleware import ApiQuotaDep, StorageQuotaDep
 from schemas import ApiResponse
 from services import RAGService
@@ -134,7 +134,7 @@ async def batch_index_knowledge(
 
 @router.get("/stats", response_model=ApiResponse[dict])
 async def get_rag_stats(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -147,6 +147,118 @@ async def get_rag_stats(
     stats = service.get_stats()
 
     return ApiResponse(data=stats)
+
+
+# ============ 检索效果分析 ============
+
+class FeedbackRequest(BaseModel):
+    """反馈请求"""
+    knowledge_id: str
+    conversation_id: str
+    message_id: str
+    query: str
+    helpful: bool
+    feedback: str | None = None
+
+
+@router.post("/feedback", response_model=ApiResponse[dict])
+async def submit_feedback(
+    request: FeedbackRequest,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """提交检索结果反馈"""
+    from models import KnowledgeUsageLog
+    from sqlalchemy import and_, update as sa_update
+
+    # 更新已有记录或创建新记录
+    stmt = (
+        select(KnowledgeUsageLog)
+        .where(
+            and_(
+                KnowledgeUsageLog.tenant_id == tenant_id,
+                KnowledgeUsageLog.knowledge_id == request.knowledge_id,
+                KnowledgeUsageLog.conversation_id == request.conversation_id,
+                KnowledgeUsageLog.message_id == request.message_id,
+            )
+        )
+    )
+    result = await db.execute(stmt)
+    log = result.scalar_one_or_none()
+
+    if log:
+        log.helpful = request.helpful
+        log.feedback = request.feedback
+    else:
+        log = KnowledgeUsageLog(
+            tenant_id=tenant_id,
+            knowledge_id=request.knowledge_id,
+            conversation_id=request.conversation_id,
+            message_id=request.message_id,
+            query=request.query,
+            helpful=request.helpful,
+            feedback=request.feedback,
+        )
+        db.add(log)
+
+    await db.commit()
+    return ApiResponse(data={"message": "反馈已记录"})
+
+
+@router.get("/analytics/metrics", response_model=ApiResponse[dict])
+async def get_retrieval_metrics(
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+    days: int = Query(30, ge=1, le=365),
+):
+    """获取检索效果指标"""
+    from services.rag_analytics_service import RAGAnalyticsService
+
+    service = RAGAnalyticsService(db, tenant_id)
+    metrics = await service.get_retrieval_metrics(days)
+    return ApiResponse(data=metrics)
+
+
+@router.get("/analytics/failed-queries", response_model=ApiResponse[list[dict]])
+async def get_failed_queries(
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+    limit: int = Query(20, ge=1, le=100),
+):
+    """获取失败查询列表"""
+    from services.rag_analytics_service import RAGAnalyticsService
+
+    service = RAGAnalyticsService(db, tenant_id)
+    failed = await service.get_failed_retrievals(limit)
+    return ApiResponse(data=failed)
+
+
+@router.get("/analytics/knowledge-effectiveness", response_model=ApiResponse[list[dict]])
+async def get_knowledge_effectiveness(
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+    limit: int = Query(50, ge=1, le=200),
+):
+    """获取知识条目效果排名"""
+    from services.rag_analytics_service import RAGAnalyticsService
+
+    service = RAGAnalyticsService(db, tenant_id)
+    effectiveness = await service.get_knowledge_effectiveness(limit)
+    return ApiResponse(data=effectiveness)
+
+
+@router.get("/analytics/trends", response_model=ApiResponse[list[dict]])
+async def get_retrieval_trends(
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+    days: int = Query(30, ge=1, le=365),
+):
+    """获取检索效果趋势"""
+    from services.rag_analytics_service import RAGAnalyticsService
+
+    service = RAGAnalyticsService(db, tenant_id)
+    trends = await service.get_retrieval_trends(days)
+    return ApiResponse(data=trends)
 
 
 class RAGTestRequest(BaseModel):

@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import json
 
-from api.dependencies import DBDep, TenantDep
+from api.dependencies import DBDep, TenantFlexDep
 from api.middleware import ConversationQuotaDep, ApiQuotaDep
 from schemas import ApiResponse
 from services import ConversationChainService, simple_chat
@@ -342,7 +342,7 @@ async def get_conversation_summary(
 @router.delete("/conversation/{conversation_id}/memory", response_model=ApiResponse[dict])
 async def clear_conversation_memory(
     conversation_id: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """

@@ -132,7 +132,15 @@ class PromptService:
 6. COMPLAINT: 投诉建议（服务投诉、意见建议等）
 7. PROMOTION: 促销咨询（优惠活动、优惠券等）
 8. ACCOUNT: 账户问题（注册、登录、会员等）
-9. OTHER: 其他
+9. LOGISTICS_QUERY: 查物流（快递到哪了、物流进度查询等）
+10. RETURN_EXCHANGE: 退换货（退货申请、换货流程等）
+11. URGE_SHIPPING: 催发货（什么时候发货、催促发货等）
+12. CHANGE_ADDRESS: 改地址（修改收货地址、更换地址等）
+13. COUPON_INQUIRY: 优惠咨询（优惠券使用、满减规则等）
+14. PRODUCT_CONSULT: 商品咨询（商品详情、功能介绍等）
+15. PRICE_INQUIRY: 价格咨询（商品价格、比价、降价等）
+16. SIZE_GUIDE: 尺码指南（尺码推荐、尺码表等）
+17. OTHER: 其他
 
 请只返回意图类别名称，不要包含其他内容。
 
@@ -164,6 +172,23 @@ class PromptService:
 用户问题：{question}
 
 提取的实体（JSON格式）："""
+
+    @staticmethod
+    def get_summary_generation_prompt() -> str:
+        """获取摘要生成提示词"""
+        return """请对以下客服对话生成一段简洁的摘要。
+
+## 要求
+1. 概述用户的主要问题或需求
+2. 说明客服提供的解决方案或回答
+3. 记录最终结论或处理结果
+4. 如果有未解决的问题也要提及
+5. 摘要控制在 100-200 字以内
+
+## 对话内容
+{conversation}
+
+## 摘要："""
 
     @staticmethod
     def format_conversation_history(

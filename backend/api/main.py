@@ -20,6 +20,8 @@ from api.routers import (
     health,
     intent,
     knowledge,
+    knowledge_extraction,
+    qa,
     monitor,
     order,
     outreach,
@@ -259,6 +261,8 @@ app.include_router(auth.router, prefix=settings.api_v1_prefix)
 app.include_router(tenant.router, prefix=settings.api_v1_prefix)
 app.include_router(conversation.router, prefix=settings.api_v1_prefix)
 app.include_router(knowledge.router, prefix=settings.api_v1_prefix)
+app.include_router(knowledge_extraction.router, prefix=settings.api_v1_prefix)
+app.include_router(qa.router, prefix=settings.api_v1_prefix)
 app.include_router(payment.router, prefix=settings.api_v1_prefix)
 app.include_router(ai_chat.router, prefix=settings.api_v1_prefix)
 app.include_router(websocket.router, prefix=settings.api_v1_prefix)

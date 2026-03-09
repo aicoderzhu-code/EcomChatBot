@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import TenantDep, DBDep
+from api.dependencies import TenantFlexDep, DBDep
 from models.payment import SubscriptionType, PaymentChannel
 from schemas.base import ApiResponse
 from services.payment_service import PaymentService, PLAN_CONFIG
@@ -41,7 +41,7 @@ class RefundRequest(BaseModel):
 @router.post("/orders/create", summary="创建扫码支付订单")
 async def create_payment_order(
     request_data: CreateOrderRequest,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """
@@ -102,7 +102,7 @@ async def create_payment_order(
 @router.get("/orders/{order_number}", summary="查询订单详情")
 async def get_order_detail(
     order_number: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """查询订单详情，PENDING 状态会主动向网关同步"""
@@ -125,7 +125,7 @@ async def get_order_detail(
 @router.post("/orders/{order_number}/sync", summary="主动同步订单状态")
 async def sync_order_status(
     order_number: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """主动向支付宝查询最新状态并更新本地订单"""
@@ -149,7 +149,7 @@ async def sync_order_status(
 async def refund_order(
     order_number: str,
     refund_data: RefundRequest,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """申请退款"""
@@ -316,7 +316,7 @@ async def list_payment_orders(
 
 @router.get("/subscription", summary="获取订阅详情")
 async def get_subscription(
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """获取当前订阅详情"""
@@ -356,7 +356,7 @@ async def get_subscription(
 @router.post("/subscription/subscribe", summary="订阅套餐")
 async def subscribe_plan(
     request_data: CreateOrderRequest,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """订阅套餐，创建扫码支付订单"""
@@ -391,7 +391,7 @@ async def subscribe_plan(
 @router.put("/subscription/change", summary="变更套餐")
 async def change_plan(
     new_plan_type: str,
-    tenant_id: TenantDep,
+    tenant_id: TenantFlexDep,
     db: DBDep,
 ):
     """变更套餐（升级需支付差价，降级下周期生效）"""
