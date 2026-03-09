@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 import httpx
-from langchain_openai import OpenAIEmbeddings
 
 from core.config import settings
 from core.http_client import get_http_client
@@ -83,6 +82,38 @@ class _QwenEmbeddings:
             results.append(await self.aembed_query(text))
         return results
 
+class _VolcEngineEmbeddings:
+    """直接调用火山引擎多模态 embedding API（doubao-embedding-vision 使用 /embeddings/multimodal 端点）"""
+
+    def __init__(self, api_key: str, api_base: str, model: str):
+        self.api_key = api_key
+        self.model = model
+        self._base_url = f"{api_base.rstrip('/')}/embeddings/multimodal"
+
+    @retry_async(max_attempts=3, base_delay=1.0, max_delay=10.0,
+                 retriable_exceptions=(httpx.HTTPStatusError, httpx.ConnectError, TimeoutError),
+                 service_name="VolcEngine-Embedding")
+    async def aembed_query(self, text: str) -> list[float]:
+        client = get_http_client()
+        resp = await client.post(
+            self._base_url,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json={
+                "model": self.model,
+                "input": [{"type": "text", "text": text}],
+            },
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["data"]["embedding"]
+
+    async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
+        results = []
+        for text in texts:
+            results.append(await self.aembed_query(text))
+        return results
+
+
 # 常见嵌入模型的向量维度
 EMBEDDING_DIMENSIONS: dict[str, int] = {
     "text-embedding-3-small": 1536,
@@ -145,11 +176,11 @@ class EmbeddingService:
         self.embeddings = self._init_volcengine_embeddings()
 
     def _init_volcengine_embeddings(self):
-        """初始化火山引擎 embedding（兼容 OpenAI 接口）"""
-        return OpenAIEmbeddings(
+        """初始化火山引擎 embedding（直接调用 OpenAI 兼容 API，绕过 LangChain 的 tiktoken 分词）"""
+        return _VolcEngineEmbeddings(
+            api_key=self.api_key,
+            api_base=self.api_base,
             model=self.model,
-            openai_api_key=self.api_key,
-            openai_api_base=self.api_base,
         )
 
     async def embed_text(self, text: str) -> list[float]:
@@ -165,7 +196,7 @@ class EmbeddingService:
         try:
             vector = await with_timeout(
                 self.embeddings.aembed_query(text),
-                timeout=30.0,
+                timeout=120.0,
                 service_name="Embedding",
             )
             return vector
@@ -186,7 +217,7 @@ class EmbeddingService:
         try:
             vectors = await with_timeout(
                 self.embeddings.aembed_documents(texts),
-                timeout=120.0,
+                timeout=300.0,
                 service_name="Embedding",
             )
             return vectors

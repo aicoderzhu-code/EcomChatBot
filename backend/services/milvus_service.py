@@ -15,6 +15,14 @@ from pymilvus import (
 from core.config import settings
 
 
+def _collection_exists(name: str) -> bool:
+    """检查 collection 是否存在（兼容 Zilliz Cloud Serverless）"""
+    try:
+        return name in utility.list_collections()
+    except Exception:
+        return False
+
+
 class MilvusService:
     """Milvus 向量数据库服务"""
 
@@ -23,7 +31,7 @@ class MilvusService:
     def __init__(self, tenant_id: str):
         """
         初始化 Milvus 服务
-        
+
         Args:
             tenant_id: 租户 ID
         """
@@ -38,10 +46,34 @@ class MilvusService:
                 uri=settings.milvus_uri,
                 token=settings.milvus_token,
             )
-            print(f"✓ 已连接到 Milvus: {settings.milvus_uri}")
+            # Zilliz Cloud Serverless 的 has_collection 在 collection 不存在时
+            # 抛异常而非返回 False，需要 monkey-patch 修复
+            self._patch_has_collection()
         except Exception as e:
             print(f"✗ 连接 Milvus 失败: {e}")
             raise
+
+    @staticmethod
+    def _patch_has_collection() -> None:
+        """修复 Zilliz Cloud Serverless 的 has_collection 兼容性问题"""
+        conn = connections._fetch_handler("default")
+        if conn is None or getattr(conn, '_has_collection_patched', False):
+            return
+        original = conn.has_collection
+
+        def safe_has_collection(name, timeout=None, **kwargs):
+            try:
+                return original(name, timeout=timeout, **kwargs)
+            except Exception:
+                # has_collection 失败时回退到 list_collections
+                try:
+                    cols = conn.list_collections()
+                    return name in cols
+                except Exception:
+                    return False
+
+        conn.has_collection = safe_has_collection
+        conn._has_collection_patched = True
 
     def create_collection_if_not_exists(self, dimension: int | None = None) -> Collection:
         """
@@ -54,10 +86,10 @@ class MilvusService:
             Collection 实例
         """
         dim = dimension or settings.embedding_dimension
-        # 检查是否存在
-        if utility.has_collection(self.COLLECTION_NAME):
+
+        if _collection_exists(self.COLLECTION_NAME):
             collection = Collection(self.COLLECTION_NAME)
-            # 确保当前租户的分区存在（新租户首次写入时可能还没有分区）
+            # 确保当前租户的分区存在
             partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
             if not collection.has_partition(partition_name):
                 collection.create_partition(partition_name)
@@ -115,7 +147,6 @@ class MilvusService:
         collection.create_index(field_name="vector", index_params=index_params)
 
         # 创建分区（按租户）
-        # 注：分区名称只能包含字母、数字和下划线
         partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
         if not collection.has_partition(partition_name):
             collection.create_partition(partition_name)
@@ -176,12 +207,12 @@ class MilvusService:
     ) -> list[dict[str, Any]]:
         """
         搜索相似向量
-        
+
         Args:
             query_vector: 查询向量
             top_k: 返回结果数量
             filter_expr: 过滤表达式
-            
+
         Returns:
             搜索结果列表
         """
@@ -227,10 +258,10 @@ class MilvusService:
     async def delete_vectors(self, knowledge_ids: list[str]) -> int:
         """
         删除向量
-        
+
         Args:
             knowledge_ids: 知识库 ID 列表
-            
+
         Returns:
             删除的数量
         """
@@ -249,7 +280,7 @@ class MilvusService:
 
     def drop_tenant_partition(self) -> None:
         """删除当前租户分区；若 collection 无其他分区则删除整个 collection"""
-        if not utility.has_collection(self.COLLECTION_NAME):
+        if not _collection_exists(self.COLLECTION_NAME):
             return
         collection = Collection(self.COLLECTION_NAME)
         partition_name = f"tenant_{self.tenant_id.replace('-', '_')}"
@@ -267,11 +298,11 @@ class MilvusService:
     def get_collection_stats(self) -> dict[str, Any]:
         """
         获取 Collection 统计信息
-        
+
         Returns:
             统计信息
         """
-        if not utility.has_collection(self.COLLECTION_NAME):
+        if not _collection_exists(self.COLLECTION_NAME):
             return {
                 "exists": False,
                 "name": self.COLLECTION_NAME,
@@ -302,6 +333,5 @@ class MilvusService:
         """断开连接"""
         try:
             connections.disconnect(alias="default")
-            print("✓ 已断开 Milvus 连接")
         except Exception as e:
             print(f"断开 Milvus 连接失败: {e}")
