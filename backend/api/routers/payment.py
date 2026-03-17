@@ -407,7 +407,7 @@ async def list_payment_orders(
         items.append({
             "id": order.id,
             "order_number": order.order_number,
-            "tenant_id": order.tenant_id,
+            "tenant_id": tenant.tenant_id,
             "company_name": tenant.company_name,
             "amount": float(order.amount),
             "currency": order.currency,
