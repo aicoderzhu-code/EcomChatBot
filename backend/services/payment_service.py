@@ -148,7 +148,7 @@ class PaymentService:
 
             order = PaymentOrder(
                 order_number=order_number,
-                tenant_id=tenant_id,
+                tenant_id=tenant.id,
                 amount=amount,
                 currency="CNY",
                 payment_channel=payment_channel,
@@ -234,7 +234,7 @@ class PaymentService:
 
             order = PaymentOrder(
                 order_number=order_number,
-                tenant_id=tenant_id,
+                tenant_id=tenant.id,
                 amount=amount,
                 currency="CNY",
                 payment_channel=payment_channel,
