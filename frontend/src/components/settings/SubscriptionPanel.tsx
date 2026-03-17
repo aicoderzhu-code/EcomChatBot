@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
-import { Alert, Button, Card, Modal, Radio, Tag, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { Alert, Button, Card, Radio, Tag, Typography } from 'antd';
 import Skeleton from '@/components/ui/Loading/Skeleton';
-import { subscriptionApi, SubscriptionStatus, CreateOrderResponse } from '@/lib/api/subscription';
+import { subscriptionApi, SubscriptionStatus } from '@/lib/api/subscription';
 import QuotaUsagePanel from './QuotaUsagePanel';
 
 const { Title, Text } = Typography;
@@ -28,13 +27,7 @@ export default function SubscriptionPanel() {
 
   // 购买流程状态
   const [selectedPlan, setSelectedPlan] = useState<string>('monthly');
-  const [paymentChannel, setPaymentChannel] = useState<'alipay' | 'wechat'>('alipay');
   const [ordering, setOrdering] = useState(false);
-  const [order, setOrder] = useState<CreateOrderResponse | null>(null);
-  const [qrModalOpen, setQrModalOpen] = useState(false);
-  const [pollStatus, setPollStatus] = useState<'polling' | 'paid' | 'timeout' | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const pollCountRef = useRef(0);
 
   useEffect(() => {
     subscriptionApi.getStatus()
@@ -42,64 +35,23 @@ export default function SubscriptionPanel() {
       .finally(() => setLoading(false));
   }, []);
 
-  const stopPolling = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  };
-
-  const startPolling = (orderNumber: string) => {
-    pollCountRef.current = 0;
-    setPollStatus('polling');
-    pollRef.current = setInterval(async () => {
-      pollCountRef.current += 1;
-      // 超时：10 分钟 = 200 次 × 3 秒
-      if (pollCountRef.current > 200) {
-        stopPolling();
-        setPollStatus('timeout');
-        return;
-      }
-      try {
-        const res = await subscriptionApi.syncOrder(orderNumber);
-        if (res.success && res.data?.order?.status === 'paid') {
-          stopPolling();
-          setPollStatus('paid');
-          // 刷新订阅状态
-          const statusRes = await subscriptionApi.getStatus();
-          if (statusRes.success && statusRes.data) setInfo(statusRes.data);
-        }
-      } catch {
-        // 忽略轮询中的网络错误
-      }
-    }, 3000);
-  };
-
   const handlePay = async () => {
     setOrdering(true);
     try {
       const res = await subscriptionApi.createOrder({
         plan_type: selectedPlan,
         subscription_type: 'new',
-        payment_channel: paymentChannel,
+        payment_channel: 'alipay',
       });
-      if (res.success && res.data) {
-        setOrder(res.data);
-        setQrModalOpen(true);
-        startPolling(res.data.order_number);
+      if (res.success && res.data?.pay_url) {
+        // 跳转到支付宝收银台
+        window.location.href = res.data.pay_url;
       }
     } catch (e) {
       console.error(e);
     } finally {
       setOrdering(false);
     }
-  };
-
-  const handleCloseModal = () => {
-    stopPolling();
-    setQrModalOpen(false);
-    setOrder(null);
-    setPollStatus(null);
   };
 
   const selectedPlanInfo = PLAN_PRICES.find(p => p.key === selectedPlan);
@@ -172,17 +124,6 @@ export default function SubscriptionPanel() {
           </div>
         </Radio.Group>
 
-        {/* 支付方式选择 */}
-        <Title level={5} className="mb-3">支付方式</Title>
-        <Radio.Group
-          value={paymentChannel}
-          onChange={e => setPaymentChannel(e.target.value)}
-          className="mb-4"
-        >
-          <Radio value="alipay">支付宝</Radio>
-          <Radio value="wechat">微信支付</Radio>
-        </Radio.Group>
-
         {/* 支付按钮 */}
         <Button
           type="primary"
@@ -192,66 +133,10 @@ export default function SubscriptionPanel() {
           onClick={handlePay}
           disabled={!selectedPlan}
         >
-          {paymentChannel === 'alipay' ? '支付宝' : '微信'}扫码支付 ¥{selectedPlanInfo?.price ?? '--'}
+          支付宝付款 ¥{selectedPlanInfo?.price ?? '--'}
         </Button>
       </div>
       )}
-
-      {/* 二维码弹窗 */}
-      <Modal
-        title={`${paymentChannel === 'alipay' ? '支付宝' : '微信'}扫码支付 - ${selectedPlanInfo?.name}`}
-        open={qrModalOpen}
-        onCancel={handleCloseModal}
-        footer={null}
-        centered
-        width={360}
-      >
-        {pollStatus === 'paid' ? (
-          <div className="text-center py-8">
-            <div className="text-5xl mb-4">✅</div>
-            <Text strong className="text-lg">支付成功！</Text>
-            <div className="mt-2 text-gray-500">订阅已激活</div>
-            <Button type="primary" className="mt-4" onClick={handleCloseModal}>
-              关闭
-            </Button>
-          </div>
-        ) : pollStatus === 'timeout' ? (
-          <div className="text-center py-8">
-            <Alert type="warning" showIcon message="支付超时，请重新发起支付" />
-            <Button className="mt-4" onClick={handleCloseModal}>关闭</Button>
-          </div>
-        ) : (
-          <div className="text-center">
-            {order?.qr_code_url ? (
-              <>
-                <Image
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(order.qr_code_url)}`}
-                  alt={`${paymentChannel === 'alipay' ? '支付宝' : '微信'}支付二维码`}
-                  className="mx-auto mb-3"
-                  width={200}
-                  height={200}
-                  unoptimized
-                />
-                <div className="text-gray-500 text-sm mb-2">
-                  请使用{paymentChannel === 'alipay' ? '支付宝' : '微信"扫一扫"'}扫码支付
-                </div>
-                <Text strong className="text-lg text-red-500">
-                  ¥{order.amount}
-                </Text>
-                <div className="mt-3 flex items-center justify-center gap-2 text-gray-400 text-sm">
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
-                  <span>等待支付结果...</span>
-                </div>
-              </>
-            ) : (
-              <div className="py-8 text-center">
-                <div className="w-8 h-8 border-3 border-gray-200 border-t-blue-500 rounded-full animate-spin mx-auto" />
-                <p className="mt-3 text-neutral-500 text-sm">生成二维码中...</p>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
     </Card>
     </>
   );

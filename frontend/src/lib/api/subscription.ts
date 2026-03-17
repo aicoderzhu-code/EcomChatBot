@@ -17,7 +17,7 @@ export interface CreateOrderResponse {
   order_number: string;
   amount: number;
   currency: string;
-  qr_code_url: string;
+  pay_url: string;
   expires_at: string;
 }
 
@@ -66,7 +66,7 @@ export const subscriptionApi = {
     payment_channel?: string;
   }): Promise<ApiResponse<CreateOrderResponse>> => {
     const response = await apiClient.post<ApiResponse<CreateOrderResponse>>(
-      '/payment/orders/create',
+      '/payment/orders/create-page',
       params
     );
     return response.data;
