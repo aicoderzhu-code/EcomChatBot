@@ -78,7 +78,7 @@ class TenantService:
         self.db.add(tenant)
 
         # 创建订阅
-        plan_config = PLAN_CONFIGS.get(tenant_data.initial_plan, PLAN_CONFIGS["free"])
+        plan_config = PLAN_CONFIGS.get(tenant_data.initial_plan, PLAN_CONFIGS["trial"])
         subscription = Subscription(
             subscription_id=str(uuid.uuid4()),
             tenant_id=tenant_id,
@@ -427,7 +427,7 @@ class TenantService:
 
         # 创建试用订阅配置
         from core.permissions import SUBSCRIPTION_PLANS
-        trial_config = PLAN_CONFIGS.get("trial", PLAN_CONFIGS["free"])
+        trial_config = PLAN_CONFIGS["trial"]
         trial_days = SUBSCRIPTION_PLANS["trial"]["days"]
         plan_expire_at = datetime.utcnow() + timedelta(days=trial_days)
 
