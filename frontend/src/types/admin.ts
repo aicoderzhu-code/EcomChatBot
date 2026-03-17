@@ -210,11 +210,11 @@ export interface RefundRequest {
 // Payment Order Types
 export interface PaymentOrderInfo {
   id: number;
-  order_id: string;
+  order_number: string;
   tenant_id: string;
   company_name?: string;
   amount: number;
-  payment_method: string;
+  payment_channel: string;
   status: PaymentOrderStatus;
   created_at: string;
   paid_at: string | null;

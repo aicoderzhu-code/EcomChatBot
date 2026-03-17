@@ -27,7 +27,7 @@ from models.payment import (
 from models.tenant import Subscription, Tenant
 from services.payment_gateway import PaymentGateway
 from core.config import settings
-from core.permissions import ADDON_PACKAGES
+from core.permissions import ADDON_PACKAGES, PLAN_CONFIGS
 
 logger = logging.getLogger(__name__)
 
@@ -495,6 +495,10 @@ class PaymentService:
             now = datetime.now()
             days = self.get_plan_days(order.plan_type)
 
+            plan_config = PLAN_CONFIGS.get(order.plan_type, PLAN_CONFIGS.get("monthly", {}))
+            features = plan_config.get("features", [])
+            enabled_features_json = json.dumps([f.value if hasattr(f, "value") else f for f in features])
+
             if order.subscription_type == SubscriptionType.NEW:
                 # 将所有旧 active 订阅设为 inactive
                 for old_sub in active_subscriptions:
@@ -506,6 +510,7 @@ class PaymentService:
                     start_date=now,
                     expire_at=now + timedelta(days=days),
                     status="active",
+                    enabled_features=enabled_features_json,
                 )
                 self.db.add(subscription)
                 logger.info(f"Created new subscription for tenant: {tenant_str_id}")
@@ -523,6 +528,7 @@ class PaymentService:
                         start_date=now,
                         expire_at=now + timedelta(days=days),
                         status="active",
+                        enabled_features=enabled_features_json,
                     )
                     self.db.add(subscription)
 
@@ -538,6 +544,7 @@ class PaymentService:
                         start_date=now,
                         expire_at=now + timedelta(days=days),
                         status="active",
+                        enabled_features=enabled_features_json,
                     )
                     self.db.add(subscription)
 

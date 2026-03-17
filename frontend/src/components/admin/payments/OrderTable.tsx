@@ -63,8 +63,8 @@ export default function OrderTable({
   const columns: ColumnsType<PaymentOrderInfo> = [
     {
       title: '订单号',
-      dataIndex: 'order_id',
-      key: 'order_id',
+      dataIndex: 'order_number',
+      key: 'order_number',
       width: 180,
       ellipsis: true,
     },
@@ -89,8 +89,8 @@ export default function OrderTable({
     },
     {
       title: '支付方式',
-      dataIndex: 'payment_method',
-      key: 'payment_method',
+      dataIndex: 'payment_channel',
+      key: 'payment_channel',
       width: 100,
       render: (method: string) => paymentMethodLabels[method] || method,
     },
@@ -126,9 +126,9 @@ export default function OrderTable({
         record.status === 'pending' ? (
           <Button
             size="small"
-            icon={<SyncOutlined spin={syncingOrders.has(record.order_id)} />}
-            loading={syncingOrders.has(record.order_id)}
-            onClick={() => handleSync(record.order_id)}
+            icon={<SyncOutlined spin={syncingOrders.has(record.order_number)} />}
+            loading={syncingOrders.has(record.order_number)}
+            onClick={() => handleSync(record.order_number)}
           >
             同步
           </Button>
@@ -140,7 +140,7 @@ export default function OrderTable({
     <Table
       dataSource={orders}
       columns={columns}
-      rowKey="order_id"
+      rowKey="order_number"
       loading={loading}
       pagination={{
         current: page,
