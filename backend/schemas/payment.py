@@ -21,7 +21,7 @@ from models.payment import (
 
 class PaymentOrderCreate(BaseModel):
     """创建支付订单"""
-    plan_type: str = Field(..., description="套餐类型：basic/professional/enterprise")
+    plan_type: str = Field(..., description="套餐类型：monthly/quarterly/semi_annual/annual 或加量包：image_addon/video_addon")
     duration_months: int = Field(..., ge=1, le=36, description="订阅时长（月）：1-36")
     payment_type: PaymentType = Field(default=PaymentType.PC, description="支付类型：pc/mobile")
     subscription_type: SubscriptionType = Field(default=SubscriptionType.NEW, description="订阅类型")

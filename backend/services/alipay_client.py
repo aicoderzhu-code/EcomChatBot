@@ -172,6 +172,31 @@ class AlipayClient(PaymentGateway):
 
         return {"qr_code": qr_code}
 
+    async def create_page_pay(
+        self,
+        out_trade_no: str,
+        total_amount: str,
+        subject: str,
+        notify_url: str,
+        return_url: str,
+    ) -> dict:
+        """创建电脑网站支付跳转 URL（alipay.trade.page.pay）"""
+        biz_content = {
+            "out_trade_no": out_trade_no,
+            "total_amount": total_amount,
+            "subject": subject,
+            "product_code": "FAST_INSTANT_TRADE_PAY",
+        }
+        params = self._build_common_params("alipay.trade.page.pay")
+        params["notify_url"] = notify_url or self.notify_url
+        params["return_url"] = return_url
+        params["biz_content"] = json.dumps(biz_content, ensure_ascii=False)
+        self._sign_params(params)
+        query = "&".join(f"{k}={quote_plus(str(v))}" for k, v in sorted(params.items()))
+        pay_url = f"{self.gateway}?{query}"
+        logger.info(f"Alipay page pay URL built: out_trade_no={out_trade_no}")
+        return {"pay_url": pay_url}
+
     async def query_order(self, out_trade_no: str) -> dict:
         """查询订单状态"""
         try:

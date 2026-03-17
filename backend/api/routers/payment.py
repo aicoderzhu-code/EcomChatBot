@@ -105,7 +105,109 @@ async def create_payment_order(
         raise HTTPException(status_code=500, detail=f"创建支付订单失败: {str(e)}")
 
 
-@router.get("/orders/{order_number}", summary="查询订单详情")
+@router.post("/orders/create-page", summary="创建电脑网站支付订单")
+async def create_page_payment_order(
+    request_data: CreateOrderRequest,
+    tenant_id: TenantFlexDep,
+    db: DBDep,
+):
+    """
+    创建电脑网站支付订单（支付宝 alipay.trade.page.pay）
+
+    **请求参数**:
+    - plan_type: 套餐类型（monthly/quarterly/semi_annual/annual）
+    - subscription_type: 订阅类型（new/renewal/upgrade）
+    - payment_channel: 固定 alipay
+
+    **响应**:
+    - order_number: 订单编号
+    - amount: 金额
+    - pay_url: 跳转URL（前端 window.location.href = pay_url）
+    - expires_at: 过期时间
+    """
+    if request_data.plan_type not in PLAN_CONFIG:
+        raise HTTPException(status_code=400, detail=f"无效的套餐类型: {request_data.plan_type}")
+
+    try:
+        sub_type_map = {
+            "new": SubscriptionType.NEW,
+            "renewal": SubscriptionType.RENEWAL,
+            "upgrade": SubscriptionType.UPGRADE,
+        }
+        subscription_type = sub_type_map.get(request_data.subscription_type, SubscriptionType.NEW)
+
+        payment_service = PaymentService(db, channel=PaymentChannel.ALIPAY)
+        order, pay_url = await payment_service.create_page_payment_order(
+            tenant_id=tenant_id,
+            plan_type=request_data.plan_type,
+            subscription_type=subscription_type,
+            payment_channel=PaymentChannel.ALIPAY,
+            description=request_data.description,
+        )
+
+        return ApiResponse(data={
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "amount": float(order.amount),
+            "currency": order.currency,
+            "pay_url": pay_url,
+            "expires_at": order.expired_at.isoformat(),
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating page payment order: {e}")
+        raise HTTPException(status_code=500, detail=f"创建支付订单失败: {str(e)}")
+
+
+@router.get("/callback/alipay/return", summary="支付宝同步回跳处理")
+async def alipay_return_callback(
+    request: Request,
+    db: DBDep,
+):
+    """
+    支付宝电脑网站支付同步回跳处理
+
+    支付宝完成支付后浏览器跳回此地址，携带 out_trade_no、trade_no、total_amount、sign 等参数。
+    注意：同步回跳不能作为支付成功依据，仅用于展示结果，真正确认依赖异步 notify_url 回调。
+    """
+    try:
+        params = dict(request.query_params)
+        out_trade_no = params.get("out_trade_no", "")
+
+        logger.info(f"Received alipay return callback: out_trade_no={out_trade_no}")
+
+        # 验签
+        from services.alipay_client import get_alipay_client
+        client = get_alipay_client()
+        if client and not client.verify_notify(params):
+            logger.warning(f"Alipay return sign verification failed: out_trade_no={out_trade_no}")
+            return ApiResponse(data={"order_number": out_trade_no, "status": "unknown", "verified": False})
+
+        # 查询本地订单状态
+        payment_service = PaymentService(db)
+        order_info = await payment_service.query_order_status(out_trade_no)
+
+        if not order_info:
+            raise HTTPException(status_code=404, detail="订单不存在")
+
+        return ApiResponse(data={
+            "order_number": order_info["order_number"],
+            "status": order_info["status"],
+            "amount": order_info["amount"],
+            "trade_no": params.get("trade_no", ""),
+            "verified": True,
+        })
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error handling alipay return: {e}")
+        raise HTTPException(status_code=500, detail=f"处理回跳失败: {str(e)}")
+
+
+
 async def get_order_detail(
     order_number: str,
     tenant_id: TenantFlexDep,

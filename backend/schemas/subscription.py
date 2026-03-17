@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 class SubscribePlanRequest(BaseModel):
     """订阅套餐请求"""
-    plan_type: str = Field(..., description="套餐类型: basic/professional/enterprise")
+    plan_type: str = Field(..., description="套餐类型: trial/monthly/quarterly/semi_annual/annual")
     duration_months: int = Field(..., ge=1, le=36, description="订阅时长（月）: 1-36")
     payment_method: str = Field(default="alipay", description="支付方式: alipay")
     auto_renew: bool = Field(default=False, description="是否自动续费")
@@ -21,7 +21,7 @@ class SubscribePlanRequest(BaseModel):
 
 class ChangePlanRequest(BaseModel):
     """变更套餐请求"""
-    new_plan_type: str = Field(..., description="新套餐类型: basic/professional/enterprise")
+    new_plan_type: str = Field(..., description="新套餐类型: monthly/quarterly/semi_annual/annual")
     effective_immediately: bool = Field(default=True, description="是否立即生效")
 
 

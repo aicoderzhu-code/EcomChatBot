@@ -102,16 +102,20 @@ interface PlanDistributionProps {
 
 const planColors: Record<string, string> = {
   free: '#8c8c8c',
-  basic: '#1890ff',
-  professional: '#52c41a',
-  enterprise: '#722ed1',
+  trial: '#13c2c2',
+  monthly: '#1890ff',
+  quarterly: '#2f54eb',
+  semi_annual: '#722ed1',
+  annual: '#d48806',
 };
 
 const planLabels: Record<string, string> = {
   free: '免费版',
-  basic: '基础版',
-  professional: '专业版',
-  enterprise: '企业版',
+  trial: '试用版',
+  monthly: '月付版',
+  quarterly: '季付版',
+  semi_annual: '半年付',
+  annual: '年付版',
 };
 
 export function PlanDistribution({ distribution, loading }: PlanDistributionProps) {

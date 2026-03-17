@@ -106,11 +106,11 @@ class FeatureModule(str, Enum):
 
 # 新订阅套餐价格和时长配置
 SUBSCRIPTION_PLANS = {
-    "trial":       {"name": "试用版", "price": 0,    "days": 3},
-    "monthly":     {"name": "月付版", "price": 199,  "days": 30},
-    "quarterly":   {"name": "季付版", "price": 499,  "days": 90},
-    "semi_annual": {"name": "半年付", "price": 899,  "days": 180},
-    "annual":      {"name": "年付版", "price": 1699, "days": 365},
+    "trial":       {"name": "试用版", "price": 0,   "days": 3},
+    "monthly":     {"name": "月付版", "price": 0.1, "days": 30},
+    "quarterly":   {"name": "季付版", "price": 0.1, "days": 90},
+    "semi_annual": {"name": "半年付", "price": 0.1, "days": 180},
+    "annual":      {"name": "年付版", "price": 0.1, "days": 365},
 }
 
 # 配额常量定义（AI回复不限量，仅图片/视频有月度配额）
@@ -129,8 +129,8 @@ QUOTA_CONFIGS = {
 
 # 加量包定义（永久有效）
 ADDON_PACKAGES = {
-    "image_addon": {"name": "图片生成加量包", "price": 19, "credits": 50, "credit_type": "image"},
-    "video_addon": {"name": "视频生成加量包", "price": 49, "credits": 10, "credit_type": "video"},
+    "image_addon": {"name": "图片生成加量包", "price": 0.1, "credits": 50, "credit_type": "image"},
+    "video_addon": {"name": "视频生成加量包", "price": 0.1, "credits": 10, "credit_type": "video"},
 }
 
 
@@ -141,41 +141,8 @@ def get_quota_config(plan_type: str) -> dict:
     return QUOTA_CONFIGS["standard"]
 
 
-# 套餐配置
+# 套餐配置（订阅套餐，基于时间段）
 PLAN_CONFIGS = {
-    "free": {
-        "name": "免费版",
-        "base_price": 0,
-        "features": [FeatureModule.BASIC_CHAT],
-    },
-    "basic": {
-        "name": "基础版",
-        "base_price": 299,
-        "features": [
-            FeatureModule.BASIC_CHAT,
-            FeatureModule.ORDER_QUERY,
-            FeatureModule.KNOWLEDGE_MANAGE,
-        ],
-    },
-    "professional": {
-        "name": "专业版",
-        "base_price": 999,
-        "features": [
-            FeatureModule.BASIC_CHAT,
-            FeatureModule.ORDER_QUERY,
-            FeatureModule.PRODUCT_RECOMMEND,
-            FeatureModule.AFTER_SALES,
-            FeatureModule.DATA_ANALYTICS,
-            FeatureModule.KNOWLEDGE_MANAGE,
-            FeatureModule.API_ACCESS,
-        ],
-    },
-    "enterprise": {
-        "name": "企业版",
-        "base_price": 2999,
-        "features": [module.value for module in FeatureModule],  # 所有功能
-    },
-    # 订阅套餐（基于时间段，无配额限制）
     "trial": {
         "name": "试用版",
         "base_price": 0,
@@ -183,22 +150,22 @@ PLAN_CONFIGS = {
     },
     "monthly": {
         "name": "月付版",
-        "base_price": 199,
+        "base_price": 0.1,
         "features": [module for module in FeatureModule],
     },
     "quarterly": {
         "name": "季付版",
-        "base_price": 499,
+        "base_price": 0.1,
         "features": [module for module in FeatureModule],
     },
     "semi_annual": {
         "name": "半年付",
-        "base_price": 899,
+        "base_price": 0.1,
         "features": [module for module in FeatureModule],
     },
     "annual": {
         "name": "年付版",
-        "base_price": 1699,
+        "base_price": 0.1,
         "features": [module for module in FeatureModule],
     },
 }

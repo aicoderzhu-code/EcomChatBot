@@ -34,16 +34,16 @@ logger = logging.getLogger(__name__)
 
 # 套餐配置：plan_type -> (价格元, 天数)
 PLAN_CONFIG: Dict[str, tuple[Decimal, int]] = {
-    "monthly":     (Decimal("199.00"), 30),
-    "quarterly":   (Decimal("499.00"), 90),
-    "semi_annual": (Decimal("899.00"), 180),
-    "annual":      (Decimal("1699.00"), 365),
+    "monthly":     (Decimal("0.10"), 30),
+    "quarterly":   (Decimal("0.10"), 90),
+    "semi_annual": (Decimal("0.10"), 180),
+    "annual":      (Decimal("0.10"), 365),
 }
 
 # 加量包配置：addon_key -> (价格, credit_type, credits)
 ADDON_CONFIG: Dict[str, tuple[Decimal, str, int]] = {
-    "image_addon": (Decimal("19.00"), "image", 50),
-    "video_addon": (Decimal("49.00"), "video", 10),
+    "image_addon": (Decimal("0.10"), "image", 50),
+    "video_addon": (Decimal("0.10"), "video", 10),
 }
 
 
@@ -193,6 +193,87 @@ class PaymentService:
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error creating payment order: {e}")
+            raise PaymentException(f"创建支付订单失败: {str(e)}")
+
+    async def create_page_payment_order(
+        self,
+        tenant_id: int,
+        plan_type: str,
+        subscription_type: SubscriptionType,
+        payment_channel: PaymentChannel = PaymentChannel.ALIPAY,
+        description: Optional[str] = None,
+        return_url: Optional[str] = None,
+    ) -> tuple[PaymentOrder, str]:
+        """
+        创建电脑网站支付订单
+
+        Returns:
+            (订单对象, 跳转URL)
+        """
+        if not self._gateway:
+            raise PaymentException("支付网关未配置，请检查支付配置")
+
+        try:
+            tenant_stmt = select(Tenant).where(Tenant.id == tenant_id)
+            tenant_result = await self.db.execute(tenant_stmt)
+            tenant = tenant_result.scalar_one_or_none()
+            if not tenant:
+                raise TenantNotFoundException(str(tenant_id))
+
+            if subscription_type == SubscriptionType.ADDON:
+                if plan_type not in ADDON_CONFIG:
+                    raise PaymentException(f"无效的加量包类型: {plan_type}")
+                amount = ADDON_CONFIG[plan_type][0]
+                pkg = ADDON_PACKAGES.get(plan_type, {})
+                subject = description or pkg.get("name", f"加量包-{plan_type}")
+            else:
+                amount = self.get_plan_amount(plan_type)
+                subject = description or f"电商智能客服-{plan_type}套餐"
+
+            order_number = self.generate_order_number()
+
+            order = PaymentOrder(
+                order_number=order_number,
+                tenant_id=tenant_id,
+                amount=amount,
+                currency="CNY",
+                payment_channel=payment_channel,
+                payment_type=PaymentType.PC,
+                status=OrderStatus.PENDING,
+                subscription_type=subscription_type,
+                plan_type=plan_type,
+                duration_months=0,
+                expired_at=datetime.now() + timedelta(hours=2),
+                description=subject,
+            )
+
+            self.db.add(order)
+            await self.db.commit()
+            await self.db.refresh(order)
+
+            notify_url = getattr(settings, "alipay_notify_url", "")
+            effective_return_url = return_url or getattr(settings, "alipay_return_url", "")
+
+            result = await self._gateway.create_page_pay(
+                out_trade_no=order_number,
+                total_amount=str(amount),
+                subject=subject,
+                notify_url=notify_url,
+                return_url=effective_return_url,
+            )
+
+            pay_url = result.get("pay_url", "")
+            order.payment_url = pay_url
+            await self.db.commit()
+
+            logger.info(f"Created PC payment order: {order_number}, tenant={tenant_id}")
+            return order, pay_url
+
+        except (TenantNotFoundException, PaymentException):
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error creating page payment order: {e}")
             raise PaymentException(f"创建支付订单失败: {str(e)}")
 
     async def handle_alipay_notify(self, notify_data: Dict[str, str]) -> bool:

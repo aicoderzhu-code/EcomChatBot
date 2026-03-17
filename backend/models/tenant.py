@@ -71,7 +71,7 @@ class Tenant(BaseModel):
         String(32),
         nullable=False,
         default="free",
-        comment="当前套餐(free/basic/professional/enterprise)",
+        comment="当前套餐(free/trial/monthly/quarterly/semi_annual/annual)",
     )
     plan_expire_at: Mapped[datetime | None] = mapped_column(DateTime, comment="套餐过期时间")
 
@@ -132,7 +132,7 @@ class Subscription(BaseModel):
     plan_type: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
-        comment="套餐类型(free/basic/professional/enterprise)",
+        comment="套餐类型(free/trial/monthly/quarterly/semi_annual/annual)",
     )
     status: Mapped[str] = mapped_column(
         String(16),

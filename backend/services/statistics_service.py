@@ -108,9 +108,11 @@ class StatisticsService:
         # 套餐月度价格
         plan_prices = {
             "free": 0,
-            "basic": 99,
-            "professional": 299,
-            "enterprise": 999,
+            "trial": 0,
+            "monthly": 0.1,
+            "quarterly": 0.1,
+            "semi_annual": 0.1,
+            "annual": 0.1,
         }
 
         now = datetime.utcnow()

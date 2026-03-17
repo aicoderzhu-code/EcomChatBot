@@ -35,9 +35,11 @@ const statusConfig: Record<string, { color: string; label: string }> = {
 
 const planConfig: Record<string, { color: string; label: string }> = {
   free: { color: 'default', label: '免费版' },
-  basic: { color: 'blue', label: '基础版' },
-  professional: { color: 'green', label: '专业版' },
-  enterprise: { color: 'purple', label: '企业版' },
+  trial: { color: 'cyan', label: '试用版' },
+  monthly: { color: 'blue', label: '月付版' },
+  quarterly: { color: 'geekblue', label: '季付版' },
+  semi_annual: { color: 'purple', label: '半年付' },
+  annual: { color: 'gold', label: '年付版' },
 };
 
 export default function TenantTable({

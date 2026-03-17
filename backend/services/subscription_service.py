@@ -180,7 +180,7 @@ class SubscriptionService:
         """创建试用账号"""
         subscription = await self.assign_plan(
             tenant_id=tenant_id,
-            plan_type="basic",
+            plan_type="trial",
             duration_months=0,
         )
         subscription.is_trial = True

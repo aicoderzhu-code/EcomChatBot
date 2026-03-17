@@ -57,6 +57,22 @@ class PaymentGateway(ABC):
         """
         ...
 
+    async def create_page_pay(
+        self,
+        out_trade_no: str,
+        total_amount: str,
+        subject: str,
+        notify_url: str,
+        return_url: str,
+    ) -> dict:
+        """
+        创建电脑网站支付跳转 URL（非抽象，默认不支持）
+
+        Returns:
+            {"pay_url": str}
+        """
+        raise NotImplementedError
+
     @abstractmethod
     async def refund(
         self,

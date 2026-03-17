@@ -51,9 +51,11 @@ export default function RevenuePage() {
       render: (plan: string) => {
         const labels: Record<string, string> = {
           free: '免费版',
-          basic: '基础版',
-          professional: '专业版',
-          enterprise: '企业版',
+          trial: '试用版',
+          monthly: '月付版',
+          quarterly: '季付版',
+          semi_annual: '半年付',
+          annual: '年付版',
         };
         return labels[plan] || plan;
       },

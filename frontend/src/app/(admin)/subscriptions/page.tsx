@@ -25,10 +25,6 @@ const planOptions = [
   { value: 'quarterly', label: '季付版' },
   { value: 'semi_annual', label: '半年付' },
   { value: 'annual', label: '年付版' },
-  { value: 'free', label: '免费版（旧）' },
-  { value: 'basic', label: '基础版（旧）' },
-  { value: 'professional', label: '专业版（旧）' },
-  { value: 'enterprise', label: '企业版（旧）' },
 ];
 
 const assignPlanOptions = [
@@ -47,15 +43,12 @@ const statusConfig: Record<string, { color: string; label: string }> = {
 };
 
 const planConfig: Record<string, { color: string; label: string }> = {
+  free: { color: 'default', label: '免费版' },
   trial: { color: 'cyan', label: '试用版' },
   monthly: { color: 'blue', label: '月付版' },
   quarterly: { color: 'geekblue', label: '季付版' },
   semi_annual: { color: 'purple', label: '半年付' },
   annual: { color: 'gold', label: '年付版' },
-  free: { color: 'default', label: '免费版' },
-  basic: { color: 'blue', label: '基础版' },
-  professional: { color: 'green', label: '专业版' },
-  enterprise: { color: 'purple', label: '企业版' },
 };
 
 export default function SubscriptionsPage() {

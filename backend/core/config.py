@@ -139,6 +139,7 @@ class Settings(BaseSettings):
     alipay_public_key: str = ""   # 支付宝平台公钥字符串
     alipay_gateway: str = "https://openapi.alipay.com/gateway.do"
     alipay_notify_url: str = ""
+    alipay_return_url: str = ""   # 电脑网站支付同步回跳地址
     alipay_sandbox: bool = False
     alipay_sandbox_gateway: str = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
 

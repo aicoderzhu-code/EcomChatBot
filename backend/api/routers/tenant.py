@@ -207,18 +207,18 @@ async def subscribe_plan(
     """
     订阅套餐
 
-    - **plan_type**: 套餐类型 (basic/professional/enterprise)
+    - **plan_type**: 套餐类型 (trial/monthly/quarterly/semi_annual/annual)
     - **duration_months**: 订阅时长（月），1-36个月
     - **payment_method**: 支付方式 (alipay)
     - **auto_renew**: 是否自动续费
 
     流程：
     1. 验证套餐有效性
-    2. 如果是免费套餐，直接激活
+    2. 如果是免费/试用套餐，直接激活
     3. 如果是付费套餐，创建支付订单并返回支付链接
     """
     # 验证套餐类型
-    valid_plans = ["free", "basic", "professional", "enterprise"]
+    valid_plans = ["free", "trial", "monthly", "quarterly", "semi_annual", "annual"]
     if request.plan_type not in valid_plans:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -231,8 +231,8 @@ async def subscribe_plan(
     # 获取租户信息
     tenant = await tenant_service.get_tenant(tenant_id)
 
-    # 如果是免费套餐，直接激活
-    if request.plan_type == "free":
+    # 如果是免费/试用套餐，直接激活
+    if request.plan_type in ("free", "trial"):
         subscription = await subscription_service.assign_plan(
             tenant_id=tenant_id,
             plan_type="free",
@@ -277,7 +277,7 @@ async def change_plan(
     """
     变更套餐（升级/降级）
 
-    - **new_plan_type**: 新套餐类型 (basic/professional/enterprise)
+    - **new_plan_type**: 新套餐类型 (monthly/quarterly/semi_annual/annual)
     - **effective_immediately**: 是否立即生效
 
     规则：
@@ -285,7 +285,7 @@ async def change_plan(
     - 降级：下个计费周期生效
     """
     # 验证套餐类型
-    valid_plans = ["free", "basic", "professional", "enterprise"]
+    valid_plans = ["monthly", "quarterly", "semi_annual", "annual"]
     if request.new_plan_type not in valid_plans:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -395,7 +395,7 @@ async def preview_plan_change_price(
     - 剩余天数
     """
     # 验证套餐类型
-    valid_plans = ["basic", "professional", "enterprise"]
+    valid_plans = ["monthly", "quarterly", "semi_annual", "annual"]
     if new_plan_type not in valid_plans:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

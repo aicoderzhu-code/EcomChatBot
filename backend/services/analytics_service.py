@@ -371,7 +371,7 @@ class AnalyticsService:
         sub_result = await self.db.execute(sub_stmt)
         sub_map = {s.tenant_id: s for s in sub_result.scalars().all()}
 
-        plan_order = {"free": 0, "basic": 1, "professional": 2, "enterprise": 3}
+        plan_order = {"free": 0, "trial": 1, "monthly": 2, "quarterly": 3, "semi_annual": 4, "annual": 5}
 
         scored_tenants = []
         for tenant in tenants:
@@ -383,7 +383,7 @@ class AnalyticsService:
             activity_score = min(30, monthly_conversations / 100 * 30)
 
             current_plan = subscription.plan if subscription else "free"
-            upgrade_potential = (3 - plan_order.get(current_plan, 0)) * 5
+            upgrade_potential = (5 - plan_order.get(current_plan, 0)) * 4
             growth_score = min(20, upgrade_potential + 5)
 
             months_as_customer = (now - tenant.created_at).days // 30
@@ -452,9 +452,9 @@ class AnalyticsService:
         sub_result = await self.db.execute(sub_stmt)
         subscription = sub_result.scalar_one_or_none()
         
-        plan_order = {"free": 0, "basic": 1, "professional": 2, "enterprise": 3}
+        plan_order = {"free": 0, "trial": 1, "monthly": 2, "quarterly": 3, "semi_annual": 4, "annual": 5}
         current_plan = subscription.plan if subscription else "free"
-        upgrade_potential = (3 - plan_order.get(current_plan, 0)) * 5
+        upgrade_potential = (5 - plan_order.get(current_plan, 0)) * 4
 
         growth_score = min(20, upgrade_potential + 5)  # 基础5分
 
