@@ -173,7 +173,9 @@ async def unified_webhook(
         background_tasks.add_task(service.handle_pinduoduo_webhook, payload_data)
     elif platform_type == "douyin":
         background_tasks.add_task(service.handle_douyin_webhook, payload_data)
-    # 新平台的处理在后续 Task 中添加
+    elif platform_type == "kuaishou":
+        # ⚠️ 快手 IM 消息推送尚未实测，字段格式待注册 ISV 账号后验证
+        background_tasks.add_task(service.handle_kuaishou_webhook, payload_data)
 
     # 快速响应
     if platform_type == "douyin":

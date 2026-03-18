@@ -15,6 +15,7 @@ from models.platform import PlatformConfig
 from services.conversation_service import ConversationService
 from services.platform.pinduoduo_client import PinduoduoClient
 from services.platform.douyin_client import DouyinClient
+from services.platform.kuaishou.client import KuaishouClient
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +206,100 @@ class PlatformMessageService:
                     config=config,
                 )
 
+    async def handle_kuaishou_webhook(self, payload: dict) -> None:
+        """
+        处理快手 Webhook 推送
+
+        ⚠️ 注意：快手 IM 消息推送（merchant_im scope）尚未实测，字段名称需注册 ISV 账号后验证。
+
+        预期 payload 字段（参考快手电商开放平台文档）：
+          - seller_id / shop_id: 店铺ID
+          - buyer_open_id / buyer_id: 买家 open_id
+          - conversation_id / session_id: 会话ID
+          - content: 消息内容（文本或 JSON）
+          - msg_type: 消息类型
+        """
+        # 提取字段（兼容多种可能的字段名）
+        shop_id = str(payload.get("seller_id") or payload.get("shop_id") or "")
+        buyer_id = str(payload.get("buyer_open_id") or payload.get("buyer_id") or "")
+        conversation_id = str(payload.get("conversation_id") or payload.get("session_id") or "")
+
+        content = payload.get("content", "")
+        if isinstance(content, str):
+            import json as _json
+            try:
+                content_data = _json.loads(content)
+                content = content_data.get("text", content)
+            except Exception:
+                pass
+        content = str(content).strip()
+
+        if not content:
+            return
+
+        # 1. 查找平台配置 → 获取 tenant_id
+        config = await self._get_platform_config("kuaishou", shop_id)
+        if not config:
+            logger.warning("未找到快手 shop_id=%s 对应的平台配置", shop_id)
+            return
+
+        tenant_id = config.tenant_id
+
+        # 2. 查找或创建用户
+        conv_service = ConversationService(self.db, tenant_id)
+        user_external_id = f"kuaishou_{buyer_id}"
+        user = await conv_service.get_or_create_user(
+            user_external_id=user_external_id,
+            user_data={"nickname": f"快手买家{buyer_id}"},
+        )
+        if not user.platform_user_id:
+            user.platform_user_id = buyer_id
+            await self.db.commit()
+
+        # 3. 查找或创建会话
+        conversation = await self._get_or_create_platform_conversation(
+            tenant_id=tenant_id,
+            user_id=user.id,
+            platform_type="kuaishou",
+            platform_conversation_id=conversation_id,
+        )
+
+        # 4. 保存用户消息
+        msg_id = f"msg_{int(datetime.utcnow().timestamp())}_{buyer_id}"
+        message = Message(
+            tenant_id=tenant_id,
+            message_id=msg_id,
+            conversation_id=conversation.conversation_id,
+            role="user",
+            content=content,
+        )
+        self.db.add(message)
+        await self.db.commit()
+
+        # 5. 意图识别
+        from services.intent_service import IntentService
+        intent_service = IntentService(db=self.db, tenant_id=tenant_id)
+        intent = intent_service.classify_intent_by_rules(content)
+        confidence = intent_service.get_intent_confidence(content, intent)
+
+        # 6. 根据置信度决定 AI 回复还是转人工
+        threshold = config.auto_reply_threshold
+        if confidence >= threshold:
+            await self._ai_reply_kuaishou(
+                db=self.db,
+                tenant_id=tenant_id,
+                conversation=conversation,
+                user_input=content,
+                config=config,
+            )
+        else:
+            await self._escalate_to_human_kuaishou(
+                db=self.db,
+                tenant_id=tenant_id,
+                conversation=conversation,
+                config=config,
+            )
+
     @staticmethod
     def _extract_douyin_text_messages(payload: dict | list) -> list[dict[str, str]]:
         """从抖店推送体提取可处理的文本消息。"""
@@ -390,7 +485,7 @@ class PlatformMessageService:
             except Exception as e:
                 logger.warning("发送转人工提示语失败: %s", e)
 
-        # 触发 Webhook 通知租户
+        # 触发 Webhook 通知租户（拼多多）
         try:
             from services.webhook_service import WebhookService
             webhook_service = WebhookService(db, tenant_id)
@@ -486,6 +581,97 @@ class PlatformMessageService:
                 logger.warning("发送转人工提示语失败: %s", e)
 
         # 触发 Webhook 通知租户
+        try:
+            from services.webhook_service import WebhookService
+            webhook_service = WebhookService(db, tenant_id)
+            await webhook_service.trigger_event(
+                event_type="conversation.human_required",
+                event_data={
+                    "conversation_id": conversation.conversation_id,
+                    "platform_type": conversation.platform_type,
+                    "platform_conversation_id": conversation.platform_conversation_id,
+                },
+            )
+        except Exception as e:
+            logger.warning("触发 Webhook 通知失败: %s", e)
+
+    async def _ai_reply_kuaishou(
+        self,
+        db: AsyncSession,
+        tenant_id: str,
+        conversation: Conversation,
+        user_input: str,
+        config: PlatformConfig,
+    ) -> None:
+        """调用 AI 生成回复并发送到快手"""
+        try:
+            from services.conversation_chain_service import ConversationChainService
+            chain = ConversationChainService(
+                db=db,
+                tenant_id=tenant_id,
+                conversation_id=conversation.conversation_id,
+                platform_name="快手电商",
+            )
+            await chain.initialize()
+            result = await chain.chat(user_input=user_input)
+            reply_text = result["response"]
+
+            from core.crypto import decrypt_field
+            try:
+                plain_secret = decrypt_field(config.app_secret)
+            except Exception:
+                plain_secret = config.app_secret
+            client = KuaishouClient(config.app_key, plain_secret)
+            await client.send_message(
+                access_token=config.access_token,
+                buyer_id=conversation.platform_conversation_id,
+                content=reply_text,
+            )
+
+            ai_msg_id = f"msg_{int(datetime.utcnow().timestamp())}_ai"
+            ai_msg = Message(
+                tenant_id=tenant_id,
+                message_id=ai_msg_id,
+                conversation_id=conversation.conversation_id,
+                role="assistant",
+                content=reply_text,
+                input_tokens=result.get("input_tokens"),
+                output_tokens=result.get("output_tokens"),
+            )
+            db.add(ai_msg)
+            await db.commit()
+        except Exception as e:
+            logger.error("快手 AI 回复失败: %s", e, exc_info=True)
+
+    async def _escalate_to_human_kuaishou(
+        self,
+        db: AsyncSession,
+        tenant_id: str,
+        conversation: Conversation,
+        config: PlatformConfig,
+    ) -> None:
+        """标记转人工并通知租户（快手）"""
+        conversation.status = "pending_human"
+        conversation.transferred_to_human = True
+        conversation.transfer_reason = "AI 置信度不足"
+        await db.commit()
+
+        if config.human_takeover_message and config.access_token:
+            try:
+                from core.crypto import decrypt_field
+                try:
+                    plain_secret = decrypt_field(config.app_secret)
+                except Exception:
+                    plain_secret = config.app_secret
+                client = KuaishouClient(config.app_key, plain_secret)
+                await client.send_message(
+                    access_token=config.access_token,
+                    buyer_id=conversation.platform_conversation_id,
+                    content=config.human_takeover_message,
+                )
+            except Exception as e:
+                logger.warning("快手发送转人工提示语失败: %s", e)
+
         try:
             from services.webhook_service import WebhookService
             webhook_service = WebhookService(db, tenant_id)

@@ -1,4 +1,18 @@
-"""京东平台适配器"""
+"""京东平台适配器
+
+⚠️ 重要说明 — 京东咚咚 IM 第三方接入状态待验证
+================================================
+京东宙斯开放平台（JOS）对商品/订单/售后 API 完全开放，但 IM 客服消息接口状态不明确：
+- 京东有"咚咚"即时通讯系统，但第三方 ISV 能否接入尚无公开文档
+- 当前 parse_webhook_event / send_message 方法属于**推测性实现**，参考了可能的字段格式
+- 在实际注册 JD ISV 账号并测试前，IM 功能不可依赖
+
+建议：
+  - 正式开发 JD IM 功能前，先注册京东开放平台 ISV 账号，验证以下两点：
+    1. 是否有专门的客服消息推送接口（Webhook 订阅）
+    2. 是否有回复消息的 API
+  - 若 JD IM API 也封闭（与淘宝类似），将接入定位改为"商品/订单/售后数据同步"
+"""
 import json
 import logging
 from datetime import datetime
@@ -58,6 +72,8 @@ class JdAdapter(BasePlatformAdapter):
         return client.verify_webhook_signature(body, signature)
 
     def parse_webhook_event(self, body: dict) -> list[PlatformEvent]:
+        # ⚠️ 推测性实现：JD 咚咚 IM Webhook 格式未经实测验证，字段名称可能不正确。
+        # 需注册京东 ISV 账号并实测后再确认。
         events = []
         messages = body.get("messages", [body]) if isinstance(body, dict) else [body]
         for msg in messages:
@@ -88,6 +104,8 @@ class JdAdapter(BasePlatformAdapter):
         return events
 
     async def send_message(self, conversation_id: str, content: str, msg_type: str = "text") -> bool:
+        # ⚠️ 推测性实现：JD 咚咚消息回复 API 未经实测验证，方法名和参数格式可能不正确。
+        # 需注册京东 ISV 账号并确认 IM API 可用性后再启用。
         client = JdClient(self.app_key, self.app_secret)
         await client.send_message(
             access_token=self.access_token,

@@ -1,4 +1,24 @@
-"""淘宝/天猫平台适配器"""
+"""淘宝/天猫平台适配器
+
+⚠️ 重要限制说明 — 旺旺 IM 聊天客服对第三方封闭
+=================================================
+淘宝开放平台自 2016 年起对客服类 ISV 强管控：
+- 旺旺 IM 聊天消息 API（含聊天记录增值包）仅对"绩效考核类功能应用"开放
+- AI 智能客服 SaaS 属于客服类应用，**无法通过标准申请获批**
+- 阿里巴巴有自己的 AI 客服生态（千牛智能客服），不开放第三方竞争
+
+本适配器的 IM 实现（parse_webhook_event / send_message）使用的是：
+  taobao.miniapp.message.send — 小程序客服消息接口（非旺旺 IM）
+
+该绕路方案的覆盖范围极其有限：
+  ✅ 仅适用于商家已开通淘宝/天猫小程序的场景
+  ❌ 不适用于常规旺旺 IM 聊天场景（覆盖绝大多数商家）
+
+建议：
+  - 淘宝/天猫接入定位应调整为"商品/订单/售后数据同步"，不承诺 IM 聊天客服
+  - 若要做旺旺 IM 客服，需走千牛 ISV 合作路线（需单独商务谈判，非技术问题）
+  - 向商家明确说明本产品在淘宝侧的功能边界
+"""
 import json
 import logging
 from datetime import datetime
@@ -59,6 +79,8 @@ class TaobaoAdapter(BasePlatformAdapter):
         return client.verify_webhook_signature(body, signature)
 
     def parse_webhook_event(self, body: dict) -> list[PlatformEvent]:
+        # ⚠️ 注意：此处解析的是淘宝小程序客服消息（TMC 通道），非旺旺 IM 消息。
+        # 仅在商家开通小程序后才有消息推送，覆盖范围极为有限。
         events = []
         # 淘宝消息通道 (TMC) 格式
         messages = body.get("messages", [body]) if isinstance(body, dict) else [body]
@@ -88,6 +110,8 @@ class TaobaoAdapter(BasePlatformAdapter):
         return events
 
     async def send_message(self, conversation_id: str, content: str, msg_type: str = "text") -> bool:
+        # ⚠️ 注意：此处调用的是淘宝小程序客服消息接口（taobao.miniapp.message.send），
+        # 非旺旺 IM 接口。仅在商家开通小程序时可用，无法覆盖常规淘宝/天猫旺旺 IM 场景。
         client = TaobaoClient(self.app_key, self.app_secret)
         await client.send_message(
             session_key=self.access_token,
