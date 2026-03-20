@@ -81,6 +81,12 @@
 - **CI/CD**：部署脚本（deploy-dev.sh / deploy-prod.sh）
 - **监控**：Prometheus 指标采集、Sentry 错误追踪、Flower 任务监控
 
+## 🌐 在线体验
+
+| 地址 | 说明 |
+|------|------|
+| https://www.ecomchat.cn/ | 用户端（租户工作台） |
+
 ## 🚀 快速开始
 
 ### 前置要求
